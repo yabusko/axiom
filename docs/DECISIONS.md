@@ -416,6 +416,60 @@ change to the data path is the collection name constant in `qdrant_utils.py`.
 
 ---
 
+## OD19 — Agentic pipeline: `graph._pagerank` promoted to public `graph.pagerank`
+
+**Context.** The new concept co-occurrence graph (R7, `axiom/concept_graph.py`) needs an
+"analogous" PageRank to the one `gaps.py`/`graph.py` already run on the citation graph.
+
+**Decision.** Promote the existing private `_pagerank` power-iteration routine in `graph.py` to a
+public `pagerank(g, alpha, max_iter, tol)` and have `concept_graph.py` call it, instead of writing
+a second copy that could silently drift from the first. `gaps.py`'s own use of it is unaffected.
+
+## OD20 — Agent-extracted concepts never merge into the OpenAlex `concepts` table
+
+**Context.** The agentic pipeline (`axiom/agents/*`) extracts method/task/dataset/metric entities
+per paper via LLM + embedding matching — a different provenance and confidence model than the
+OpenAlex taxonomy already stored in `concepts`.
+
+**Decision.** New tables `paper_concepts` and `concept_cooccurrence` hold agent output; rows never
+merge into `concepts`. Same separation discipline OD11 used for the eval corpus, applied here to
+provenance instead of corpus identity. See docs/agentic/ARCHITECTURE.md §4 for the schema.
+
+## OD21 — R8 structural retrieval arm is eval-only, not wired into production search
+
+**Context.** R8 asks for an optional concept-overlap retrieval arm fused into the existing
+dense+sparse RRF. Doing this on the interactive search path would mean an LLM call (to extract
+the query's concepts) per user query — too slow/costly for Streamlit/API, and OD4 already froze
+`AxiomQdrant.search`/`search_hybrid`'s signatures.
+
+**Decision.** The structural arm lives only in `scripts/eval_ndcg.py --mode hybrid_struct`, scored
+against the eval corpus's `paper_concepts`, fused in Python the same way OD4 already does. `search`
+and `search_hybrid` stay untouched.
+
+## OD22 — Pydantic v2 is a second, narrower contract boundary (agent calls only)
+
+**Context.** OD12 established dataclasses as the internal convention, with Pydantic only mirroring
+them at the FastAPI boundary. The agentic pipeline needs `model_json_schema()` to build the
+Anthropic `output_config.format` payload — Pydantic is structurally required there, not a style
+choice.
+
+**Decision.** `axiom/agents/contracts.py` uses Pydantic v2 for every LLM/agent call boundary
+(coordinator, extraction, enrichment, verifier). The rest of `axiom/*` keeps OD12's dataclass
+convention; this isn't a reversal, just a second boundary where the tooling demands it.
+
+## OD23 — `VERIFIER_COSINE_MIN` set by manual inspection, not swept to a target
+
+**Context.** The deterministic verifier (R3) rejects entity→ontology matches below a cosine
+threshold. Honesty rule (AXIOM_AGENTIC_TASK.md §1) forbids picking a threshold to hit a target
+number.
+
+**Decision.** `axiom.config.VERIFIER_COSINE_MIN` is set by inspecting ~30 (entity, ontology-match)
+pairs sorted by cosine and picking the value where true/false matches visibly separate, recorded
+with the date and sample size in a `config.py` comment. Current value (`0.70`) is a placeholder
+until that inspection runs — see the comment above the constant.
+
+---
+
 ## Schema change log
 
 | Date       | Change                                              | By |
@@ -424,3 +478,4 @@ change to the data path is the collection name constant in `qdrant_utils.py`.
 | 2026-07-04 | Added `reading_list` (paper_id, added_at) — bookmarks only, OD13 | UI track |
 | 2026-07-04 | Added `concept_canonical` (concept, canonical, source) and `paper_summaries` (paper_id, bullets_json, model, created_at) — OD14 | UI track |
 | 2026-07-04 | Added `review_queue` (id, gap_a_label, gap_b_label, title, claim, method_sketch, datasets_json, supporting_ids_json, status, created_at) — OD16 | UI track |
+| 2026-10-30 | Added `paper_concepts`, `concept_cooccurrence`, `agent_runs`, `agent_run_items` + indexes — agentic pipeline, OD19/OD20 | agentic track |

@@ -108,3 +108,54 @@ CREATE INDEX IF NOT EXISTS idx_papers_venue   ON papers(venue);
 CREATE INDEX IF NOT EXISTS idx_concepts_paper ON concepts(paper_id);
 CREATE INDEX IF NOT EXISTS idx_edges_src      ON citation_edges(src_id);
 CREATE INDEX IF NOT EXISTS idx_edges_dst      ON citation_edges(dst_id);
+
+-- Agentic extraction pipeline (OD19-OD23, docs/agentic/ARCHITECTURE.md). Distinct from the
+-- OpenAlex-sourced `concepts` table above: different provenance (LLM+embedding vs. taxonomy)
+-- and confidence semantics, so rows are never merged across the two tables (OD19).
+CREATE TABLE IF NOT EXISTS paper_concepts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id      TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    kind          TEXT NOT NULL,            -- method | task | dataset | metric
+    canonical     TEXT NOT NULL,            -- ontology-mapped label
+    cosine        REAL NOT NULL,
+    evidence_span TEXT NOT NULL,
+    confidence    REAL NOT NULL,
+    source        TEXT NOT NULL DEFAULT 'agent',
+    created_at    DATETIME NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
+);
+
+CREATE TABLE IF NOT EXISTS concept_cooccurrence (
+    paper_id  TEXT NOT NULL,
+    concept_a TEXT NOT NULL,                -- canonical; concept_a < concept_b
+    concept_b TEXT NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+    run_id       TEXT PRIMARY KEY,
+    status       TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | failed
+    papers_total INTEGER NOT NULL DEFAULT 0,
+    papers_done  INTEGER NOT NULL DEFAULT 0,
+    model_fast   TEXT,
+    model_strong TEXT,
+    started_at   DATETIME,
+    finished_at  DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS agent_run_items (
+    run_id             TEXT NOT NULL,
+    paper_id           TEXT NOT NULL,
+    route              TEXT,                -- full | title_only | skip
+    verifier_attempts  INTEGER DEFAULT 0,
+    verdict            TEXT,                -- accepted | rejected
+    error              TEXT,
+    PRIMARY KEY (run_id, paper_id),
+    FOREIGN KEY (run_id) REFERENCES agent_runs(run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_concepts_paper     ON paper_concepts(paper_id);
+CREATE INDEX IF NOT EXISTS idx_paper_concepts_canonical ON paper_concepts(canonical);
+CREATE INDEX IF NOT EXISTS idx_cooc_a ON concept_cooccurrence(concept_a);
+CREATE INDEX IF NOT EXISTS idx_cooc_b ON concept_cooccurrence(concept_b);

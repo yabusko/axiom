@@ -7,6 +7,7 @@ strings scattered across the codebase.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 # --- Paths -------------------------------------------------------------------
@@ -179,3 +180,41 @@ CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b"        # good instruction-following/JSON at 7B, fast locally
 OLLAMA_TIMEOUT = 120.0
+
+# --- Agentic pipeline (OD19-OD23, docs/agentic/ARCHITECTURE.md) --------------
+# Provider priority: anthropic iff ANTHROPIC_API_KEY is set, else ollama (mirrors OD14's
+# no-key philosophy -- the pipeline always runs, quality/latency differ by provider).
+LLM_PROVIDER_PRIORITY = ("anthropic", "ollama")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+ANTHROPIC_TIMEOUT = 60.0
+ANTHROPIC_MAX_RETRIES = 5
+ANTHROPIC_BACKOFF_CAP = 30.0
+
+# Model tiers (R6). IDs and prices verified against the Claude API pricing reference,
+# checked 2026-10-30 -- re-verify before relying on these if this drifts far from that date.
+MODEL_PRICE_CHECKED_DATE = "2026-10-30"
+MODEL_FAST = "claude-haiku-4-5"
+MODEL_FAST_PRICE_IN = 1.00          # $ / 1M input tokens
+MODEL_FAST_PRICE_OUT = 5.00         # $ / 1M output tokens
+MODEL_STRONG = "claude-sonnet-5"
+MODEL_STRONG_PRICE_IN = 2.00        # $ / 1M input tokens
+MODEL_STRONG_PRICE_OUT = 10.00      # $ / 1M output tokens
+
+LLM_BUDGET_USD = 3.00               # hard cap on total agentic-pipeline spend (laptop rule)
+
+AGENT_MAX_RETRIES = 3               # R4: self-correction attempts per agent call
+AGENT_CONCURRENCY = 4               # R5: asyncio.Semaphore limit for worker fan-out
+
+ENTITY_KINDS = ("method", "task", "dataset", "metric")
+ROUTE_ACTIONS = ("full", "title_only", "skip")
+
+# Set by inspecting ~30 (entity, ontology-match) pairs sorted by cosine and picking the value
+# where true/false matches visibly separate (OD23) -- placeholder until that inspection runs.
+VERIFIER_COSINE_MIN = 0.70
+
+TRACE_DIR = PROJECT_ROOT / "eval" / "runs"
+EVAL_V2_QUERIES_PATH = PROJECT_ROOT / "eval" / "ndcg_queries_v2.json"
+EVAL_V2_SCALE_MAX = 2
+AGENT_BENCH_PATH = PROJECT_ROOT / "eval" / "agent_bench.json"
+STRUCT_RETRIEVAL_CANDIDATES = 200   # R8: candidate pool size for the eval-only concept-overlap arm
