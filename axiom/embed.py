@@ -39,14 +39,33 @@ class Specter2Encoder:
     def __init__(self, model_id: str = config.MODEL_ID, device: str | None = None):
         self.model_id = model_id
         self.device = device or _pick_device()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
-        self.model = AutoModel.from_pretrained(model_id).to(self.device)
+        load_from = self._resolve_local_snapshot(model_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(load_from)
+        self.model = AutoModel.from_pretrained(load_from).to(self.device)
         self.model.eval()
         # Decide how queries are embedded (see _resolve_query_path). Documents
         # are ALWAYS encoded with the plain base model via encode(), so existing
         # corpus points stay valid and never need re-encoding for this change.
         self.query_path = self._resolve_query_path()
         print(f"[embed] query path: {self.query_path}")
+
+    @staticmethod
+    def _resolve_local_snapshot(model_id: str) -> str:
+        """Local cache dir if already downloaded, else the bare repo id.
+
+        `from_pretrained(repo_id, local_files_only=True)` still calls
+        `has_file()` internally, which hits the network regardless of
+        `local_files_only` (a known gap in this pinned transformers version)
+        -- on a flaky/proxied connection that raises before ever reaching the
+        cache. Passing a literal local directory instead skips hub resolution
+        entirely. `snapshot_download(local_files_only=True)` does respect the
+        flag and raises cleanly (no network call) when nothing is cached.
+        """
+        try:
+            from huggingface_hub import snapshot_download
+            return snapshot_download(repo_id=model_id, local_files_only=True)
+        except Exception:
+            return model_id
 
     def _resolve_query_path(self) -> str:
         """Prefer the SPECTER2 ad-hoc query adapter; fall back to expansion.
