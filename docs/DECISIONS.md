@@ -468,6 +468,24 @@ pairs sorted by cosine and picking the value where true/false matches visibly se
 with the date and sample size in a `config.py` comment. Current value (`0.70`) is a placeholder
 until that inspection runs — see the comment above the constant.
 
+## OD24 — `truststore` added to trust the OS cert store for outbound HTTPS
+
+**Context.** Running the agentic pipeline for real against the Anthropic API (and, separately,
+loading SPECTER2 from HuggingFace) failed on this dev machine's network with
+`CERTIFICATE_VERIFY_FAILED` on every `httpx`/`requests` call — `requests`/`httpx` both pin
+verification to `certifi`'s bundled CA list, and that list doesn't include whatever root CA is
+terminating TLS on this network (a corporate/proxy inspection signature). A raw
+`ssl.create_default_context()` handshake to the same host succeeds, because Windows' own
+certificate store already trusts that CA — only Python's `certifi`-pinned HTTP libraries don't.
+
+**Decision.** Added `truststore==0.10.5` (requirements.txt) and call
+`truststore.inject_into_ssl()` once, at the top of `axiom/config.py` (imported by everything
+before any network call), so every `ssl.SSLContext` — and therefore every `httpx`/`requests`
+call in the app — uses the OS trust store instead of `certifi`'s bundled list. This is a
+judgment call specific to a network environment that terminates/inspects outbound TLS: it makes
+the app trust whatever the OS already trusts, which is the correct behavior on a corporate-managed
+machine but is worth knowing about on any other network this code runs on.
+
 ---
 
 ## Schema change log

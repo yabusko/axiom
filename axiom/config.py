@@ -10,6 +10,18 @@ import json
 import os
 from pathlib import Path
 
+import truststore
+
+# OD24: make every httpx/requests call in the app trust the OS certificate
+# store instead of certifi's bundled list. On a network with a TLS-inspecting
+# proxy (the dev laptop this was found on), certifi lacks that proxy's root
+# CA while Windows already trusts it -- without this, every outbound HTTPS
+# call (Anthropic API, HuggingFace Hub) fails with CERTIFICATE_VERIFY_FAILED
+# even though a plain OS-level TLS handshake succeeds. Must run before any
+# module constructs an SSLContext, so it lives at the top of config.py, which
+# everything else imports first.
+truststore.inject_into_ssl()
+
 # --- Paths -------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "axiom.db"
