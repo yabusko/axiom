@@ -32,7 +32,7 @@ product itself.
 | React frontend | ❌ not started |
 | Composite gap G-score (OD17) | ✅ (uncalibrated defaults) |
 | Threshold (τ) calibration scaffold (PBI 8) | ⚠️ scaffold built (OD17); τ/weights still need human labels |
-| Agentic extraction pipeline (router→extraction→enrichment→linking→synthesis, R1-R6) | ✅ real 30-paper run, $0.09, see `docs/agentic/RESULTS.md` |
+| Agentic extraction pipeline (router→extraction→enrichment→linking, R1-R6) | ✅ real 30-paper run, $0.09 — synthesis (strong tier) built but not yet wired into a run, see `docs/agentic/RESULTS.md` |
 | Concept co-occurrence graph (Louvain + PageRank, R7) | ✅ real run: 5 communities, 109 concept rows |
 | Eval v2: ~50-query pooled retrieval judging (R9) | ✅ AI-drafted (51 real queries); not yet human-reviewed |
 | Agent tracing + benchmark (R10) | ✅ real numbers: $0.003/paper, p50 6.8s, see `eval/agent_bench.json` |
