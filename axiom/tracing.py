@@ -1,0 +1,75 @@
+"""Agent-pipeline tracing (R10, docs/agentic/ARCHITECTURE.md §1).
+
+One JSON line per LLM call (and per verifier attempt) appended to
+`config.TRACE_DIR / f"{run_id}.jsonl"`. Plain `json.dumps` + file append --
+no logging framework, matching R11's framework-free discipline. Used by
+`axiom/llm_providers.py` (every provider call) and `axiom/agents/verifier.py`
+(every verification attempt, including ones that cost no tokens).
+"""
+from __future__ import annotations
+
+import json
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+from axiom import config
+
+# Appends from concurrent asyncio tasks (via asyncio.to_thread or sync code)
+# share one process; guard the file append so lines never interleave mid-write.
+_LOCK = threading.Lock()
+
+
+def trace_path(run_id: str) -> Path:
+    return config.TRACE_DIR / f"{run_id}.jsonl"
+
+
+def log_call(
+    run_id: str,
+    *,
+    agent: str,
+    model: str | None,
+    verdict: str,
+    tokens_in: int = 0,
+    tokens_out: int = 0,
+    latency_s: float = 0.0,
+    cost_usd: float = 0.0,
+    attempt: int = 1,
+    reasons: list[str] | None = None,
+) -> dict:
+    """Append one trace line and return the record that was written.
+
+    `agent` names the calling agent (e.g. "coordinator", "extraction",
+    "verifier"). `verdict` is a short free-text outcome tag (e.g. "ok",
+    "refusal", "max_tokens", "error", "accepted", "rejected"). `reasons` is a
+    list of human-readable strings (e.g. verifier error codes/messages) --
+    empty when the call needed no explanation.
+    """
+    record = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
+        "agent": agent,
+        "model": model,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "latency_s": latency_s,
+        "cost_usd": cost_usd,
+        "attempt": attempt,
+        "verdict": verdict,
+        "reasons": reasons or [],
+    }
+    path = trace_path(run_id)
+    with _LOCK:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    return record
+
+
+def read_trace(run_id: str) -> list[dict]:
+    """Read back a run's trace lines (used by tests and bench_agents.py)."""
+    path = trace_path(run_id)
+    if not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
