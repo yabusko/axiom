@@ -3,17 +3,17 @@ output to SQLite -- `paper_concepts` (one row per entity occurrence) and
 `concept_cooccurrence` (pairwise edges per paper, `concept_a < concept_b`
 lexicographically, R7's input).
 
-Raw SQL via the caller's connection, following `axiom/db.py`'s existing
-try/finally idiom -- this module doesn't own `db.py`, so no new helper was
-added there; see the agent-implementer patch note for a suggested
-`db.insert_paper_concepts`/`db.insert_cooccurrence` pair if the main session
-wants to consolidate this later.
+Writes go through `axiom.db`'s `insert_paper_concepts`/`insert_cooccurrence`
+helpers (Phase-4 architecture review: this previously did raw SQL via the
+caller's connection; lifted into `db.py` so it stays the single place SQL
+lives, per the repo's established convention).
 """
 from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timezone
 
+from axiom import db
 from axiom.agents.contracts import EnrichmentResult
 
 
@@ -31,37 +31,22 @@ def link(
     rejects those), but the filter keeps this function safe to call directly
     (e.g. from a test) with unverified data too.
 
-    Returns the number of `paper_concepts` rows written. Caller commits
-    (matches `axiom/db.py`'s pattern of callers owning their connection's
-    lifecycle); this function does call `conn.commit()` itself since linking
-    is the terminal write for a paper and nothing else shares the transaction.
+    Returns the number of `paper_concepts` rows written. `db.py`'s helpers
+    each commit their own write (matches the rest of `db.py`'s convention).
     """
     ts = (created_at or datetime.now(timezone.utc)).isoformat()
     matched = [e for e in enrichment.enriched if e.ontology_source != "unmatched"]
 
-    if matched:
-        conn.executemany(
-            """
-            INSERT INTO paper_concepts
-                (paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (enrichment.paper_id, e.name, e.kind, e.canonical, e.cosine,
-                 e.evidence_span, e.confidence, "agent", ts)
-                for e in matched
-            ],
-        )
+    db.insert_paper_concepts(conn, [
+        (enrichment.paper_id, e.name, e.kind, e.canonical, e.cosine,
+         e.evidence_span, e.confidence, "agent", ts)
+        for e in matched
+    ])
 
     canonicals = sorted({e.canonical for e in matched})
     pairs = [
         (a, b) for i, a in enumerate(canonicals) for b in canonicals[i + 1:]
     ]
-    if pairs:
-        conn.executemany(
-            "INSERT INTO concept_cooccurrence (paper_id, concept_a, concept_b) VALUES (?, ?, ?)",
-            [(enrichment.paper_id, a, b) for a, b in pairs],
-        )
+    db.insert_cooccurrence(conn, enrichment.paper_id, pairs)
 
-    conn.commit()
     return len(matched)

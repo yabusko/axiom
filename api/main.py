@@ -534,6 +534,13 @@ async def agents_run(body: AgentRunIn | None = None):
         for pid, r in rows.items()
     ]
     summary = await agents_pipeline.run_pipeline(papers, encoder=get_encoder())
+    # Phase-4 architecture review: linking may have just written fresh
+    # concept_cooccurrence rows -- drop the cached analysis so the next
+    # /concepts/* call reflects this run instead of staying silently stale
+    # until a process restart (same lru_cache tradeoff as get_graph()/
+    # get_gap_analysis(), but this endpoint's whole purpose is to produce
+    # the data those two serve, in the same process lifetime).
+    get_concept_analysis.cache_clear()
     return AgentRunOut(run_id=summary["run_id"])
 
 

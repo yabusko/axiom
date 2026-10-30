@@ -124,6 +124,7 @@ def estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
 
 _spend_lock = threading.Lock()
 _spend_by_run: dict[str, float] = {}
+_spend_total: float = 0.0  # process-wide, across every run_id -- what LLM_BUDGET_USD actually caps
 
 
 def spend_so_far(run_id: str) -> float:
@@ -131,28 +132,42 @@ def spend_so_far(run_id: str) -> float:
         return _spend_by_run.get(run_id, 0.0)
 
 
+def total_spend() -> float:
+    """Process-wide spend across every run. `LLM_BUDGET_USD` is a single total
+    cap (AXIOM_AGENTIC_TASK.md §1: "count the cost of every call and abort
+    when it's reached"), not a per-run one -- `_ensure_budget` checks this,
+    not `_spend_by_run`, which exists only for per-run reporting/display."""
+    with _spend_lock:
+        return _spend_total
+
+
 def reset_spend(run_id: str | None = None) -> None:
-    """Test/bench helper: clear tracked spend for one run, or all runs."""
+    """Test/bench helper: clear tracked spend for one run (and its share of
+    the total), or everything."""
+    global _spend_total
     with _spend_lock:
         if run_id is None:
             _spend_by_run.clear()
+            _spend_total = 0.0
         else:
-            _spend_by_run.pop(run_id, None)
+            _spend_total -= _spend_by_run.pop(run_id, 0.0)
 
 
 def _ensure_budget(run_id: str) -> None:
     with _spend_lock:
-        total = _spend_by_run.get(run_id, 0.0)
-    if total >= config.LLM_BUDGET_USD:
+        process_total = _spend_total
+    if process_total >= config.LLM_BUDGET_USD:
         raise BudgetExceededError(
-            f"run {run_id!r} already spent ${total:.4f} >= "
-            f"LLM_BUDGET_USD ${config.LLM_BUDGET_USD:.2f}"
+            f"process has already spent ${process_total:.4f} total >= "
+            f"LLM_BUDGET_USD ${config.LLM_BUDGET_USD:.2f} (run {run_id!r} triggered this check)"
         )
 
 
 def _record_spend(run_id: str, cost_usd: float) -> None:
+    global _spend_total
     with _spend_lock:
         _spend_by_run[run_id] = _spend_by_run.get(run_id, 0.0) + cost_usd
+        _spend_total += cost_usd
 
 
 # --- Backoff -------------------------------------------------------------------

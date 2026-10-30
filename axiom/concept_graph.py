@@ -11,9 +11,9 @@ so the two tracks stay consistent (OD19):
   - Louvain communities (`nx.community.louvain_communities`, same call shape
     `gaps.py.detect_communities` uses on the citation graph).
   - PageRank centrality via `graph.pagerank` (OD19: the citation graph's
-    private `_pagerank` power-iteration, promoted to a public, shared
-    `graph.pagerank(g, alpha, max_iter, tol)` — see the module-level NOTE
-    below; this file calls that name as-is).
+    `_pagerank` power-iteration, promoted to a public, shared
+    `graph.pagerank(g, alpha, max_iter, tol)`, generalized to handle this
+    module's undirected graph too — see `graph.py`).
 
 Pure-Python: networkx only (same as graph.py/gaps.py) — no torch.
 """
@@ -26,13 +26,6 @@ import networkx as nx
 
 from axiom import db
 from axiom import graph as graphmod
-
-# NOTE (patch for the main session, see .claude/agentic/patch_notes_eval_implementer.md):
-# `graph.pagerank` does not exist yet — only the private `graph._pagerank` does.
-# This module calls `graphmod.pagerank(g, alpha=alpha, max_iter=max_iter, tol=tol)`
-# below exactly as if the promotion (OD19) has already landed. Until `graph.py`
-# gains a one-line `pagerank = _pagerank` (or the body renamed), calling
-# `central_concepts()` for real raises AttributeError; tests monkeypatch it.
 
 
 @dataclass

@@ -258,4 +258,81 @@ def papers_by_ids(
     return {r["openalex_id"]: r for r in rows}
 
 
+# --- Agentic pipeline (OD19-OD24, lifted from axiom/agents/* per the Phase-4
+# architecture review -- those modules did raw SQL via the caller's
+# connection, which this centralizes) ------------------------------------------
+
+def create_agent_run(
+    conn: sqlite3.Connection, run_id: str, *,
+    papers_total: int, model_fast: str, model_strong: str, started_at: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO agent_runs
+            (run_id, status, papers_total, papers_done, model_fast, model_strong, started_at)
+        VALUES (?, 'running', ?, 0, ?, ?, ?)
+        """,
+        (run_id, papers_total, model_fast, model_strong, started_at),
+    )
+    conn.commit()
+
+
+def finish_agent_run(conn: sqlite3.Connection, run_id: str, *, papers_done: int, finished_at: str) -> None:
+    conn.execute(
+        "UPDATE agent_runs SET status = 'done', papers_done = ?, finished_at = ? WHERE run_id = ?",
+        (papers_done, finished_at, run_id),
+    )
+    conn.commit()
+
+
+def get_agent_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)).fetchone()
+
+
+def upsert_agent_run_item(
+    conn: sqlite3.Connection, run_id: str, paper_id: str, *,
+    route: str | None, verifier_attempts: int, verdict: str, error: str | None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO agent_run_items (run_id, paper_id, route, verifier_attempts, verdict, error)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id, paper_id) DO UPDATE SET
+            route = excluded.route,
+            verifier_attempts = excluded.verifier_attempts,
+            verdict = excluded.verdict,
+            error = excluded.error
+        """,
+        (run_id, paper_id, route, verifier_attempts, verdict, error),
+    )
+    conn.commit()
+
+
+def insert_paper_concepts(conn: sqlite3.Connection, rows: Iterable[tuple]) -> None:
+    """`rows`: (paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)."""
+    rows = list(rows)
+    if not rows:
+        return
+    conn.executemany(
+        """
+        INSERT INTO paper_concepts
+            (paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        rows,
+    )
+    conn.commit()
+
+
+def insert_cooccurrence(conn: sqlite3.Connection, paper_id: str, pairs: Iterable[tuple[str, str]]) -> None:
+    pairs = list(pairs)
+    if not pairs:
+        return
+    conn.executemany(
+        "INSERT INTO concept_cooccurrence (paper_id, concept_a, concept_b) VALUES (?, ?, ?)",
+        [(paper_id, a, b) for a, b in pairs],
+    )
+    conn.commit()
+
+
 

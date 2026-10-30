@@ -43,25 +43,6 @@ def _default_conn_factory(db_path) -> ConnFactory:
     return lambda: db.connect(db_path)
 
 
-def _upsert_run_item(
-    conn: sqlite3.Connection, run_id: str, paper_id: str, *,
-    route: str | None, verifier_attempts: int, verdict: str, error: str | None,
-) -> None:
-    """Raw SQL, no `db.py` helper exists for this table (see linking.py's
-    note -- same reasoning, not this module's file to extend)."""
-    conn.execute(
-        """
-        INSERT INTO agent_run_items (run_id, paper_id, route, verifier_attempts, verdict, error)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(run_id, paper_id) DO UPDATE SET
-            route = excluded.route,
-            verifier_attempts = excluded.verifier_attempts,
-            verdict = excluded.verdict,
-            error = excluded.error
-        """,
-        (run_id, paper_id, route, verifier_attempts, verdict, error),
-    )
-    conn.commit()
 
 
 async def _process_paper(
@@ -83,7 +64,7 @@ async def _process_paper(
         except Exception as exc:  # coordinator failure: nothing else can run for this paper
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route=None,
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=None,
                                   verifier_attempts=0, verdict="error", error=str(exc))
             finally:
                 conn.close()
@@ -92,7 +73,7 @@ async def _process_paper(
         if route_action == "skip":
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route="skip",
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route="skip",
                                   verifier_attempts=0, verdict="skipped", error=None)
             finally:
                 conn.close()
@@ -105,7 +86,7 @@ async def _process_paper(
         except verifier.VerificationFailed as exc:
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route=route_action,
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=exc.attempts, verdict="rejected", error=str(exc))
             finally:
                 conn.close()
@@ -113,7 +94,7 @@ async def _process_paper(
         except Exception as exc:
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route=route_action,
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=0, verdict="error", error=str(exc))
             finally:
                 conn.close()
@@ -126,7 +107,7 @@ async def _process_paper(
         except verifier.VerificationFailed as exc:
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route=route_action,
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=exc.attempts, verdict="rejected", error=str(exc))
             finally:
                 conn.close()
@@ -134,7 +115,7 @@ async def _process_paper(
         except Exception as exc:
             conn = conn_factory()
             try:
-                _upsert_run_item(conn, run_id, paper.paper_id, route=route_action,
+                db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=0, verdict="error", error=str(exc))
             finally:
                 conn.close()
@@ -143,7 +124,7 @@ async def _process_paper(
         conn = conn_factory()
         try:
             written = linking.link(conn, enrichment_result)
-            _upsert_run_item(conn, run_id, paper.paper_id, route=route_action,
+            db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                               verifier_attempts=1, verdict="accepted", error=None)
         finally:
             conn.close()
@@ -187,15 +168,10 @@ async def run_pipeline(
     started_at = datetime.now(timezone.utc).isoformat()
     conn = conn_factory()
     try:
-        conn.execute(
-            """
-            INSERT INTO agent_runs
-                (run_id, status, papers_total, papers_done, model_fast, model_strong, started_at)
-            VALUES (?, 'running', ?, 0, ?, ?, ?)
-            """,
-            (run_id, len(papers), model_fast, model_strong, started_at),
+        db.create_agent_run(
+            conn, run_id, papers_total=len(papers),
+            model_fast=model_fast, model_strong=model_strong, started_at=started_at,
         )
-        conn.commit()
     finally:
         conn.close()
 
@@ -241,11 +217,7 @@ async def run_pipeline(
     finished_at = datetime.now(timezone.utc).isoformat()
     conn = conn_factory()
     try:
-        conn.execute(
-            "UPDATE agent_runs SET status = 'done', papers_done = ?, finished_at = ? WHERE run_id = ?",
-            (len(items), finished_at, run_id),
-        )
-        conn.commit()
+        db.finish_agent_run(conn, run_id, papers_done=len(items), finished_at=finished_at)
     finally:
         conn.close()
 
@@ -259,7 +231,7 @@ async def run_pipeline(
 
 def get_run_status(conn: sqlite3.Connection, run_id: str) -> RunStatusOut | None:
     """For `GET /agents/runs/{id}` -- see the patch note."""
-    row = conn.execute("SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)).fetchone()
+    row = db.get_agent_run(conn, run_id)
     if row is None:
         return None
     return RunStatusOut(**dict(row))
