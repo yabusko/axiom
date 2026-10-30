@@ -241,9 +241,15 @@ AGENT_CONCURRENCY = 4               # R5: asyncio.Semaphore limit for worker fan
 ENTITY_KINDS = ("method", "task", "dataset", "metric")
 ROUTE_ACTIONS = ("full", "title_only", "skip")
 
-# Set by inspecting ~30 (entity, ontology-match) pairs sorted by cosine and picking the value
-# where true/false matches visibly separate (OD23) -- placeholder until that inspection runs.
-VERIFIER_COSINE_MIN = 0.70
+# Calibrated 2026-10-31 (OD23) by inspecting all 109 real (entity, ontology-match) pairs
+# produced by a live 30-paper pipeline run, sorted by cosine. Matches are clean and correct
+# down to ~0.95 (e.g. 0.9748 'translation'->'Machine translation', 0.9608 'Chain-of-Thought
+# Prompting'->'Prompting'); below that, clear false positives start appearing (0.9477
+# 'Classification'->'Quantization', 0.9447 'summarization'->'Text segmentation'). Not a
+# perfect cutoff on this small (~40-label) ontology -- one false positive still slips through
+# just above the line (0.9531 'Dual Encoder'->'Decoding') and some correct matches near the
+# boundary may get rejected and retried -- but it's where true/false visibly separate overall.
+VERIFIER_COSINE_MIN = 0.95
 
 TRACE_DIR = PROJECT_ROOT / "eval" / "runs"
 EVAL_V2_QUERIES_PATH = PROJECT_ROOT / "eval" / "ndcg_queries_v2.json"

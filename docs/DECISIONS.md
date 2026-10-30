@@ -463,10 +463,20 @@ convention; this isn't a reversal, just a second boundary where the tooling dema
 threshold. Honesty rule (AXIOM_AGENTIC_TASK.md §1) forbids picking a threshold to hit a target
 number.
 
-**Decision.** `axiom.config.VERIFIER_COSINE_MIN` is set by inspecting ~30 (entity, ontology-match)
+**Decision.** `axiom.config.VERIFIER_COSINE_MIN` is set by inspecting (entity, ontology-match)
 pairs sorted by cosine and picking the value where true/false matches visibly separate, recorded
-with the date and sample size in a `config.py` comment. Current value (`0.70`) is a placeholder
-until that inspection runs — see the comment above the constant.
+with the date and sample size in a `config.py` comment.
+
+**Calibrated (2026-10-31).** A real 30-paper pipeline run (Phase 3 testing) produced 109 real
+(entity, ontology-match, cosine) triples — more than the ~30 minimum — against the main corpus's
+40-label ontology (`concept_canonical` ∪ `concepts`). Inspecting all 109 sorted by cosine: matches
+are clean down to ~0.95 (e.g. `0.9748 'translation'->'Machine translation'`); below that, clear
+false positives appear (`0.9477 'Classification'->'Quantization'`, `0.9447 'summarization'->
+'Text segmentation'`). Set `VERIFIER_COSINE_MIN = 0.95`. **Honest caveat:** this isn't a perfect
+cutoff on a ~40-label ontology — one false positive still clears the bar (`0.9531 'Dual Encoder'
+->'Decoding'`), and a few correct matches right at the boundary may get rejected and retried. A
+single global threshold on this small ontology trades some precision for simplicity; revisit with
+per-kind thresholds (method/task/dataset/metric) if the false-positive rate matters more later.
 
 ## OD24 — `truststore` added to trust the OS cert store for outbound HTTPS
 
