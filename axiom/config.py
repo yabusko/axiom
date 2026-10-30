@@ -15,6 +15,26 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "axiom.db"
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 
+
+def _load_dotenv(path: Path) -> None:
+    """Minimal `.env` loader -- no new dependency (repo keeps the stack pinned
+    and minimal, see requirements.txt). Only fills in vars not already set in
+    the real environment, so an exported ANTHROPIC_API_KEY always wins.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv(PROJECT_ROOT / ".env")
+
 # --- Qdrant ------------------------------------------------------------------
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
