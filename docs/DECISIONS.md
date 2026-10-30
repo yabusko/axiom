@@ -496,6 +496,40 @@ judgment call specific to a network environment that terminates/inspects outboun
 the app trust whatever the OS already trusts, which is the correct behavior on a corporate-managed
 machine but is worth knowing about on any other network this code runs on.
 
+## OD25 — Phase 4 review: fixed High/Medium findings, logging the rest (Low/Informational)
+
+**Context.** `software-architect` and `security-reviewer` reviewed the full `feat/agentic-pipeline`
+diff (Phase 4). One High finding (`LLM_BUDGET_USD` enforced per-run instead of as a process-wide
+total) and one Medium (raw SQL outside `axiom/db.py` in `linking.py`/`pipeline.py`) were fixed
+immediately, along with two Low/cheap wins the architect flagged as high-payoff (stale concept
+graph cache after a run; a stale comment in `concept_graph.py`). Per the task's own rule, the
+remaining Low/Informational findings are logged here rather than fixed, since none change behavior
+a user would notice on a local single-user laptop tool:
+
+- **Budget-check race (Low, security-reviewer).** `_ensure_budget`/`_record_spend` still check-then-
+  record without a single atomic reservation, so up to `AGENT_CONCURRENCY` (4) concurrently-running
+  papers could each pass the check before any records spend. Quantified worst case: ~3 extra calls
+  × ~$0.04 (max single-call cost at `_DEFAULT_MAX_TOKENS=4096`, strong tier) ≈ $0.12 over the $3.00
+  cap (~4%). Not worth the complexity of a reservation scheme at this $ scale; revisit if
+  `LLM_BUDGET_USD` or `AGENT_CONCURRENCY` grow materially.
+- **`httpx.AsyncClient` not pooled (Low, software-architect).** `axiom/llm_providers.py` builds and
+  tears down a client per Anthropic call instead of reusing one across a run. Correct (no leak),
+  just a latency nit under `AGENT_CONCURRENCY` fan-out. Defer unless bench numbers show it matters.
+- **`synthesis.py` imports underscore-prefixed names from `axiom/hypothesis.py`** (`_SYSTEM`,
+  `_prompt`, `_verify`) to reuse OD16's verifier rules without duplicating them (deliberate, per
+  OD22) — but it's a cross-module encapsulation break worth promoting to public names later, the
+  same way OD19 promoted `graph._pagerank`, now that there are two call sites.
+- **`POST /agents/run`'s paper-fetch is sync DB I/O inside an `async def`** (Low, software-architect)
+  — blocks the event loop briefly; harmless for a single local user with no concurrent requests.
+- **`/agents/run` costs real money per call, no auth/rate-limit** (Low, security-reviewer,
+  explicitly theoretical under the existing localhost-only assumption, which this diff doesn't
+  change — `CORS_ORIGINS` untouched, no `0.0.0.0` bind introduced). Worth a README note (Phase 5)
+  that this port must never be exposed beyond localhost, unlike the rest of the app's $0 endpoints.
+- **Prompt injection / key handling / dependency hygiene**: security-reviewer found no issues —
+  `stop_reason` is checked on every path before parsing, `max_tokens` bounds cost regardless of
+  abstract content, `evidence_span` never reaches a shell/eval/file path, `.env` is confirmed
+  gitignored and never logged, `truststore` is a legitimate package. No action needed.
+
 ---
 
 ## Schema change log
