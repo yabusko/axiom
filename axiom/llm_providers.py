@@ -216,6 +216,7 @@ class AnthropicProvider:
         *,
         run_id: str,
         agent: str,
+        paper_id: str | None = None,
         attempt: int = 1,
         temperature: float | None = None,
     ) -> ModelT:
@@ -239,7 +240,7 @@ class AnthropicProvider:
             resp = await _anthropic_post(client, payload)
         except LLMTransportError as exc:
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="transport_error",
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="transport_error",
                 attempt=attempt, latency_s=time.perf_counter() - start,
                 reasons=[str(exc)],
             )
@@ -257,7 +258,7 @@ class AnthropicProvider:
         stop_reason = body.get("stop_reason")
         if stop_reason == "refusal":
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="refusal", attempt=attempt,
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="refusal", attempt=attempt,
                 tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
                 cost_usd=cost_usd, reasons=["model refused to answer"],
             )
@@ -265,7 +266,7 @@ class AnthropicProvider:
             raise LLMRefusalError(f"{agent}: model refused (run {run_id})")
         if stop_reason == "max_tokens":
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="max_tokens", attempt=attempt,
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="max_tokens", attempt=attempt,
                 tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
                 cost_usd=cost_usd, reasons=["hit max_tokens before finishing"],
             )
@@ -277,7 +278,7 @@ class AnthropicProvider:
             data = json.loads(text)
         except (json.JSONDecodeError, TypeError) as exc:
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="parse_error", attempt=attempt,
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="parse_error", attempt=attempt,
                 tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
                 cost_usd=cost_usd, reasons=[str(exc)],
             )
@@ -288,7 +289,7 @@ class AnthropicProvider:
             result = model_cls(**data)
         except ValidationError as exc:
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="schema_invalid", attempt=attempt,
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="schema_invalid", attempt=attempt,
                 tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
                 cost_usd=cost_usd, reasons=[str(e) for e in exc.errors()],
             )
@@ -296,7 +297,7 @@ class AnthropicProvider:
             raise
 
         tracing.log_call(
-            run_id, agent=agent, model=model, verdict="ok", attempt=attempt,
+            run_id, agent=agent, model=model, paper_id=paper_id, verdict="ok", attempt=attempt,
             tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
             cost_usd=cost_usd,
         )
@@ -333,6 +334,7 @@ class OllamaProvider:
         *,
         run_id: str,
         agent: str,
+        paper_id: str | None = None,
         attempt: int = 1,
         temperature: float | None = None,
     ) -> ModelT:
@@ -361,7 +363,7 @@ class OllamaProvider:
 
         if data is None:
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="transport_error",
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="transport_error",
                 attempt=attempt, tokens_in=tokens_in, latency_s=latency_s,
                 reasons=[str(last_exc)],
             )
@@ -372,14 +374,14 @@ class OllamaProvider:
             result = model_cls(**data)
         except ValidationError as exc:
             tracing.log_call(
-                run_id, agent=agent, model=model, verdict="schema_invalid", attempt=attempt,
+                run_id, agent=agent, model=model, paper_id=paper_id, verdict="schema_invalid", attempt=attempt,
                 tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s,
                 reasons=[str(e) for e in exc.errors()],
             )
             raise
 
         tracing.log_call(
-            run_id, agent=agent, model=model, verdict="ok", attempt=attempt,
+            run_id, agent=agent, model=model, paper_id=paper_id, verdict="ok", attempt=attempt,
             tokens_in=tokens_in, tokens_out=tokens_out, latency_s=latency_s, cost_usd=0.0,
         )
         return result
@@ -410,6 +412,7 @@ async def complete_json(
     *,
     run_id: str = "adhoc",
     agent: str = "llm",
+    paper_id: str | None = None,
     attempt: int = 1,
     temperature: float | None = None,
 ) -> ModelT:
@@ -419,9 +422,10 @@ async def complete_json(
     `VerifierError`s from `exc.errors()`, per R4). `temperature` is optional
     (coordinator/extraction leave it at the provider's default; synthesis's
     hypothesis generator passes a low value per OD16's generator-temperature
-    rule)."""
+    rule). `paper_id` is forwarded to the trace line only (R10); omit for
+    calls not scoped to one paper (e.g. synthesis)."""
     provider = _get_provider()
     return await provider.complete_json(
         tier, system, prompt, model_cls, run_id=run_id, agent=agent,
-        attempt=attempt, temperature=temperature,
+        paper_id=paper_id, attempt=attempt, temperature=temperature,
     )

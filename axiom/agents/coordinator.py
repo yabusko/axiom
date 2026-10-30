@@ -52,5 +52,5 @@ async def route(
     prompt = _prompt(paper_id, title, abstract)
     return await llm_providers.complete_json(
         "fast", _SYSTEM, prompt, RouteDecision,
-        run_id=run_id, agent="coordinator",
+        run_id=run_id, agent="coordinator", paper_id=paper_id,
     )

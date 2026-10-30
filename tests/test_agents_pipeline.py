@@ -42,8 +42,9 @@ class FakeLLM:
         self.queues.setdefault(agent, []).append(item)
 
     async def __call__(self, tier, system, prompt, model_cls, *, run_id, agent,
-                        attempt=1, temperature=None):
-        self.calls.append({"agent": agent, "prompt": prompt, "attempt": attempt, "tier": tier})
+                        paper_id=None, attempt=1, temperature=None):
+        self.calls.append({"agent": agent, "prompt": prompt, "attempt": attempt,
+                            "tier": tier, "paper_id": paper_id})
         queue = self.queues.get(agent, [])
         if not queue:
             raise AssertionError(f"no fake response queued for agent={agent!r}")

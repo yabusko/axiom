@@ -69,7 +69,7 @@ async def extract(
         try:
             result = await llm_providers.complete_json(
                 "fast", _SYSTEM, prompt, ExtractionResult,
-                run_id=run_id, agent="extraction", attempt=attempt,
+                run_id=run_id, agent="extraction", paper_id=paper_id, attempt=attempt,
             )
         except ValidationError as exc:
             last_errors = verifier.errors_from_validation(exc)
@@ -77,7 +77,7 @@ async def extract(
             verifier.log_attempt(
                 run_id, "extraction",
                 VerifierResult(ok=False, attempt=attempt, errors=last_errors),
-                model=config.MODEL_FAST,
+                model=config.MODEL_FAST, paper_id=paper_id,
             )
             continue
         except llm_providers.LLMError as exc:
@@ -88,7 +88,7 @@ async def extract(
             continue
 
         verdict = verifier.verify_extraction(result, abstract=abstract, attempt=attempt)
-        verifier.log_attempt(run_id, "extraction", verdict, model=config.MODEL_FAST)
+        verifier.log_attempt(run_id, "extraction", verdict, model=config.MODEL_FAST, paper_id=paper_id)
         if verdict.ok:
             return result
         last_errors = verdict.errors

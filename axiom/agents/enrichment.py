@@ -139,7 +139,11 @@ async def enrich(
             best = sims.argmax(axis=1)
             for pos, entity_idx in enumerate(pending):
                 chosen = int(best[pos])
-                cosine = float(sims[pos, chosen])
+                # float64 dot products of near-identical unit vectors can land
+                # a hair past +-1.0 (e.g. 1.0000000000000004); clamp before
+                # the strict ge=-1/le=1 Pydantic field raises on what is, in
+                # cosine-similarity terms, exactly 1.0.
+                cosine = max(-1.0, min(1.0, float(sims[pos, chosen])))
                 enriched[entity_idx] = EnrichedEntity(
                     **entities[entity_idx].model_dump(),
                     canonical=ontology.labels[chosen],
@@ -149,7 +153,7 @@ async def enrich(
 
         result = EnrichmentResult(paper_id=extraction.paper_id, enriched=list(enriched))  # type: ignore[arg-type]
         verdict = verifier.verify_enrichment(result, attempt=attempt)
-        verifier.log_attempt(run_id, "enrichment", verdict)
+        verifier.log_attempt(run_id, "enrichment", verdict, paper_id=extraction.paper_id)
         if verdict.ok:
             return result
         last_errors = verdict.errors

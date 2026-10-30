@@ -30,6 +30,7 @@ def log_call(
     agent: str,
     model: str | None,
     verdict: str,
+    paper_id: str | None = None,
     tokens_in: int = 0,
     tokens_out: int = 0,
     latency_s: float = 0.0,
@@ -43,11 +44,15 @@ def log_call(
     "verifier"). `verdict` is a short free-text outcome tag (e.g. "ok",
     "refusal", "max_tokens", "error", "accepted", "rejected"). `reasons` is a
     list of human-readable strings (e.g. verifier error codes/messages) --
-    empty when the call needed no explanation.
+    empty when the call needed no explanation. `paper_id` is the paper this
+    call was for (R10's $/paper and per-paper latency need it); `None` for
+    calls that aren't scoped to one paper (e.g. synthesis's per-cluster/
+    per-gap calls).
     """
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "run_id": run_id,
+        "paper_id": paper_id,
         "agent": agent,
         "model": model,
         "tokens_in": tokens_in,

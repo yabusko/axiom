@@ -94,12 +94,16 @@ class VerificationFailed(RuntimeError):
         self.errors = errors
 
 
-def log_attempt(run_id: str, agent: str, result: VerifierResult, *, model: str | None = None) -> None:
+def log_attempt(
+    run_id: str, agent: str, result: VerifierResult, *,
+    model: str | None = None, paper_id: str | None = None,
+) -> None:
     """One trace line per verification attempt (pass or fail)."""
     tracing.log_call(
         run_id,
         agent=f"{agent}.verifier",
         model=model,
+        paper_id=paper_id,
         verdict="accepted" if result.ok else "rejected",
         attempt=result.attempt,
         reasons=[f"[{e.code}] {e.field}: {e.message}" for e in result.errors],
