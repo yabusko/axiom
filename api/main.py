@@ -31,12 +31,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 
-from axiom import config, db, llm
+from axiom import concept_graph, config, db, llm
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
+from axiom.agents import pipeline as agents_pipeline
+from axiom.agents.contracts import RunStatusOut
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant
 
@@ -179,6 +181,30 @@ class GapAnalysisOut(BaseModel):
     gaps: list[GapCandidateOut]
 
 
+class ConceptCommunityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    cid: int
+    members: list[str]
+    size: int
+
+
+class ConceptCentralityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    concept: str
+    pagerank: float
+    degree: int
+    weighted_degree: int
+
+
+class AgentRunIn(BaseModel):
+    paper_ids: list[str] | None = None
+    limit: int | None = None
+
+
+class AgentRunOut(BaseModel):
+    run_id: str
+
+
 # --- App -----------------------------------------------------------------------
 app = FastAPI(
     title="Axiom API",
@@ -215,6 +241,22 @@ def get_gap_analysis():
     conn = db.connect()
     try:
         return gapsmod.analyze(get_graph(), conn, get_store().fetch_dense_vectors())
+    finally:
+        conn.close()
+
+
+@lru_cache(maxsize=1)
+def get_concept_analysis() -> concept_graph.ConceptGraphAnalysis:
+    """R7: Louvain + PageRank over the agent-extracted concept co-occurrence
+    graph (OD19/OD20) -- separate from get_graph()/get_gap_analysis() above,
+    which stay on the citation graph. Cached like the others; a fresh run's
+    new concept_cooccurrence rows need a process restart (or a future
+    explicit invalidation hook) to show up here, same tradeoff OD12 already
+    accepted for get_graph()/get_gap_analysis().
+    """
+    conn = db.connect()
+    try:
+        return concept_graph.analyze(conn)
     finally:
         conn.close()
 
@@ -463,3 +505,55 @@ def reject_review_item(item_id: int):
         db.set_review_status(conn, item_id, "rejected")
     finally:
         conn.close()
+
+
+# --- Agentic pipeline (R1-R6, docs/agentic/ARCHITECTURE.md) -------------------
+# Async, unlike every route above (R5) -- the pipeline awaits LLM calls;
+# everything else in this file stays CPU-bound sync `def` on purpose (OD12).
+@app.post("/agents/run", response_model=AgentRunOut)
+async def agents_run(body: AgentRunIn | None = None):
+    body = body or AgentRunIn()
+    conn = db.connect()
+    try:
+        if body.paper_ids:
+            rows = db.papers_by_ids(conn, body.paper_ids)
+        else:
+            limit = body.limit or 50
+            rows = {
+                r["openalex_id"]: r for r in conn.execute(
+                    "SELECT openalex_id, title, abstract FROM papers LIMIT ?", (limit,)
+                ).fetchall()
+            }
+    finally:
+        conn.close()
+    if not rows:
+        raise HTTPException(status_code=404, detail="no matching papers")
+
+    papers = [
+        agents_pipeline.PaperInput(paper_id=pid, title=r["title"], abstract=r["abstract"])
+        for pid, r in rows.items()
+    ]
+    summary = await agents_pipeline.run_pipeline(papers, encoder=get_encoder())
+    return AgentRunOut(run_id=summary["run_id"])
+
+
+@app.get("/agents/runs/{run_id}", response_model=RunStatusOut)
+def agents_run_status(run_id: str):
+    conn = db.connect()
+    try:
+        status = agents_pipeline.get_run_status(conn, run_id)
+    finally:
+        conn.close()
+    if status is None:
+        raise HTTPException(status_code=404, detail="no such run")
+    return status
+
+
+@app.get("/concepts/communities", response_model=list[ConceptCommunityOut])
+def concepts_communities():
+    return get_concept_analysis().communities
+
+
+@app.get("/concepts/central", response_model=list[ConceptCentralityOut])
+def concepts_central():
+    return get_concept_analysis().central
