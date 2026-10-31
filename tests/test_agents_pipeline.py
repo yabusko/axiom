@@ -45,7 +45,8 @@ class FakeLLM:
         self.queues.setdefault(agent, []).append(item)
 
     async def __call__(self, tier, system, prompt, model_cls, *, run_id, agent,
-                        paper_id=None, attempt=1, temperature=None):
+                        agent_type=None, paper_id=None, attempt=1, temperature=None,
+                        client=None, conn=None):
         self.calls.append({"agent": agent, "prompt": prompt, "attempt": attempt,
                             "tier": tier, "paper_id": paper_id})
         queue = self.queues.get(agent, [])

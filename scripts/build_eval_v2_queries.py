@@ -24,7 +24,7 @@ from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from axiom import config, db, llm_providers
 from axiom.embed import Specter2Encoder
@@ -120,12 +120,77 @@ def _prompt(query: str, candidates: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def grade_query(query: str, candidates: list[dict], run_id: str) -> GradingResult:
-    prompt = _prompt(query, candidates)
-    return await llm_providers.complete_json(
-        "fast", _SYSTEM, prompt, GradingResult,
-        run_id=run_id, agent="eval_v2_grading",
-    )
+class GradingValidationError(RuntimeError):
+    """The grader's judgment set didn't exactly cover the candidate pool --
+    duplicate id(s), id(s) outside the pool, or candidate id(s) left
+    unjudged -- after every retry was exhausted."""
+
+
+def validate_judgment_coverage(
+    candidate_ids: list[str], judgments: list[QueryJudgment],
+) -> list[str]:
+    """Every candidate id must get EXACTLY one judgment: no duplicates, no
+    missing ids, no judgments for ids outside the pool. Returns a list of
+    human-readable problems (empty == valid)."""
+    candidate_set = set(candidate_ids)
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for j in judgments:
+        if j.paper_id in seen:
+            duplicates.add(j.paper_id)
+        seen.add(j.paper_id)
+
+    problems = []
+    if duplicates:
+        problems.append(f"duplicate judgment(s) for id(s): {', '.join(sorted(duplicates))}")
+    extra = seen - candidate_set
+    if extra:
+        problems.append(f"judgment(s) for id(s) not in the candidate pool: {', '.join(sorted(extra))}")
+    missing = candidate_set - seen
+    if missing:
+        problems.append(f"missing judgment(s) for id(s): {', '.join(sorted(missing))}")
+    return problems
+
+
+async def grade_query(
+    query: str, candidates: list[dict], run_id: str, *, max_retries: int | None = None,
+) -> GradingResult:
+    """Grade one query's pooled candidates with the `fast` tier, retrying
+    (same agent, errors folded back into the prompt) until the judgment set
+    covers the candidate pool exactly once each -- a grader that drops an id,
+    duplicates one, or invents one outside the pool silently corrupts the
+    nDCG labels downstream, so that's checked here rather than trusted."""
+    max_retries = max_retries if max_retries is not None else config.AGENT_MAX_RETRIES
+    candidate_ids = [c["paper_id"] for c in candidates]
+    base_prompt = _prompt(query, candidates)
+
+    last_exc: Exception | None = None
+    prompt = base_prompt
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = await llm_providers.complete_json(
+                "fast", _SYSTEM, prompt, GradingResult,
+                run_id=run_id, agent="eval_v2_grading", attempt=attempt,
+            )
+        except (ValidationError, llm_providers.LLMError) as exc:
+            last_exc = exc
+            prompt = base_prompt
+            continue
+
+        problems = validate_judgment_coverage(candidate_ids, result.judgments)
+        if not problems:
+            return result
+        last_exc = GradingValidationError(
+            f"{len(result.judgments)} judgment(s) for {len(candidate_ids)} candidate(s): "
+            + "; ".join(problems)
+        )
+        prompt = (
+            f"{base_prompt}\n\nYour previous response did not match the candidate set "
+            f"exactly: {'; '.join(problems)}. Return EXACTLY one judgment per candidate id "
+            "listed above -- no duplicates, no missing ids, no extra ids."
+        )
+
+    raise last_exc  # type: ignore[misc]  # loop always either returns or sets last_exc
 
 
 async def main() -> None:

@@ -107,7 +107,7 @@ async def label_clusters(
         try:
             result = await llm_providers.complete_json(
                 "strong", _CLUSTER_SYSTEM, prompt, _ClusterLabelsJSON,
-                run_id=run_id, agent="synthesis.clusters", attempt=attempt,
+                run_id=run_id, agent="synthesis.clusters", agent_type="synthesis", attempt=attempt,
             )
         except (ValidationError, llm_providers.LLMError) as exc:
             last_exc = exc
@@ -162,7 +162,7 @@ async def generate_hypothesis(
         try:
             result = await llm_providers.complete_json(
                 "strong", _HYPOTHESIS_SYSTEM, base_prompt + nudge, _HypothesisJSON,
-                run_id=run_id, agent="synthesis.hypothesis", attempt=attempt,
+                run_id=run_id, agent="synthesis.hypothesis", agent_type="synthesis", attempt=attempt,
                 temperature=_HYPOTHESIS_TEMPERATURE,
             )
         except (ValidationError, llm_providers.LLMError) as exc:

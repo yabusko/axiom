@@ -137,7 +137,8 @@ async def extract(
         try:
             result = await llm_providers.complete_json(
                 "fast", system, prompt, ExtractionResult,
-                run_id=run_id, agent="extraction", paper_id=paper_id, attempt=attempt,
+                run_id=run_id, agent="extraction", agent_type="extraction",
+                paper_id=paper_id, attempt=attempt,
             )
         except ValidationError as exc:
             last_errors = verifier.errors_from_validation(exc)

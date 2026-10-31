@@ -111,6 +111,6 @@ async def route_via_llm(
     prompt = _llm_prompt(title, abstract)
     parsed = await llm_providers.complete_json(
         "fast", _SYSTEM, prompt, _LLMRouteJSON,
-        run_id=run_id, agent="coordinator", paper_id=paper_id,
+        run_id=run_id, agent="coordinator", agent_type="route", paper_id=paper_id,
     )
     return RouteDecision(action=parsed.action, reason=parsed.reason, route_source="llm")
