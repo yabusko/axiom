@@ -617,6 +617,86 @@ public names) is pipeline-implementer's, the endpoint wiring is main's.
 - `ROUTE_TITLE_ONLY_MIN_WORDS = 40` added for A5's rule-based routing threshold; the actual
   rule-before-LLM logic in `coordinator.py` is pipeline-implementer's.
 
+## OD27 — Stage-2 fixes, Phase 2: pipeline-core findings landed (A1-A5, B1/B2/B5, D3/D4)
+
+**A1/A3 (verifier.py).** `verify_extraction` now checks `evidence_span` against the title OR
+the abstract (previously abstract only), with both sides run through a new `normalize_text`
+(NFKC, casefold, collapsed whitespace, unified dash/quote variants) before comparing. A new
+check, `name_relates_to_span`, fails an entity whose claimed `name` doesn't actually relate to
+its own cited span -- substring, a multi-word name's own first-letter acronym, or token
+overlap `|tokens(name) & tokens(span)| / |tokens(name)|` >= 0.5 (denominator is the name's own
+token count, not the span's, so a long span doesn't dilute the score). New `VerifierError`
+code `name_span_mismatch`.
+
+**A2 (extraction.py/pipeline.py).** `extraction.extract` now accumulates PASSING entities
+across retry attempts (keyed by name+kind+evidence_span) instead of one pass/fail verdict for
+the whole response; a response that mixes a good entity with a bad one no longer drops the good
+one. The whole call only raises `VerificationFailed` (paper rejected) if every entity ever
+proposed, across every attempt, failed verification -- distinguished from a paper that
+genuinely has nothing to extract (zero entities proposed, not an error) via a new
+`empty_after_retry` `VerifierError` code attached to the exception. `extract()`'s return value
+changed from the bare `ExtractionResult` to `ExtractionOutcome(paper_id, entities, attempts)` so
+D3's real attempt count travels with it; `enrichment.enrich` got the matching
+`EnrichmentOutcome(result, attempts)`. `agent_run_items.verdict`'s own vocabulary
+(accepted/rejected/skipped/error) is unchanged -- `bench_agents.py`'s rejection-rate counting
+(by the per-attempt `*.verifier` trace line's `verdict` field, "accepted"/"rejected" only) is
+unaffected; `empty_after_retry` only ever appears inside the recorded error TEXT.
+
+**A4 (contracts.py).** `paper_id` removed from `RouteDecision` and `ExtractionResult` --
+`extra="forbid"` means a model (or a stub mimicking one) that tries to echo a `paper_id` back
+now fails Pydantic validation outright, it can't silently succeed with a wrong value.
+`axiom/agents/pipeline.py` sources every write's paper id from its own `PaperInput`, never from
+anything a model returned.
+
+**A5 (coordinator.py).** `route()` is now three deterministic rules, no LLM call: no title/no
+abstract -> skip; abstract missing or under `ROUTE_TITLE_ONLY_MIN_WORDS` words -> title_only;
+else -> full. These are exhaustive, so the LLM coordinator call (`route_via_llm`, kept for a
+future genuinely-ambiguous case) is unreachable from `route()` today -- a real cost reduction,
+not a gap, since routing used to cost one fast-tier call per paper regardless. New
+`RouteDecision.route_source: Literal["rule", "llm"]` records which path decided. `title_only`
+gets its own extraction prompt (`extraction._SYSTEM_TITLE_ONLY`) and verifies spans against the
+title only, ignoring whatever (already-judged-too-thin) abstract text the input still carries.
+
+**B1/B2 (enrichment.py/linking.py).** Built per OD26's design: exact/normalized match (no
+embedding call) -> `PhraseEncoder` (new, mean-pooled `BAAI/bge-small-en-v1.5` via plain
+`transformers.AutoModel`/`AutoTokenizer`, same pattern as `axiom/embed.py`'s `Specter2Encoder`
+but the bge mean-pooling recipe, not SPECTER2's CLS-token recipe; no `sentence-transformers`
+dependency added) gated on cosine >= `VERIFIER_COSINE_MIN` AND top1-top2 margin >=
+`ENRICHMENT_MARGIN_DELTA` -> `new_concept` (kept). `linking.link` no longer filters anything --
+every enriched entity is written now that nothing is dropped as "unmatched". `axiom/agents/
+pipeline.py::run_pipeline` gained a `phrase_encoder` parameter (defaults to a lazily-built
+process-wide singleton, `enrichment.get_default_phrase_encoder()`); the existing `encoder`
+parameter (still accepted so `api/main.py`'s `POST /agents/run` call keeps working unchanged)
+is no longer used by enrichment -- SPECTER2 was always the wrong tool for a short entity name,
+and now nothing routes entity-matching through it.
+
+**B5 (graph.py).** `_pagerank`'s power iteration now reads each edge's `weight` attribute
+(default 1 when absent) for both `out_deg` and the per-successor rank share, instead of a plain
+edge count. `tests/test_graph.py` adds a regression proving this is numerically identical to
+the old unweighted behavior when every edge has the default weight of 1 (cross-checked against
+`networkx.pagerank(..., weight=None)`), plus a weighted case and a hand-checked symmetric-cycle
+fixed point. `tests/test_concept_graph.py`'s `autouse` fixture that monkeypatched `graph.
+pagerank` with `nx.pagerank` (under a docstring claiming the real function "does not exist
+yet" -- it already did) is deleted; those tests now exercise axiom's own implementation.
+
+**D3 (pipeline.py).** The accepted path's `agent_run_items.verifier_attempts` is now
+`max(extraction_outcome.attempts, enrichment_outcome.attempts)` -- the real number of
+self-correction rounds this paper needed -- instead of a hardcoded `1`.
+
+**D4 (hypothesis.py/synthesis.py).** `axiom.hypothesis`'s shared pieces (`_SYSTEM`, `_prompt`,
+`_side_papers`, `_verify`) are promoted to public names (`SYSTEM`, `build_prompt`,
+`side_papers`, `verify`) and a new `explain()` gives the structured reasons behind a failed
+verification; `axiom.agents.synthesis.generate_hypothesis` (strong-tier, via the provider
+layer) is the one real implementation going forward and now nudges its retries with `explain()`'s
+actual failure reasons instead of a fixed generic reminder string, the same self-correction
+pattern `verifier.format_errors_for_retry` already uses. `axiom.hypothesis.generate_hypothesis`
+(the original, synchronous, Ollama-only call) is NOT deleted: `api/main.py`'s `POST /graph/
+gaps/{i}/hypothesize` and `app/streamlit_app.py`'s hypothesize button both still call it
+directly by that name, and this track doesn't own either file. It got the same `explain()`-based
+nudge for consistency but is otherwise unchanged, and is flagged in its own docstring as the
+path to delete once those two call sites are repointed at `axiom.agents.synthesis.
+generate_hypothesis(gap, g, *, run_id, trend_context=None, max_retries=...)`.
+
 ---
 
 ## Schema change log
