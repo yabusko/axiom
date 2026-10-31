@@ -1,6 +1,8 @@
 """Tests for axiom.db — schema init, round-trips, FK-safe reset."""
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from axiom import db
@@ -156,5 +158,62 @@ def test_init_db_backfills_run_id_on_pre_existing_tables(tmp_path):
         conn.commit()
         row = conn.execute("SELECT run_id FROM paper_concepts").fetchone()
         assert row["run_id"] == ""
+    finally:
+        conn.close()
+
+
+def test_init_db_migrates_a_real_pre_od26_database_end_to_end(tmp_path):
+    """Reproduces exactly what happened against the real data/axiom.db: an old-shape
+    database (no run_id column, no unique index) that ALSO already has pre-B4 duplicate
+    (paper_id, canonical, kind) rows from before the matching cascade existed. init_db must
+    get it to the current shape in one call -- backfill run_id AND dedupe -- without raising,
+    and reset_corpus must still be FK-safe afterward."""
+    path = tmp_path / "real_shape.db"
+    conn = db.connect(path)
+    try:
+        conn.executescript("""
+            CREATE TABLE papers (openalex_id TEXT PRIMARY KEY, title TEXT, abstract TEXT,
+                publication_year INTEGER, venue_id TEXT, venue TEXT,
+                cited_by_count INTEGER DEFAULT 0, doi TEXT);
+            CREATE TABLE paper_concepts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, paper_id TEXT NOT NULL, name TEXT NOT NULL,
+                kind TEXT NOT NULL, canonical TEXT NOT NULL, cosine REAL NOT NULL,
+                evidence_span TEXT NOT NULL, confidence REAL NOT NULL,
+                source TEXT NOT NULL DEFAULT 'agent', created_at DATETIME NOT NULL);
+            CREATE TABLE concept_cooccurrence (
+                paper_id TEXT NOT NULL, concept_a TEXT NOT NULL, concept_b TEXT NOT NULL);
+        """)
+        conn.execute("INSERT INTO papers (openalex_id) VALUES ('S0001')")
+        # Three pre-B4 duplicates for the same (paper_id, canonical, kind) -- the real bug.
+        for name in ("Tokenization", "tokenization", "Tokenize"):
+            conn.execute(
+                "INSERT INTO paper_concepts (paper_id, name, kind, canonical, cosine, "
+                "evidence_span, confidence, created_at) VALUES "
+                "('S0001', ?, 'method', 'Tokenization', 0.9, 'x', 0.9, '2026-01-01')",
+                (name,),
+            )
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) c FROM paper_concepts").fetchone()["c"] == 3
+
+        db.init_db(conn)  # must not raise -- this is exactly what crashed against the real db
+
+        rows = conn.execute(
+            "SELECT * FROM paper_concepts WHERE paper_id = 'S0001' AND canonical = 'Tokenization'"
+        ).fetchall()
+        assert len(rows) == 1  # deduped down to one
+        assert rows[0]["run_id"] == ""  # backfilled
+
+        # the unique index is now real: a fresh duplicate insert must fail going forward
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO paper_concepts (run_id, paper_id, name, kind, canonical, cosine, "
+                "evidence_span, confidence, created_at) VALUES "
+                "('r1', 'S0001', 'Tokenizing', 'method', 'Tokenization', 0.9, 'x', 0.9, '2026-01-01')"
+            )
+        conn.rollback()
+
+        db.reset_corpus(conn)  # must not raise a foreign-key violation either
+        assert conn.execute("SELECT COUNT(*) c FROM papers").fetchone()["c"] == 0
+        assert conn.execute("SELECT COUNT(*) c FROM paper_concepts").fetchone()["c"] == 0
     finally:
         conn.close()
