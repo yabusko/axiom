@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Research gaps</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Wireframe state:</strong>
+  <a class="current" href="gaps.html">Populated</a><span class="sep">·</span>
+  <a href="gaps-empty.html">Empty</a><span class="sep">·</span>
+  <a href="gaps-loading.html">Loading</a><span class="sep">·</span>
+  <a href="gaps-error.html">Error</a>
+  <span class="sep">|</span>
+  <a href="index.html">All screens</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="start.html">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="gaps.html" class="active">Research gaps</a>
+    <a href="shortlist.html">Shortlist</a>
+  </nav>
+  <div class="field-context"><strong>Retrieval-augmented generation</strong> · 300 papers · built 31 Oct 2026</div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Research gaps</h1>
+    <p class="lede">Pairs of topic clusters that are close in meaning but rarely cite each other. A thin citation link between semantically close clusters is the signal — it suggests two groups of researchers working on related problems without much awareness of each other.</p>
+  </div>
+
+  <div class="badge-row">
+    <span class="badge">Uncalibrated score</span>
+    <span class="badge-note">The G-score below blends four signals with default weights that haven't been calibrated against labeled gap data yet. Treat the ranking as a starting point, not ground truth.</span>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>15 candidate gaps, ranked by G-score</h2>
+    </div>
+
+    <a class="gap-card" href="gap-detail.html">
+      <div class="gap-rank">Gap 1 of 15</div>
+      <h3>An NLP/ML-methods cluster barely cites the question-answering cluster right next to it</h3>
+      <p class="muted" style="margin-bottom:0;">43 papers on NLP and machine-learning methods sit at 98.8% semantic similarity to a 20-paper question-answering cluster, but only 32 citations cross between them.</p>
+      <div class="gap-meta">
+        <span>Sides: <strong>43</strong> &amp; <strong>20</strong> papers</span>
+        <span>Similarity: <strong>98.8%</strong></span>
+        <span>Inter-cluster citations: <strong>32</strong></span>
+        <span>G-score: <strong>0.618</strong> (uncalibrated)</span>
+      </div>
+    </a>
+
+    <div class="gap-card" style="cursor:default;">
+      <div class="gap-rank">Gap 2 of 15</div>
+      <h3>A summarization/NLP cluster and a philosophy-adjacent NLP/ML cluster rarely connect</h3>
+      <p class="muted" style="margin-bottom:0;">67 papers on automatic summarization and NLP/ML methods sit at 98.2% semantic similarity to the 43-paper NLP/philosophy/ML cluster, with 56 citations crossing between them.</p>
+      <div class="gap-meta">
+        <span>Sides: <strong>67</strong> &amp; <strong>43</strong> papers</span>
+        <span>Similarity: <strong>98.2%</strong></span>
+        <span>Inter-cluster citations: <strong>56</strong></span>
+        <span>G-score: <strong>0.597</strong> (uncalibrated)</span>
+      </div>
+    </div>
+
+    <div class="gap-card" style="cursor:default;">
+      <div class="gap-rank">Gap 3 of 15</div>
+      <h3>A QA/mathematics cluster and the same philosophy-adjacent NLP/ML cluster rarely connect</h3>
+      <p class="muted" style="margin-bottom:0;">58 papers on question answering, mathematics and programming-language methods sit at 98.7% semantic similarity to the 43-paper NLP/philosophy/ML cluster, with 79 citations crossing between them.</p>
+      <div class="gap-meta">
+        <span>Sides: <strong>58</strong> &amp; <strong>43</strong> papers</span>
+        <span>Similarity: <strong>98.7%</strong></span>
+        <span>Inter-cluster citations: <strong>79</strong></span>
+        <span>G-score: <strong>0.589</strong> (uncalibrated)</span>
+      </div>
+    </div>
+
+    <div class="gap-card" style="opacity:0.65; cursor:default;">
+      <div class="gap-rank">Gaps 4–15 of 15</div>
+      <h3 style="font-weight:600;">12 more candidate gaps, G-score 0.589 and below</h3>
+      <p class="muted" style="margin-bottom:0;">Not detailed in this wireframe sample — the shipped product lists all 15 here, each opening the same gap-detail view shown for gap 1.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="page-footer">Low-fi wireframe — Phase C, product redesign. Not final visual design.</footer>
+
+</body>
+</html>

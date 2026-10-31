@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Wireframe index</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Axiom wireframes</strong> — low-fi, clickable, greyscale. Phase C of the product redesign. Built against <code>docs/product/PRODUCT.md</code> and <code>docs/product/AUDIT.md</code>.
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Wireframe index</h1>
+    <p class="lede">Five screens, each with a populated, empty, loading, and error state, plus the global paper panel and the Markdown export view. Start with the click-through flow below, or jump to any state directly.</p>
+  </div>
+
+  <div class="section">
+    <h2>Click-through flow (the 3-minute demo scenario)</h2>
+    <p class="muted" style="margin-top:-6px;">Start from an already-built field, go straight to a gap, draft a direction, shortlist it — the scenario this product is built to nail.</p>
+    <ol class="flow-list">
+      <li><span class="flow-num">1</span><div><a href="start.html">Start</a> — reopen the saved "retrieval-augmented generation" field</div></li>
+      <li><span class="flow-num">2</span><div><a href="landscape.html">Landscape</a> — see the topics, rising concepts, and key papers</div></li>
+      <li><span class="flow-num">3</span><div><a href="gaps.html">Research gaps — list</a> — scan the 15 ranked candidate gaps</div></li>
+      <li><span class="flow-num">4</span><div><a href="gap-detail.html">Research gaps — detail</a> — read the top gap's bridge, evidence, and cross-check</div></li>
+      <li><span class="flow-num">5</span><div><a href="gap-detail-paper-panel.html">Paper panel open</a> — open an evidence paper from the gap detail screen</div></li>
+      <li><span class="flow-num">6</span><div><a href="shortlist.html">Shortlist</a> — the drafted direction, with notes and a paper to read</div></li>
+      <li><span class="flow-num">7</span><div><a href="shortlist-export.html">Markdown export</a> — the copy-pasteable summary for a supervisor meeting</div></li>
+    </ol>
+  </div>
+
+  <div class="index-group">
+    <h2>1. Start</h2>
+    <div class="index-links">
+      <a class="state-populated" href="start.html">Populated</a>
+      <a href="start-empty.html">Empty — no recent fields</a>
+      <a href="start-loading.html">Loading — build in progress</a>
+      <a href="start-error.html">Error — build failed</a>
+    </div>
+  </div>
+
+  <div class="index-group">
+    <h2>2. Landscape</h2>
+    <div class="index-links">
+      <a class="state-populated" href="landscape.html">Populated</a>
+      <a href="landscape-empty.html">Empty — no active field</a>
+      <a href="landscape-loading.html">Loading</a>
+      <a href="landscape-error.html">Error</a>
+      <a href="landscape-paper-squad.html">Paper panel — SQuAD</a>
+      <a href="landscape-paper-wikiqa.html">Paper panel — WikiQA</a>
+      <a href="landscape-paper-bert.html">Paper panel — BERT</a>
+    </div>
+  </div>
+
+  <div class="index-group">
+    <h2>3. Research gaps — list</h2>
+    <div class="index-links">
+      <a class="state-populated" href="gaps.html">Populated</a>
+      <a href="gaps-empty.html">Empty — no gaps met threshold</a>
+      <a href="gaps-loading.html">Loading</a>
+      <a href="gaps-error.html">Error</a>
+    </div>
+  </div>
+
+  <div class="index-group">
+    <h2>4. Research gaps — detail (the bridge view)</h2>
+    <div class="index-links">
+      <a class="state-populated" href="gap-detail.html">Populated</a>
+      <a class="state-populated" href="gap-detail-paper-panel.html">Populated — paper panel open</a>
+      <a href="gap-detail-empty.html">Empty — no gap selected</a>
+      <a href="gap-detail-loading.html">Loading</a>
+      <a href="gap-detail-error.html">Error</a>
+    </div>
+  </div>
+
+  <div class="index-group">
+    <h2>5. Shortlist</h2>
+    <div class="index-links">
+      <a class="state-populated" href="shortlist.html">Populated</a>
+      <a href="shortlist-empty.html">Empty — nothing drafted yet</a>
+      <a href="shortlist-loading.html">Loading</a>
+      <a href="shortlist-error.html">Error — note didn't save</a>
+      <a class="state-populated" href="shortlist-export.html">Markdown export view</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Deferred (not built, per scope)</h2>
+    <p class="muted">⌘K global search, "Under the hood" (pipeline runs, retrieval eval, vector geometry fine detail, the standalone Paper Similarity Analyzer, dense/hybrid toggle), BibTeX export.</p>
+  </div>
+</main>
+
+<footer class="page-footer">Low-fi wireframe — Phase C, product redesign. Not final visual design. Greyscale by design — the visual-direction phase comes later.</footer>
+
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Start (empty)</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Wireframe state:</strong>
+  <a href="start.html">Populated</a><span class="sep">·</span>
+  <a class="current" href="start-empty.html">Empty</a><span class="sep">·</span>
+  <a href="start-loading.html">Loading</a><span class="sep">·</span>
+  <a href="start-error.html">Error</a>
+  <span class="sep">|</span>
+  <a href="index.html">All screens</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="start.html" class="active">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="gaps.html">Research gaps</a>
+    <a href="shortlist.html">Shortlist</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Start a field</h1>
+    <p class="lede">Type a topic and Axiom builds a corpus for it: fetching papers, mapping topics, extracting methods and datasets, and finding research gaps.</p>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <label for="topic">Topic</label>
+      <div class="btn-row">
+        <input class="field-input" type="text" id="topic" name="topic" placeholder="e.g. retrieval-augmented generation" value="">
+        <a class="btn btn-primary" href="start-loading.html">Build field</a>
+      </div>
+      <p class="faint" style="margin-top:10px;">Building the full corpus takes a few minutes and makes paid extraction calls. You'll see a cost and time estimate before the extraction step runs.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Recent fields</h2>
+    </div>
+    <div class="state-block">
+      <h2>You haven't built a field yet</h2>
+      <p>Type a topic above — something like "retrieval-augmented generation" or "graph neural networks" — and Axiom will fetch papers, map the topic landscape, and surface research gaps for it. Fields you build will show up here so you can reopen them without rebuilding.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="page-footer">Low-fi wireframe — Phase C, product redesign. Not final visual design.</footer>
+
+</body>
+</html>
