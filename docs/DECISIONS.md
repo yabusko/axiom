@@ -851,6 +851,40 @@ optional search mode -- `scripts/eval_structural_query_aware.py` stays an eval-o
 script, same as the existing `hybrid_struct` arm. Report at
 `eval/report_hybrid_struct_query_aware.md`.
 
+## OD31 — keep the eval corpus built from the uncleaned `FULL_DATASET.jsonl`, not `cleaned_dataset.jsonl`
+
+**Context.** Stage 3 (product) repo cleanup, item A.1: `FULL_DATASET.jsonl` and
+`cleaned_dataset.jsonl` were committed at the repo root (2 x 78 MB, 23,002 rows each),
+although `data_prep/README.md` claimed they were git-ignored and `axiom.config.
+EVAL_DATASET_PATH`/`scripts/ingest_eval_corpus.py` expect `data/FULL_DATASET.jsonl` --
+a path that didn't exist (the real file was at the repo root). `diff` of the two files
+confirms exactly 806/23,002 rows (3.5%) differ -- `clean_dataset.py`'s dedupe/
+admin-row-drop/text-normalization rules changed those rows; the other 22,196 are
+byte-identical.
+
+**Decision.** Leave `EVAL_DATASET_PATH` pointing at `FULL_DATASET.jsonl` (the uncleaned
+file), now relocated to `data/FULL_DATASET.jsonl` so the path in code finally matches
+reality. Do not switch the eval corpus to `cleaned_dataset.jsonl` this stage, and do not
+re-ingest `data/eval.db`.
+
+**Why.** The entire stage-2 eval history (nDCG@10 results, OD29/OD30's AI-grading
+and structural-arm comparisons, `eval/ndcg_queries_v2.json`) was built against the
+corpus `ingest_eval_corpus.py` already produced from the uncleaned file. Switching the
+source now would silently invalidate every one of those numbers without first
+auditing what the 806 differing rows actually fix (dedup? garbled characters? dropped
+admin/TOC rows mixed in as fake papers?) -- that audit is real work this stage's
+product-redesign scope doesn't need and the fast-mode laptop rules (no re-ingest,
+heavy jobs one at a time) argue against doing speculatively. Both files stay
+available in `data/` (git-ignored) so a future stage can diff the 806 rows and
+re-ingest deliberately if the cleaning turns out to matter for eval quality.
+
+**Action taken.** Moved both files from the repo root into `data/` (matching
+`config.EVAL_DATASET_PATH` and the existing blanket `data/` gitignore rule),
+untracked them from git (`git rm --cached`, history keeps the old committed blobs --
+no history rewrite this stage), and documented the regeneration path (including
+pulling the old committed copies back out of `origin/main` history) in
+`data_prep/README.md`.
+
 ---
 
 ## Schema change log
