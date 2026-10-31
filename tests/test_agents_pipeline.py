@@ -540,6 +540,36 @@ def test_link_writes_every_entity_including_new_concept(empty_conn):
     assert len(cooc_rows) == 3  # 3 canonicals -> C(3,2) pairs
 
 
+def test_link_dedupes_multiple_entities_resolving_to_the_same_concept(empty_conn):
+    """Real abstracts routinely name the same concept more than once ("RAG" and
+    "retrieval-augmented generation" both resolving to the same canonical label) --
+    paper_concepts' unique index on (paper_id, canonical, kind) means at most one row per
+    concept can be written, so link() must dedupe rather than crash on the collision."""
+    db.insert_paper(empty_conn, openalex_id="W1", title="t", abstract="a",
+                     publication_year=2024, venue_id=None, venue="ACL")
+    empty_conn.commit()
+
+    result = EnrichmentResult(paper_id="W1", enriched=[
+        EnrichedEntity(name="RAG", kind="method", evidence_span="RAG", confidence=0.7,
+                       canonical="Retrieval-Augmented Generation", cosine=0.90, ontology_source="embedding"),
+        EnrichedEntity(name="retrieval-augmented generation", kind="method",
+                       evidence_span="retrieval-augmented generation", confidence=0.9,
+                       canonical="Retrieval-Augmented Generation", cosine=0.99, ontology_source="lexical"),
+        EnrichedEntity(name="Retrieval", kind="task", evidence_span="Retrieval", confidence=0.8,
+                       canonical="Retrieval", cosine=1.0, ontology_source="lexical"),
+    ])
+    written = linking.link(empty_conn, result)
+    assert written == 2  # the two RAG mentions collapse into one row
+
+    rows = empty_conn.execute(
+        "SELECT * FROM paper_concepts WHERE paper_id = 'W1' AND canonical = 'Retrieval-Augmented Generation'"
+    ).fetchall()
+    assert len(rows) == 1
+    # the higher-cosine mention (the exact-match one) wins, not just the first one seen
+    assert rows[0]["name"] == "retrieval-augmented generation"
+    assert rows[0]["cosine"] == pytest.approx(0.99)
+
+
 def test_link_no_cooccurrence_for_single_concept(empty_conn):
     db.insert_paper(empty_conn, openalex_id="W1", title="t", abstract="a",
                      publication_year=2024, venue_id=None, venue="ACL")
