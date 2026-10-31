@@ -410,8 +410,12 @@ class AnthropicProvider:
             "messages": [{"role": "user", "content": prompt}],
             "output_config": {"format": {"type": "json_schema", "schema": schema}},
         }
-        if temperature is not None:
-            payload["temperature"] = temperature
+        # `temperature` is rejected outright (HTTP 400 "temperature is deprecated for this
+        # model") by every model this app currently targets (the 5.5 generation uses adaptive
+        # behavior instead) -- found live while running real B3 calibration calls. Never add
+        # it to the Anthropic payload; `temperature` stays a real parameter on this function
+        # (and callers keep passing it) only so OllamaProvider's local models -- which still
+        # honor it -- don't need a separate call shape.
 
         try:
             start = time.perf_counter()

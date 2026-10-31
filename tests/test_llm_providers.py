@@ -170,6 +170,29 @@ def test_anthropic_complete_json_success(monkeypatch):
     assert traces[0]["model"] == config.MODEL_FAST
 
 
+def test_anthropic_never_sends_temperature(monkeypatch):
+    """The live API rejects `temperature` outright (HTTP 400 "temperature is deprecated for
+    this model") for every model this app currently targets -- found running real B3
+    calibration calls. The payload must never include it, no matter what a caller passes."""
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json=_route_body(action="full"))
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    asyncio.run(lp.complete_json(
+        "fast", "sys", "prompt", RouteDecision, run_id="runA", agent="coordinator",
+        temperature=0.3,
+    ))
+    assert len(calls) == 1
+    body = json.loads(calls[0].content)
+    assert "temperature" not in body
+
+
 def test_anthropic_refusal_raises_and_traces(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
 
