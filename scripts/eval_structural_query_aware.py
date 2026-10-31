@@ -92,6 +92,21 @@ async def query_concepts(
     return matched
 
 
+def build_ontology_from_paper_concepts(conn, encoder) -> enrichment.Ontology:
+    """`enrichment.build_ontology` draws its pool from `concept_canonical`/`concepts` --
+    both OpenAlex-metadata-derived and empty on the eval corpus (it was never ingested with
+    real OpenAlex concept data, the pre-existing OD11/OD20 gap this script's first real run
+    found). The eval corpus's only real concept pool is what the agent pipeline itself just
+    extracted into `paper_concepts.canonical` -- use that as the query-matching candidate
+    pool instead when the normal source is empty, rather than silently matching nothing."""
+    rows = conn.execute("SELECT DISTINCT canonical FROM paper_concepts WHERE canonical IS NOT NULL").fetchall()
+    labels = sorted({r["canonical"] for r in rows if r["canonical"]})
+    if not labels:
+        return enrichment.Ontology(labels=[], sources=[], vectors=np.zeros((0, 1)))
+    vectors = enrichment._normalize_rows(np.array(encoder.encode(labels), dtype=float))
+    return enrichment.Ontology(labels=labels, sources=["paper_concepts"] * len(labels), vectors=vectors)
+
+
 def query_aware_structural_scores(
     conn, candidate_ids: list[str], concepts: set[str],
 ) -> dict[str, float]:
@@ -135,7 +150,11 @@ async def run(k: int) -> None:
 
     phrase_encoder = enrichment.PhraseEncoder()
     ontology = enrichment.build_ontology(conn, phrase_encoder)
-    print(f"[d5] ontology pool size: {len(ontology.labels)}")
+    ontology_source = "concept_canonical/concepts"
+    if len(ontology.labels) == 0:
+        ontology = build_ontology_from_paper_concepts(conn, phrase_encoder)
+        ontology_source = "paper_concepts.canonical (fallback -- the real source tables are empty here)"
+    print(f"[d5] ontology pool size: {len(ontology.labels)} (source: {ontology_source})")
 
     pool_k = max(k, config.STRUCT_RETRIEVAL_CANDIDATES)
     rows_hybrid, rows_struct, rows_query_aware = [], [], []

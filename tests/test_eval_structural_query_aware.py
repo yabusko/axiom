@@ -6,7 +6,11 @@ dict/set logic) are exercised here.
 """
 from __future__ import annotations
 
-from scripts.eval_structural_query_aware import query_aware_structural_scores, query_spans
+from scripts.eval_structural_query_aware import (
+    build_ontology_from_paper_concepts,
+    query_aware_structural_scores,
+    query_spans,
+)
 
 
 def test_query_spans_includes_whole_query_and_ngrams():
@@ -58,3 +62,35 @@ def test_query_aware_structural_scores_empty_candidates_returns_empty():
             raise AssertionError("should not query the db with no candidates")
 
     assert query_aware_structural_scores(FakeConn(), [], {"x"}) == {}
+
+
+class _FakeEncoder:
+    def encode(self, texts):
+        return [[1.0, 0.0] for _ in texts]
+
+
+def test_build_ontology_from_paper_concepts_dedupes_and_embeds():
+    class FakeConn:
+        def execute(self, sql):
+            class R:
+                def fetchall(self_inner):
+                    return [{"canonical": "Retrieval"}, {"canonical": "Retrieval"},
+                            {"canonical": "RAG"}, {"canonical": None}]
+            return R()
+
+    ontology = build_ontology_from_paper_concepts(FakeConn(), _FakeEncoder())
+    assert ontology.labels == ["RAG", "Retrieval"]
+    assert ontology.vectors.shape[0] == 2
+    assert set(ontology.sources) == {"paper_concepts"}
+
+
+def test_build_ontology_from_paper_concepts_empty():
+    class FakeConn:
+        def execute(self, sql):
+            class R:
+                def fetchall(self_inner):
+                    return []
+            return R()
+
+    ontology = build_ontology_from_paper_concepts(FakeConn(), _FakeEncoder())
+    assert ontology.labels == []
