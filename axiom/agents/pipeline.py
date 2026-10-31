@@ -50,10 +50,15 @@ async def _process_paper(
     *,
     run_id: str,
     conn_factory: ConnFactory,
-    encoder: Any,
+    phrase_encoder: Any,
     ontology: Ontology,
     semaphore: asyncio.Semaphore,
 ) -> dict:
+    # A4: `paper.paper_id` -- this function's OWN input -- is the only source
+    # of truth for which paper a write belongs to, start to finish. Neither
+    # `RouteDecision` nor `ExtractionResult` has a `paper_id` field for the
+    # model to echo (contracts.py); nothing parsed out of an LLM response is
+    # ever consulted for it.
     async with semaphore:
         route_action: str | None = None
         try:
@@ -80,10 +85,21 @@ async def _process_paper(
             return {"paper_id": paper.paper_id, "route": "skip", "verdict": "skipped", "error": None}
 
         try:
-            extraction_result = await extraction.extract(
+            # A5: title_only route gets a title-only extraction prompt and
+            # verifies spans against the title only -- never the (already
+            # judged too-thin, or missing) abstract.
+            extraction_outcome = await extraction.extract(
                 paper.paper_id, paper.title, paper.abstract, run_id=run_id,
+                mode=route_action,
             )
         except verifier.VerificationFailed as exc:
+            # A2: extraction only raises this when EVERY entity it ever
+            # proposed failed every attempt -- a response that mixed good
+            # and bad entities already kept the good ones (see extract()'s
+            # per-entity accumulation). `exc.errors` carries an
+            # `empty_after_retry` marker when entities were proposed at all
+            # (vs. a schema failure that never produced any), so `str(exc)`
+            # distinguishes the two in the recorded error text.
             conn = conn_factory()
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
@@ -101,8 +117,8 @@ async def _process_paper(
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "error", "error": str(exc)}
 
         try:
-            enrichment_result = await enrichment.enrich(
-                extraction_result, encoder=encoder, ontology=ontology, run_id=run_id,
+            enrichment_outcome = await enrichment.enrich(
+                extraction_outcome, encoder=phrase_encoder, ontology=ontology, run_id=run_id,
             )
         except verifier.VerificationFailed as exc:
             conn = conn_factory()
@@ -121,11 +137,15 @@ async def _process_paper(
                 conn.close()
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "error", "error": str(exc)}
 
+        # D3: the real attempt count on the success path -- whichever of
+        # extraction/enrichment needed more rounds of self-correction for
+        # this paper, instead of the old hardcoded 1.
+        verifier_attempts = max(extraction_outcome.attempts, enrichment_outcome.attempts)
         conn = conn_factory()
         try:
-            written = linking.link(conn, enrichment_result, run_id=run_id)
+            written = linking.link(conn, enrichment_outcome.result, run_id=run_id)
             db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
-                              verifier_attempts=1, verdict="accepted", error=None)
+                              verifier_attempts=verifier_attempts, verdict="accepted", error=None)
         finally:
             conn.close()
         return {
@@ -146,11 +166,22 @@ async def run_pipeline(
     clusters: list[dict] | None = None,
     gaps: list[tuple[GapCandidate, nx.DiGraph]] | None = None,
     trend_context: list[str] | None = None,
+    phrase_encoder: Any = None,
 ) -> dict:
-    """Run the full agentic pipeline over `papers`. `encoder` is a
-    `Specter2Encoder`-shaped object (or a test double) -- constructed once by
-    the caller, never by this function, since loading real SPECTER2 weights
-    per run would be far too slow for a per-paper loop.
+    """Run the full agentic pipeline over `papers`.
+
+    `encoder` is accepted for call-signature compatibility with existing
+    callers (`api/main.py`'s `POST /agents/run` passes a `Specter2Encoder`)
+    but is no longer used by enrichment -- B1 moved entity-ontology matching
+    off the SPECTER2 document encoder onto a short-phrase model, since a
+    title+abstract-concat, CLS-token encoder is the wrong tool for a 2-4
+    word entity name. `phrase_encoder` is that short-phrase encoder
+    (`enrichment.PhraseEncoder`-shaped, or a test double); when omitted
+    (e.g. an existing caller that only knows about `encoder`), one is built
+    lazily via `enrichment.get_default_phrase_encoder()` -- a process-wide
+    singleton, so a caller that never passes `phrase_encoder` still only
+    pays the model-load cost once. Tests always inject a fake
+    `phrase_encoder` directly and never hit that lazy path.
 
     `model_fast`/`model_strong` default to `config.MODEL_FAST`/`MODEL_STRONG`,
     read at call time -- they're only recorded on the `agent_runs` row as a
@@ -164,6 +195,7 @@ async def run_pipeline(
     conn_factory = conn_factory or _default_conn_factory(db_path)
     model_fast = model_fast if model_fast is not None else config.MODEL_FAST
     model_strong = model_strong if model_strong is not None else config.MODEL_STRONG
+    phrase_enc = phrase_encoder if phrase_encoder is not None else enrichment.get_default_phrase_encoder()
 
     started_at = datetime.now(timezone.utc).isoformat()
     conn = conn_factory()
@@ -182,7 +214,7 @@ async def run_pipeline(
         # "SQLite objects created in a thread can only be used in that same thread".
         conn = conn_factory()
         try:
-            return enrichment.build_ontology(conn, encoder)
+            return enrichment.build_ontology(conn, phrase_enc)
         finally:
             conn.close()
 
@@ -192,7 +224,7 @@ async def run_pipeline(
     items = await asyncio.gather(*[
         _process_paper(
             paper, run_id=run_id, conn_factory=conn_factory,
-            encoder=encoder, ontology=ontology, semaphore=semaphore,
+            phrase_encoder=phrase_enc, ontology=ontology, semaphore=semaphore,
         )
         for paper in papers
     ])
