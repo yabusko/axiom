@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { api, type EntityOut } from "../api";
@@ -39,12 +40,23 @@ function highlightAbstract(abstract: string, entities: EntityOut[]) {
 export function PaperPanel() {
   const { fieldId } = useParams<{ fieldId: string }>();
   const { openPaperId, closePaper } = usePaperPanel();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["paper", fieldId, openPaperId],
     queryFn: () => api.paper(fieldId!, openPaperId!),
     enabled: !!fieldId && !!openPaperId,
   });
+
+  useEffect(() => {
+    if (!openPaperId) return;
+    closeButtonRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closePaper();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openPaperId, closePaper]);
 
   if (!openPaperId) return null;
 
@@ -54,7 +66,7 @@ export function PaperPanel() {
       <aside className="paper-panel" role="dialog" aria-label="Paper detail" aria-modal="true">
         <div className="paper-panel-head">
           <h2>{isLoading ? "Loading…" : (data?.title ?? openPaperId)}</h2>
-          <button className="panel-close" onClick={closePaper} type="button">
+          <button className="panel-close" onClick={closePaper} type="button" ref={closeButtonRef}>
             Close
           </button>
         </div>
