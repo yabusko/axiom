@@ -22,18 +22,36 @@ from axiom.agents.contracts import (
 
 
 def test_route_decision_valid():
-    rd = RouteDecision(paper_id="W1", action="full", reason="has abstract")
+    rd = RouteDecision(action="full", reason="has abstract")
     assert rd.action == "full"
+
+
+def test_route_decision_route_source_defaults_to_rule():
+    rd = RouteDecision(action="skip", reason="no title or abstract")
+    assert rd.route_source == "rule"
+
+
+def test_route_decision_accepts_llm_route_source():
+    rd = RouteDecision(action="full", reason="x", route_source="llm")
+    assert rd.route_source == "llm"
 
 
 def test_route_decision_rejects_unknown_action():
     with pytest.raises(ValidationError):
-        RouteDecision(paper_id="W1", action="maybe", reason="x")
+        RouteDecision(action="maybe", reason="x")
 
 
 def test_route_decision_rejects_extra_field():
     with pytest.raises(ValidationError):
-        RouteDecision(paper_id="W1", action="full", reason="x", extra_field=1)
+        RouteDecision(action="full", reason="x", extra_field=1)
+
+
+def test_route_decision_rejects_paper_id():
+    """A4: paper_id is not a field on this LLM-facing contract at all -- an
+    attempt to pass one (e.g. a stub mimicking a model that tried to echo
+    one back) is rejected by extra="forbid", not silently accepted."""
+    with pytest.raises(ValidationError):
+        RouteDecision(paper_id="W1", action="full", reason="x")
 
 
 def test_entity_confidence_bounds():
@@ -52,24 +70,50 @@ def test_entity_rejects_unknown_kind():
 
 def test_extraction_result_roundtrip():
     result = ExtractionResult(
-        paper_id="W1",
         entities=[Entity(name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9)],
     )
     assert result.entities[0].kind == "method"
     dumped = result.model_dump()
-    assert dumped["paper_id"] == "W1"
+    assert "paper_id" not in dumped
+
+
+def test_extraction_result_rejects_paper_id():
+    """A4: the model is never asked for, and can never successfully return,
+    a paper_id on this contract."""
+    with pytest.raises(ValidationError):
+        ExtractionResult(paper_id="W1", entities=[])
 
 
 def test_enriched_entity_extends_entity_with_cosine_bounds():
     ee = EnrichedEntity(
         name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9,
-        canonical="Low-Rank Adaptation", cosine=0.95, ontology_source="concept_canonical",
+        canonical="Low-Rank Adaptation", cosine=0.95, ontology_source="embedding",
     )
     assert ee.cosine == 0.95
     with pytest.raises(ValidationError):
         EnrichedEntity(
             name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9,
-            canonical="x", cosine=1.5, ontology_source="concept_canonical",
+            canonical="x", cosine=1.5, ontology_source="embedding",
+        )
+
+
+@pytest.mark.parametrize("source", ["lexical", "embedding", "new_concept"])
+def test_enriched_entity_accepts_each_renamed_ontology_source(source):
+    ee = EnrichedEntity(
+        name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9,
+        canonical="x", cosine=0.5, ontology_source=source,
+    )
+    assert ee.ontology_source == source
+
+
+def test_enriched_entity_rejects_pre_rename_ontology_source():
+    """B2: the old openalex_concept|concept_canonical|unmatched vocabulary
+    is gone -- a value from that set is now invalid, not just differently
+    named."""
+    with pytest.raises(ValidationError):
+        EnrichedEntity(
+            name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9,
+            canonical="x", cosine=0.5, ontology_source="unmatched",
         )
 
 
@@ -86,7 +130,7 @@ def test_enrichment_result_roundtrip():
         paper_id="W1",
         enriched=[EnrichedEntity(
             name="LoRA", kind="method", evidence_span="LoRA", confidence=0.9,
-            canonical="Low-Rank Adaptation", cosine=0.95, ontology_source="concept_canonical",
+            canonical="Low-Rank Adaptation", cosine=0.95, ontology_source="embedding",
         )],
     )
     assert result.enriched[0].canonical == "Low-Rank Adaptation"
@@ -102,6 +146,12 @@ def test_verifier_error_and_result():
 def test_verifier_result_defaults_to_empty_errors():
     result = VerifierResult(ok=True, attempt=1)
     assert result.errors == []
+
+
+@pytest.mark.parametrize("code", ["name_span_mismatch", "empty_after_retry"])
+def test_verifier_error_accepts_new_codes(code):
+    err = VerifierError(field="x", code=code, message="m")
+    assert err.code == code
 
 
 def test_verifier_error_rejects_unknown_code():

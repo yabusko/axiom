@@ -27,24 +27,25 @@ def link(
 ) -> int:
     """Write `paper_concepts` + `concept_cooccurrence` rows for one paper.
 
-    Only entities with a real ontology match are written -- an accepted
-    `EnrichmentResult` (the only kind `axiom/agents/pipeline.py` passes here)
-    cannot contain an "unmatched" entity by construction (the verifier
-    rejects those), but the filter keeps this function safe to call directly
-    (e.g. from a test) with unverified data too.
+    B1/B2 (OD26): every entity in an `EnrichmentResult` is written now, with
+    no filter. The old filter dropped `ontology_source == "unmatched"`
+    entities -- step 3 of the enrichment cascade used to mean "no ontology
+    match, so drop it"; it now means `new_concept`, "no ontology match, so
+    keep it under its own normalized name" (`enrichment.py`'s `_new_concept`).
+    There is no longer a match outcome that should be excluded from linking.
 
     Returns the number of `paper_concepts` rows written. `db.py`'s helpers
     each commit their own write (matches the rest of `db.py`'s convention).
     """
     ts = (created_at or datetime.now(timezone.utc)).isoformat()
-    matched = [e for e in enrichment.enriched if e.ontology_source != "unmatched"]
+    entities = enrichment.enriched
 
     concept_rows = [
         (e.name, e.kind, e.canonical, e.cosine, e.evidence_span, e.confidence, "agent", ts)
-        for e in matched
+        for e in entities
     ]
 
-    canonicals = sorted({e.canonical for e in matched})
+    canonicals = sorted({e.canonical for e in entities})
     pairs = [
         (a, b) for i, a in enumerate(canonicals) for b in canonicals[i + 1:]
     ]

@@ -55,14 +55,18 @@ Per-paper state machines run concurrently via `asyncio.gather` under the semapho
 ```python
 class RouteDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    paper_id: str; action: Literal["full", "title_only", "skip"]; reason: str
+    action: Literal["full", "title_only", "skip"]; reason: str
+    route_source: Literal["rule", "llm"] = "rule"  # A5: no paper_id -- see A4 below
 class Entity(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str; kind: Literal["method", "task", "dataset", "metric"]
     evidence_span: str; confidence: float = Field(ge=0.0, le=1.0)
 class ExtractionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    paper_id: str; entities: list[Entity]
+    entities: list[Entity]  # A4: no paper_id -- the model is never asked for or
+    # trusted with one; axiom/agents/pipeline.py always attaches its own input's
+    # paper_id downstream (EnrichmentResult.paper_id, the linking.py write), never
+    # anything parsed out of a model response. RouteDecision above is the same way.
 class EnrichedEntity(Entity):
     canonical: str; cosine: float = Field(ge=-1.0, le=1.0)
     ontology_source: Literal["lexical", "embedding", "new_concept"]  # OD26/B1, was openalex_concept|concept_canonical|unmatched
@@ -71,7 +75,10 @@ class EnrichmentResult(BaseModel):
     paper_id: str; enriched: list[EnrichedEntity]
 class VerifierError(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    field: str; code: Literal["schema", "evidence_span", "ontology_membership", "cosine_threshold"]; message: str
+    field: str
+    code: Literal["schema", "evidence_span", "ontology_membership", "cosine_threshold",
+                  "name_span_mismatch", "empty_after_retry"]  # A2/A3 additions
+    message: str
 class VerifierResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
     ok: bool; attempt: int; errors: list[VerifierError] = []
@@ -128,3 +135,23 @@ Three findings from `AXIOM_FIXES_TASK.md` got a design pass before Phase 2 build
 
 None of these are built yet — Phase 2 implementers code against the schema/config deltas
 already applied (§4/§5).
+
+## 10. Stage-2 fixes, Phase 2: pipeline-core landed changes
+
+B1/B2 above are built (`axiom/agents/enrichment.py`'s `_match_one` cascade + `PhraseEncoder`,
+mean-pooled `BAAI/bge-small-en-v1.5`, not SPECTER2). Also landed, beyond Phase 1's three
+design-noted findings: A1 (`verifier.verify_extraction` checks the title too, both sides
+normalized via `verifier.normalize_text`); A2 (per-entity verdicts, accumulated across
+extraction's retry attempts -- a paper is rejected only if every entity it ever proposed
+failed every attempt; `empty_after_retry` on `VerificationFailed.errors` distinguishes that
+from a paper that genuinely has nothing to extract); A3 (`name_span_mismatch` -- the claimed
+entity name must relate to its own evidence_span); A4 (`paper_id` removed from `RouteDecision`/
+`ExtractionResult`, §3); A5 (`coordinator.route` is rule-based, no LLM call in the common
+path -- `route_via_llm` is kept but unreachable, the three rules are exhaustive); D3 (real
+verifier-attempt counts recorded on the accepted path, not a hardcoded 1); D4 (`axiom.
+hypothesis`'s shared prompt/verify/side-paper-selection helpers promoted to public names;
+`axiom.agents.synthesis.generate_hypothesis` is the one implementation to call going
+forward -- see `docs/DECISIONS.md` for why the Ollama-only `axiom.hypothesis.
+generate_hypothesis` is still present). B5 (`graph._pagerank` now reads the edge `weight`
+attribute; `tests/test_concept_graph.py` exercises the real implementation, no more
+monkeypatched stand-in).

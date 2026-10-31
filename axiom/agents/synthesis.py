@@ -17,10 +17,15 @@ it has finished linking. Two independent jobs:
    direct `axiom.llm.chat_json` call to the strong tier via
    `axiom/llm_providers.py` (so it actually uses `config.MODEL_STRONG` when
    an Anthropic key is set, instead of always falling back to local Ollama).
-   `axiom/hypothesis.py` itself is untouched (not in this agent's owned
-   files) -- its prompt builder, side-paper selection, and rule-based
-   `_verify` are imported and reused as-is, not copy-pasted, so "same
-   verifier rules" is literally true, not just similar.
+   `axiom/hypothesis.py`'s prompt builder, side-paper selection, and
+   rule-based `verify` (public names, D4) are imported and reused as-is,
+   not copy-pasted, so "same verifier rules" is literally true, not just
+   similar. `axiom.hypothesis.generate_hypothesis` (the Ollama-only,
+   synchronous original) still exists ONLY because `api/main.py` and
+   `app/streamlit_app.py` call it directly today -- this module's
+   `generate_hypothesis` below is the one real implementation going
+   forward; see D4's note in the fixes task for the migration this is
+   waiting on.
 """
 from __future__ import annotations
 
@@ -34,13 +39,14 @@ from axiom.gaps import GapCandidate
 from axiom.hypothesis import (
     MAX_PAPERS_PER_SIDE,  # noqa: F401  (re-exported for callers that want it)
     MAX_RETRIES as _HYPOTHESIS_MAX_RETRIES,
+    SYSTEM as _HYPOTHESIS_SYSTEM,
     TEMPERATURE as _HYPOTHESIS_TEMPERATURE,
     HypothesisPitch,
     VerificationError,
-    _SYSTEM as _HYPOTHESIS_SYSTEM,
-    _prompt as _hypothesis_prompt,
-    _side_papers,
-    _verify as _verify_hypothesis,
+    build_prompt as hypothesis_prompt,
+    explain as explain_hypothesis_failure,
+    side_papers,
+    verify as verify_hypothesis,
 )
 
 # --- Cluster labeling -----------------------------------------------------------
@@ -135,23 +141,27 @@ async def generate_hypothesis(
     `supporting_paper_ids` drawn from both sides of the gap. Runs on the
     strong tier via `axiom/llm_providers.py` instead of calling
     `axiom.llm.chat_json` directly."""
-    side_a = _side_papers(g, gap.a.members)
-    side_b = _side_papers(g, gap.b.members)
+    side_a = side_papers(g, gap.a.members)
+    side_b = side_papers(g, gap.b.members)
     side_a_ids = {p["paper_id"] for p in side_a}
     side_b_ids = {p["paper_id"] for p in side_b}
-    prompt = _hypothesis_prompt(gap, side_a, side_b, trend_context)
+    base_prompt = hypothesis_prompt(gap, side_a, side_b, trend_context)
 
     last_data: dict | None = None
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
-        nudge = "" if attempt == 1 else (
-            "\n\nYour previous attempt did not include >=2 valid paper ids "
-            "with at least one from EACH side. Fix `supporting_paper_ids` -- "
-            "use ONLY the [bracketed] ids shown above."
+        # D4: nudge with the verifier's actual structured reasons, the same
+        # self-correction pattern extraction/enrichment use
+        # (verifier.format_errors_for_retry), instead of a fixed generic
+        # reminder of the hard constraint.
+        nudge = "" if last_data is None else (
+            "\n\nYour previous attempt failed verification:\n- "
+            + explain_hypothesis_failure(last_data, side_a_ids, side_b_ids)
+            + "\nFix every issue above -- use ONLY the [bracketed] ids shown above."
         )
         try:
             result = await llm_providers.complete_json(
-                "strong", _HYPOTHESIS_SYSTEM, prompt + nudge, _HypothesisJSON,
+                "strong", _HYPOTHESIS_SYSTEM, base_prompt + nudge, _HypothesisJSON,
                 run_id=run_id, agent="synthesis.hypothesis", attempt=attempt,
                 temperature=_HYPOTHESIS_TEMPERATURE,
             )
@@ -161,7 +171,7 @@ async def generate_hypothesis(
 
         data = result.model_dump()
         last_data = data
-        verified = _verify_hypothesis(data, side_a_ids, side_b_ids)
+        verified = verify_hypothesis(data, side_a_ids, side_b_ids)
         if verified is not None:
             return verified
 
