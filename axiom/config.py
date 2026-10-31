@@ -257,7 +257,7 @@ AGENT_MAX_TOKENS = {
     "route": 200,
     "extraction": 1500,
     "synthesis": 4096,
-    "pair_judgment": 150,            # B3/E3: a short structured {label, reason} judgment
+    "pair_judgment": 80,             # B3/E3: a short structured {label, reason} judgment
 }
 _DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed above
 

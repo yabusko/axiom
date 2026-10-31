@@ -72,10 +72,11 @@ def _row(entity="RAG", kind="method", evidence_span="uses RAG", candidate="Retri
 
 
 def test_estimate_cost_is_positive_and_scales_with_row_count():
+    import pytest
     one = ai_label.estimate_cost([_row()])
     ten = ai_label.estimate_cost([_row() for _ in range(10)])
     assert one > 0
-    assert ten == one * 10
+    assert ten == pytest.approx(one * 10)
 
 
 def test_load_and_save_round_trip(tmp_path):
