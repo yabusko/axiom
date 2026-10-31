@@ -101,7 +101,6 @@ async def run(estimate_only: bool) -> None:
         # the main corpus db per OD11's isolation discipline, so nothing has ever run
         # db.init_db() against it; the llm_spend table (C3) doesn't exist there yet.
         db.init_db(conn)
-        before = db.total_llm_spend(conn)
         run_id = uuid.uuid4().hex
         async with httpx.AsyncClient(
             base_url=config.ANTHROPIC_BASE_URL, timeout=config.ANTHROPIC_TIMEOUT,
@@ -112,12 +111,15 @@ async def run(estimate_only: bool) -> None:
                 paper_ids = list(q["judgments"].keys())
                 candidates = candidates_for(conn, paper_ids)
                 # grade_query doesn't accept client/conn (build_eval_v2_queries.py predates
-                # that seam) -- it still works, just opens its own client/uses the in-process
-                # budget total for this one query's single call rather than the pooled one.
-                result: GradingResult = await grade_query(q["query"], candidates, run_id)
+                # that seam) -- it still works, just opens its own client and tracks spend
+                # only in-process (llm_providers.spend_so_far below), not durably in
+                # llm_spend -- db.total_llm_spend would silently (and wrongly) read $0 here.
+                result: GradingResult = await grade_query(
+                    q["query"], candidates, run_id, tier="strong",
+                )
                 results[i] = {j.paper_id: j.relevance for j in result.judgments}
                 print(f"[second_grader] [{i}] '{q['query']}': {len(candidates)} candidates graded")
-        after = db.total_llm_spend(conn)
+        spend = llm_providers.spend_so_far(run_id)
     finally:
         conn.close()
 
@@ -152,8 +154,9 @@ async def run(estimate_only: bool) -> None:
     agreement = compute_agreement(original_flat, second_flat)
 
     print(f"\n[second_grader] wrote {len(out_queries)} queries -> {OUT_PATH}")
-    print(f"[second_grader] actual spend this run: ${after - before:.4f} "
-          f"(cumulative total: ${after:.4f} / ${config.LLM_BUDGET_USD:.2f} cap)")
+    print(f"[second_grader] actual spend this run: ${spend:.4f} "
+          f"(not durably recorded in llm_spend -- grade_query doesn't thread a conn through; "
+          f"this is the in-process total only)")
     print(f"[second_grader] AI-vs-AI agreement over {agreement['n_common']} judgments: "
           f"rate={agreement['agreement_rate']:.3f} kappa={agreement['kappa']:.4f}")
 

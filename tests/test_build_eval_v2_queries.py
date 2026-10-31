@@ -70,7 +70,7 @@ class _StubGrader:
     async def __call__(self, tier, system, prompt, model_cls, *, run_id, agent,
                         agent_type=None, paper_id=None, attempt=1, temperature=None,
                         client=None, conn=None):
-        self.calls.append({"attempt": attempt, "prompt": prompt})
+        self.calls.append({"attempt": attempt, "prompt": prompt, "tier": tier})
         if not self._responses:
             raise AssertionError("grade_query made more calls than responses were queued")
         item = self._responses.pop(0)
@@ -93,6 +93,19 @@ def test_grade_query_succeeds_first_attempt(monkeypatch):
     result = asyncio.run(grade_query("q", _CANDIDATES, "run1"))
     assert {j.paper_id for j in result.judgments} == {"P1", "P2"}
     assert len(stub.calls) == 1
+    assert stub.calls[0]["tier"] == "fast"  # default, unchanged for this script's own usage
+
+
+def test_grade_query_forwards_a_different_tier(monkeypatch):
+    """scripts/ai_second_grader_sample.py relies on this: tier="strong" must actually reach
+    complete_json, not silently stay on "fast" -- that would make the "second grader" just
+    a re-run of the same model instead of a genuinely independent one."""
+    stub = _StubGrader([GradingResult(judgments=[_judgment("P1"), _judgment("P2")])])
+    monkeypatch.setattr(llm_providers, "complete_json", stub)
+
+    import asyncio
+    asyncio.run(grade_query("q", _CANDIDATES, "run1", tier="strong"))
+    assert stub.calls[0]["tier"] == "strong"
 
 
 def test_grade_query_retries_after_incomplete_judgment_set_then_succeeds(monkeypatch):

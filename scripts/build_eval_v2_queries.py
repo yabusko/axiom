@@ -154,12 +154,15 @@ def validate_judgment_coverage(
 
 async def grade_query(
     query: str, candidates: list[dict], run_id: str, *, max_retries: int | None = None,
+    tier: str = "fast",
 ) -> GradingResult:
-    """Grade one query's pooled candidates with the `fast` tier, retrying
-    (same agent, errors folded back into the prompt) until the judgment set
-    covers the candidate pool exactly once each -- a grader that drops an id,
-    duplicates one, or invents one outside the pool silently corrupts the
-    nDCG labels downstream, so that's checked here rather than trusted."""
+    """Grade one query's pooled candidates with `tier` (defaults to `fast`, this script's
+    own usage), retrying (same agent, errors folded back into the prompt) until the judgment
+    set covers the candidate pool exactly once each -- a grader that drops an id, duplicates
+    one, or invents one outside the pool silently corrupts the nDCG labels downstream, so
+    that's checked here rather than trusted. `tier="strong"` (or `"opus"`) is how
+    scripts/ai_second_grader_sample.py gets a genuinely different, stronger model for its
+    independent second opinion -- it is NOT a re-run of the same `fast` model."""
     max_retries = max_retries if max_retries is not None else config.AGENT_MAX_RETRIES
     candidate_ids = [c["paper_id"] for c in candidates]
     base_prompt = _prompt(query, candidates)
@@ -169,7 +172,7 @@ async def grade_query(
     for attempt in range(1, max_retries + 1):
         try:
             result = await llm_providers.complete_json(
-                "fast", _SYSTEM, prompt, GradingResult,
+                tier, _SYSTEM, prompt, GradingResult,
                 run_id=run_id, agent="eval_v2_grading", attempt=attempt,
             )
         except (ValidationError, llm_providers.LLMError) as exc:
