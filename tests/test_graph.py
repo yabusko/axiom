@@ -41,11 +41,17 @@ def test_pagerank_unweighted_edges_match_plain_networkx_pagerank(seeded_conn):
     exactly what the old out_degree/successor-count implementation computed.
     """
     import pytest
+    # networkx's public `pagerank()` unconditionally calls its scipy-backed
+    # implementation in this version -- no `method=` kwarg to opt out. The repo's
+    # own suite must stay green without scipy installed (B5), so the reference
+    # here is the pure-Python power iteration networkx keeps around internally,
+    # not the public dispatcher.
+    from networkx.algorithms.link_analysis.pagerank_alg import _pagerank_python
 
     g = graphmod.load_graph(seeded_conn)
     sub = graphmod.corpus_subgraph(g)
     ours = graphmod._pagerank(sub)
-    reference = nx.pagerank(sub, alpha=0.85, max_iter=100, tol=1.0e-6, weight=None)
+    reference = _pagerank_python(sub, alpha=0.85, max_iter=100, tol=1.0e-6, weight=None)
     assert ours.keys() == reference.keys()
     for node in ours:
         assert ours[node] == pytest.approx(reference[node], rel=1e-4, abs=1e-6)
