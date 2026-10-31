@@ -97,6 +97,10 @@ async def run(estimate_only: bool) -> None:
 
     conn = db.connect(config.EVAL_DB_PATH)
     try:
+        # data/eval.db predates the agentic schema (OD19+) -- it's kept separate/frozen from
+        # the main corpus db per OD11's isolation discipline, so nothing has ever run
+        # db.init_db() against it; the llm_spend table (C3) doesn't exist there yet.
+        db.init_db(conn)
         before = db.total_llm_spend(conn)
         run_id = uuid.uuid4().hex
         async with httpx.AsyncClient(
