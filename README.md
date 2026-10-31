@@ -210,7 +210,7 @@ tests/                           pytest unit suite (conftest stubs torch/qdrant 
 
 docs/DECISIONS.md                every committed decision (OD1–OD14) + schema change log
 docs/demo_examples.md            real, reproducible output of every built feature
-docs/WALKTHROUGH.md              deep-dive on the original P1 seam (historical — see its banner)
+docs/archive/WALKTHROUGH.md      deep-dive on the original P1 seam (historical — see its banner)
 Backlog.md                       full task-by-task status (as-built vs. original plan)
 docker-compose.yml               Qdrant only
 ```
