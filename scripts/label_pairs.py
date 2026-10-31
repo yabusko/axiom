@@ -28,7 +28,8 @@ import sys
 from pathlib import Path
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "eval" / "enrichment_pairs.csv"
-FIELDNAMES = ["entity", "kind", "candidate", "cos", "margin", "label", "annotator"]
+FIELDNAMES = ["paper_id", "entity", "kind", "evidence_span", "candidate", "cos", "margin",
+              "label", "annotator"]
 VALID_LABELS = {"0", "1", "?"}
 SHUFFLE_SEED = 1234  # fixed, not re-randomized per run -- same order every resume
 
