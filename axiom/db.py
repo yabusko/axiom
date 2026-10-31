@@ -285,8 +285,29 @@ def finish_agent_run(conn: sqlite3.Connection, run_id: str, *, papers_done: int,
     conn.commit()
 
 
+def fail_agent_run(conn: sqlite3.Connection, run_id: str, *, error: str, finished_at: str) -> None:
+    """D1: the other terminal state finish_agent_run doesn't cover -- a background run's
+    try/finally calls this on an unhandled exception so agent_runs.status never gets stuck
+    at 'running' forever. `error` isn't a column on agent_runs; callers that want it visible
+    in GET /agents/runs/{id} store it per-paper via upsert_agent_run_item instead."""
+    conn.execute(
+        "UPDATE agent_runs SET status = 'failed', finished_at = ? WHERE run_id = ?",
+        (finished_at, run_id),
+    )
+    conn.commit()
+
+
 def get_agent_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)).fetchone()
+
+
+def agent_run_verdict_counts(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
+    """D1: per-verdict counts for GET /agents/runs/{id} (e.g. {'accepted': 12, 'rejected': 1})."""
+    rows = conn.execute(
+        "SELECT verdict, COUNT(*) AS n FROM agent_run_items WHERE run_id = ? GROUP BY verdict",
+        (run_id,),
+    ).fetchall()
+    return {r["verdict"]: r["n"] for r in rows if r["verdict"] is not None}
 
 
 def upsert_agent_run_item(
@@ -308,31 +329,75 @@ def upsert_agent_run_item(
     conn.commit()
 
 
-def insert_paper_concepts(conn: sqlite3.Connection, rows: Iterable[tuple]) -> None:
-    """`rows`: (paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)."""
-    rows = list(rows)
-    if not rows:
-        return
-    conn.executemany(
-        """
-        INSERT INTO paper_concepts
-            (paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        rows,
+def record_llm_spend(
+    conn: sqlite3.Connection, run_id: str, *,
+    ts: str, model: str, tokens_in: int, tokens_out: int, cost: float,
+) -> None:
+    """C3: one durable row per *settled* LLM call (after the response, real token
+    counts/cost) -- the persistent half of the budget ledger. Call sites reserve the
+    worst-case cost in-process before dispatch and settle here after; this table alone
+    answers "how much has this app ever spent", survives a restart."""
+    conn.execute(
+        "INSERT INTO llm_spend (run_id, ts, model, tokens_in, tokens_out, cost) VALUES (?, ?, ?, ?, ?, ?)",
+        (run_id, ts, model, tokens_in, tokens_out, cost),
     )
     conn.commit()
 
 
-def insert_cooccurrence(conn: sqlite3.Connection, paper_id: str, pairs: Iterable[tuple[str, str]]) -> None:
-    pairs = list(pairs)
-    if not pairs:
-        return
-    conn.executemany(
-        "INSERT INTO concept_cooccurrence (paper_id, concept_a, concept_b) VALUES (?, ?, ?)",
-        [(paper_id, a, b) for a, b in pairs],
-    )
+def total_llm_spend(conn: sqlite3.Connection) -> float:
+    """Cumulative spend across every run -- the figure LLM_BUDGET_USD actually caps."""
+    row = conn.execute("SELECT COALESCE(SUM(cost), 0) AS total FROM llm_spend").fetchone()
+    return float(row["total"])
+
+
+def run_llm_spend(conn: sqlite3.Connection, run_id: str) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost), 0) AS total FROM llm_spend WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    return float(row["total"])
+
+
+def replace_paper_concepts(
+    conn: sqlite3.Connection,
+    run_id: str,
+    paper_id: str,
+    concept_rows: Iterable[tuple],
+    cooccurrence_pairs: Iterable[tuple[str, str]],
+) -> int:
+    """B4: idempotent, atomic linking. One transaction deletes `paper_id`'s existing
+    `paper_concepts`/`concept_cooccurrence` rows (from any earlier run_id) then inserts the
+    new set tagged with this `run_id` -- safe to call repeatedly for the same paper (reruns
+    replace instead of accumulating duplicates). Replaces the old insert_paper_concepts/
+    insert_cooccurrence pair, which only ever INSERTed.
+
+    `concept_rows`: (name, kind, canonical, cosine, evidence_span, confidence, source, created_at).
+    `cooccurrence_pairs`: (concept_a, concept_b), concept_a < concept_b.
+    Returns the number of `paper_concepts` rows written.
+    """
+    concept_rows = list(concept_rows)
+    cooccurrence_pairs = list(cooccurrence_pairs)
+    try:
+        conn.execute("DELETE FROM paper_concepts WHERE paper_id = ?", (paper_id,))
+        conn.execute("DELETE FROM concept_cooccurrence WHERE paper_id = ?", (paper_id,))
+        if concept_rows:
+            conn.executemany(
+                """
+                INSERT INTO paper_concepts
+                    (run_id, paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(run_id, paper_id, *row) for row in concept_rows],
+            )
+        if cooccurrence_pairs:
+            conn.executemany(
+                "INSERT INTO concept_cooccurrence (run_id, paper_id, concept_a, concept_b) VALUES (?, ?, ?, ?)",
+                [(run_id, paper_id, a, b) for a, b in cooccurrence_pairs],
+            )
+    except Exception:
+        conn.rollback()
+        raise
     conn.commit()
+    return len(concept_rows)
 
 
 

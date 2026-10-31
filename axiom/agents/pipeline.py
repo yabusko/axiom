@@ -123,7 +123,7 @@ async def _process_paper(
 
         conn = conn_factory()
         try:
-            written = linking.link(conn, enrichment_result)
+            written = linking.link(conn, enrichment_result, run_id=run_id)
             db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                               verifier_attempts=1, verdict="accepted", error=None)
         finally:
