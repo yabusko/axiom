@@ -40,6 +40,10 @@ def reset_corpus(conn: sqlite3.Connection) -> None:
         "concepts",
         "citation_edges",
         "paper_provenance",
+        # paper_concepts/concept_cooccurrence (OD19/OD20) FK -> papers.openalex_id; must be
+        # cleared before papers or a non-empty agent-pipeline run blocks every future reset.
+        "paper_concepts",
+        "concept_cooccurrence",
         "papers",
     )
     for table in _CORPUS_TABLES:
