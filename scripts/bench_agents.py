@@ -100,15 +100,26 @@ def _percentile(values: list[float], pct: float) -> float:
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
-def iter_trace_lines(trace_dir: Path):
-    """Yield every parsed JSON object across every `*.jsonl` file in `trace_dir`.
+def iter_trace_lines(trace_dir: Path, run_id: str | None = None):
+    """Yield every parsed JSON object across trace files in `trace_dir`.
+
+    With `run_id` given, reads only that run's file (`trace_dir/<run_id>.jsonl`
+    -- the exact name `axiom/tracing.py.trace_path` writes), so a bench run
+    never mixes lines from unrelated runs sitting in the same directory.
+    Without it, every `*.jsonl` file is read, as before.
 
     Malformed lines are skipped (benchmarking must never crash on a partially
     written trace file from a run that's still in progress or was killed).
     """
     if not trace_dir.exists():
         return
-    for path in sorted(trace_dir.glob("*.jsonl")):
+    if run_id is not None:
+        paths = [trace_dir / f"{run_id}.jsonl"]
+    else:
+        paths = sorted(trace_dir.glob("*.jsonl"))
+    for path in paths:
+        if not path.exists():
+            continue
         with path.open("r", encoding="utf-8") as fh:
             for raw in fh:
                 raw = raw.strip()
@@ -142,13 +153,25 @@ def select_papers(lines: list[dict], n: int) -> set[str]:
 def rejection_rates(lines: list[dict]) -> dict:
     """First-pass vs final verifier rejection rate (R4).
 
-    Groups trace lines into (run_id, paper_id, agent) call sequences (one
-    sequence = one agent's retries for one paper within one run). First-pass
-    rejection looks only at attempt==1; final rejection looks at the sequence's
-    highest-attempt line (what the pipeline ultimately did after <=3 tries).
+    Only verifier-layer lines count here -- `axiom/agents/verifier.py.
+    log_attempt` writes one trace line per verification attempt with
+    `agent="<agent>.verifier"` and `verdict` in {"accepted", "rejected"}.
+    The SAME trace file also has provider-layer lines (`agent="extraction"`,
+    verdicts "ok"/"refusal"/"schema_invalid"/... from `axiom/llm_providers.py`)
+    for the underlying LLM calls -- mixing those into this count would both
+    double-count a paper's attempts and misread "schema_invalid" or "refusal"
+    as if they were verifier rejections. Filter to lines whose `agent` ends
+    in ".verifier" before grouping.
+
+    Groups the remaining lines into (run_id, paper_id, agent) call sequences
+    (one sequence = one agent's retries for one paper within one run).
+    First-pass rejection looks only at attempt==1; final rejection looks at
+    the sequence's highest-attempt line (what the pipeline ultimately did
+    after <=3 tries).
     """
+    verifier_lines = [l for l in lines if str(_get(l, "agent") or "").endswith(".verifier")]
     sequences: dict[tuple, list[dict]] = {}
-    for line in lines:
+    for line in verifier_lines:
         key = (_get(line, "run_id"), _get(line, "paper_id"), _get(line, "agent"))
         sequences.setdefault(key, []).append(line)
 
@@ -174,10 +197,14 @@ def rejection_rates(lines: list[dict]) -> dict:
 def run_latency_stats(lines: list[dict]) -> dict:
     """p50/p95 wall-clock latency per (run_id, paper_id), in seconds.
 
-    A paper's "run latency" = last trace line's (ts + latency_s) minus the
-    first trace line's ts, across every agent call that paper went through
-    in that run -- an approximation of the per-paper pipeline wall time from
-    call-level traces (no dedicated per-paper start/stop line exists).
+    `ts` is logged at call COMPLETION (`axiom/tracing.py.log_call` stamps it
+    after the call returns), so a call's span is `[ts - latency_s, ts]`, not
+    `[ts, ts + latency_s]` -- treating `ts` as the start would exclude the
+    call's own duration from the measured span and understate elapsed time.
+    A paper's "run latency" is then the earliest start to the latest end
+    across every agent call that paper went through in that run -- an
+    approximation of the per-paper pipeline wall time from call-level traces
+    (no dedicated per-paper start/stop line exists).
     """
     groups: dict[tuple, list[dict]] = {}
     for line in lines:
@@ -192,8 +219,8 @@ def run_latency_stats(lines: list[dict]) -> dict:
             latency = _get(line, "latency_s", 0.0) or 0.0
             if ts is None:
                 continue
-            starts.append(ts)
-            ends.append(ts + float(latency))
+            starts.append(ts - float(latency))
+            ends.append(ts)
         if starts and ends:
             spans.append(max(ends) - min(starts))
 
@@ -247,13 +274,17 @@ def main() -> None:
                      help="override config.TRACE_DIR")
     ap.add_argument("--out", type=str, default=None,
                      help="override config.AGENT_BENCH_PATH")
+    ap.add_argument("--run-id", type=str, default=None,
+                     help="restrict to one run's trace file (trace_dir/<run_id>.jsonl) "
+                          "instead of every *.jsonl file in trace_dir")
     args = ap.parse_args()
 
     trace_dir = Path(args.trace_dir) if args.trace_dir else config.TRACE_DIR
-    all_lines = list(iter_trace_lines(trace_dir))
+    all_lines = list(iter_trace_lines(trace_dir, run_id=args.run_id))
     if not all_lines:
+        source = f"run '{args.run_id}' under" if args.run_id else "under"
         raise SystemExit(
-            f"no trace lines found under '{trace_dir}' -- run the agent "
+            f"no trace lines found for {source} '{trace_dir}' -- run the agent "
             f"pipeline first (eval/runs/<run_id>.jsonl)."
         )
 

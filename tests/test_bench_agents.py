@@ -46,6 +46,18 @@ def test_iter_trace_lines_missing_dir_returns_empty(tmp_path):
     assert list(bench_agents.iter_trace_lines(tmp_path / "nope")) == []
 
 
+def test_iter_trace_lines_run_id_restricts_to_one_file(trace_dir):
+    _write_jsonl(trace_dir / "run1.jsonl", [{"a": 1}, {"a": 2}])
+    _write_jsonl(trace_dir / "run2.jsonl", [{"a": 3}])
+    lines = list(bench_agents.iter_trace_lines(trace_dir, run_id="run1"))
+    assert lines == [{"a": 1}, {"a": 2}]
+
+
+def test_iter_trace_lines_run_id_missing_file_returns_empty(trace_dir):
+    _write_jsonl(trace_dir / "run1.jsonl", [{"a": 1}])
+    assert list(bench_agents.iter_trace_lines(trace_dir, run_id="nope")) == []
+
+
 # ---------------------------------------------------------------------------
 # select_papers (the --n cap)
 # ---------------------------------------------------------------------------
@@ -68,14 +80,14 @@ def _call(run_id, paper_id, agent, attempt, verdict, **extra):
 
 
 def test_rejection_rate_first_pass_vs_final_self_correction():
-    # extraction on P1: rejected at attempt 1, accepted at attempt 2 (final ok).
-    # extraction on P2: rejected at attempt 1, still rejected at attempt 3 (final fail).
+    # extraction.verifier on P1: rejected at attempt 1, accepted at attempt 2 (final ok).
+    # extraction.verifier on P2: rejected at attempt 1, still rejected at attempt 3 (final fail).
     lines = [
-        _call("r1", "P1", "extraction", 1, "rejected"),
-        _call("r1", "P1", "extraction", 2, "accepted"),
-        _call("r1", "P2", "extraction", 1, "rejected"),
-        _call("r1", "P2", "extraction", 2, "rejected"),
-        _call("r1", "P2", "extraction", 3, "rejected"),
+        _call("r1", "P1", "extraction.verifier", 1, "rejected"),
+        _call("r1", "P1", "extraction.verifier", 2, "accepted"),
+        _call("r1", "P2", "extraction.verifier", 1, "rejected"),
+        _call("r1", "P2", "extraction.verifier", 2, "rejected"),
+        _call("r1", "P2", "extraction.verifier", 3, "rejected"),
     ]
     rates = bench_agents.rejection_rates(lines)
     assert rates["n_call_sequences"] == 2
@@ -83,8 +95,26 @@ def test_rejection_rate_first_pass_vs_final_self_correction():
     assert rates["final"] == pytest.approx(0.5)        # only P2's sequence still rejected
 
 
+def test_rejection_rate_ignores_provider_layer_lines():
+    """Only `*.verifier` lines count -- provider-layer call outcomes (ok/
+    refusal/schema_invalid from axiom/llm_providers.py) share the same
+    (run_id, paper_id, agent) shape but must not be mistaken for verifier
+    verdicts, and must not be double-counted alongside the real verifier
+    line for the same attempt."""
+    lines = [
+        _call("r1", "P1", "extraction", 1, "schema_invalid"),   # provider-layer, not a verdict
+        _call("r1", "P1", "extraction", 2, "ok"),               # provider-layer, not a verdict
+        _call("r1", "P1", "extraction.verifier", 1, "rejected"),
+        _call("r1", "P1", "extraction.verifier", 2, "accepted"),
+    ]
+    rates = bench_agents.rejection_rates(lines)
+    assert rates["n_call_sequences"] == 1
+    assert rates["first_pass"] == pytest.approx(1.0)
+    assert rates["final"] == pytest.approx(0.0)
+
+
 def test_rejection_rate_all_accepted_first_try():
-    lines = [_call("r1", "P1", "extraction", 1, "accepted")]
+    lines = [_call("r1", "P1", "extraction.verifier", 1, "accepted")]
     rates = bench_agents.rejection_rates(lines)
     assert rates["first_pass"] == 0.0
     assert rates["final"] == 0.0
@@ -101,14 +131,25 @@ def test_rejection_rate_empty_input():
 # run_latency_stats
 # ---------------------------------------------------------------------------
 def test_run_latency_stats_computes_span_per_paper():
+    # ts is logged at call COMPLETION, so each call's span is [ts - latency_s, ts]:
+    #   call 1: [00:00:00 - 1.0, 00:00:00] = [-1.0, 0.0]
+    #   call 2: [00:00:05 - 2.0, 00:00:05] = [3.0, 5.0]
+    # span = max(ends) - min(starts) = 5.0 - (-1.0) = 6.0s
     lines = [
         {"run_id": "r1", "paper_id": "P1", "ts": "2026-01-01T00:00:00Z", "latency_s": 1.0},
         {"run_id": "r1", "paper_id": "P1", "ts": "2026-01-01T00:00:05Z", "latency_s": 2.0},
-        # span = (00:00:05 + 2.0) - 00:00:00 = 7.0s
     ]
     stats = bench_agents.run_latency_stats(lines)
-    assert stats["p50"] == pytest.approx(7.0)
+    assert stats["p50"] == pytest.approx(6.0)
     assert stats["n_papers_with_timing"] == 1
+
+
+def test_run_latency_stats_single_call_span_is_its_own_latency():
+    """A paper with exactly one trace line: span == that call's latency_s,
+    not 0 -- regression check for the ts-is-end-of-call fix (C/E1)."""
+    lines = [{"run_id": "r1", "paper_id": "P1", "ts": "2026-01-01T00:00:10Z", "latency_s": 4.0}]
+    stats = bench_agents.run_latency_stats(lines)
+    assert stats["p50"] == pytest.approx(4.0)
 
 
 def test_run_latency_stats_p50_p95_over_multiple_papers():
@@ -212,6 +253,28 @@ def test_main_writes_report_file_respecting_n_cap(trace_dir, tmp_path, monkeypat
     bench_agents.main()
     data = json.loads(out_path.read_text(encoding="utf-8"))
     assert data["n_papers"] == 3   # capped by --n, not the 5 on disk
+    capsys.readouterr()
+
+
+def test_main_run_id_filters_to_one_run(trace_dir, tmp_path, monkeypatch, capsys):
+    rows_r1 = [{"run_id": "r1", "paper_id": "P1", "agent": "extraction",
+                "model": "claude-haiku-4-5", "attempt": 1, "verdict": "accepted",
+                "cost_usd": 0.01, "ts": "2026-01-01T00:00:00Z", "latency_s": 1.0}]
+    rows_r2 = [{"run_id": "r2", "paper_id": "P2", "agent": "extraction",
+                "model": "claude-haiku-4-5", "attempt": 1, "verdict": "accepted",
+                "cost_usd": 0.02, "ts": "2026-01-01T00:00:00Z", "latency_s": 1.0}]
+    _write_jsonl(trace_dir / "r1.jsonl", rows_r1)
+    _write_jsonl(trace_dir / "r2.jsonl", rows_r2)
+
+    out_path = tmp_path / "agent_bench.json"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["bench_agents.py", "--run-id", "r1", "--trace-dir", str(trace_dir), "--out", str(out_path)],
+    )
+    bench_agents.main()
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["n_runs"] == 1
+    assert data["papers_included"] == ["P1"]
     capsys.readouterr()
 
 
