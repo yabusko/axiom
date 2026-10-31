@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import sqlite3
 
+import httpx
 import networkx as nx
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -87,6 +88,8 @@ async def label_clusters(
     *,
     run_id: str,
     max_retries: int | None = None,
+    client: httpx.AsyncClient | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> list[dict]:
     """`clusters`: `[{"cluster_id": int, "concepts": [canonical_label, ...]}, ...]`
     (e.g. from a future `concept_graph.get_communities(conn)`). Returns
@@ -95,7 +98,9 @@ async def label_clusters(
     No deterministic verifier here (ARCHITECTURE.md scopes the verifier to
     extraction/enrichment only) -- just a provider-level retry on transport
     or schema failure. `max_retries` defaults to `config.AGENT_MAX_RETRIES`,
-    read at call time (see extraction.py's `extract()`).
+    read at call time (see extraction.py's `extract()`). `client`/`conn`
+    (C2/C3): the run's pooled HTTP client and a connection for the durable
+    budget check, same as `extraction.extract()`.
     """
     if not clusters:
         return []
@@ -108,6 +113,7 @@ async def label_clusters(
             result = await llm_providers.complete_json(
                 "strong", _CLUSTER_SYSTEM, prompt, _ClusterLabelsJSON,
                 run_id=run_id, agent="synthesis.clusters", agent_type="synthesis", attempt=attempt,
+                client=client, conn=conn,
             )
         except (ValidationError, llm_providers.LLMError) as exc:
             last_exc = exc
@@ -135,6 +141,8 @@ async def generate_hypothesis(
     run_id: str,
     trend_context: list[str] | None = None,
     max_retries: int = _HYPOTHESIS_MAX_RETRIES,
+    client: httpx.AsyncClient | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> HypothesisPitch:
     """Same contract as `axiom.hypothesis.generate_hypothesis`: raises
     `VerificationError` if no attempt produces a pitch with >=2
@@ -163,7 +171,7 @@ async def generate_hypothesis(
             result = await llm_providers.complete_json(
                 "strong", _HYPOTHESIS_SYSTEM, base_prompt + nudge, _HypothesisJSON,
                 run_id=run_id, agent="synthesis.hypothesis", agent_type="synthesis", attempt=attempt,
-                temperature=_HYPOTHESIS_TEMPERATURE,
+                temperature=_HYPOTHESIS_TEMPERATURE, client=client, conn=conn,
             )
         except (ValidationError, llm_providers.LLMError) as exc:
             last_exc = exc

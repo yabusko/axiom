@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+import httpx
 import networkx as nx
 
 from axiom import config, db
@@ -53,6 +54,8 @@ async def _process_paper(
     phrase_encoder: Any,
     ontology: Ontology,
     semaphore: asyncio.Semaphore,
+    client: httpx.AsyncClient | None = None,
+    budget_conn: sqlite3.Connection | None = None,
 ) -> dict:
     # A4: `paper.paper_id` -- this function's OWN input -- is the only source
     # of truth for which paper a write belongs to, start to finish. Neither
@@ -71,6 +74,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=None,
                                   verifier_attempts=0, verdict="error", error=str(exc))
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": None, "verdict": "error", "error": str(exc)}
@@ -80,6 +84,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route="skip",
                                   verifier_attempts=0, verdict="skipped", error=None)
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": "skip", "verdict": "skipped", "error": None}
@@ -90,7 +95,7 @@ async def _process_paper(
             # judged too-thin, or missing) abstract.
             extraction_outcome = await extraction.extract(
                 paper.paper_id, paper.title, paper.abstract, run_id=run_id,
-                mode=route_action,
+                mode=route_action, client=client, conn=budget_conn,
             )
         except verifier.VerificationFailed as exc:
             # A2: extraction only raises this when EVERY entity it ever
@@ -104,6 +109,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=exc.attempts, verdict="rejected", error=str(exc))
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "rejected", "error": str(exc)}
@@ -112,6 +118,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=0, verdict="error", error=str(exc))
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "error", "error": str(exc)}
@@ -125,6 +132,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=exc.attempts, verdict="rejected", error=str(exc))
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "rejected", "error": str(exc)}
@@ -133,6 +141,7 @@ async def _process_paper(
             try:
                 db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                                   verifier_attempts=0, verdict="error", error=str(exc))
+                db.increment_agent_run_papers_done(conn, run_id)
             finally:
                 conn.close()
             return {"paper_id": paper.paper_id, "route": route_action, "verdict": "error", "error": str(exc)}
@@ -146,6 +155,7 @@ async def _process_paper(
             written = linking.link(conn, enrichment_outcome.result, run_id=run_id)
             db.upsert_agent_run_item(conn, run_id, paper.paper_id, route=route_action,
                               verifier_attempts=verifier_attempts, verdict="accepted", error=None)
+            db.increment_agent_run_papers_done(conn, run_id)
         finally:
             conn.close()
         return {
@@ -220,31 +230,48 @@ async def run_pipeline(
 
     ontology = await asyncio.to_thread(_build_ontology)
 
-    semaphore = asyncio.Semaphore(config.AGENT_CONCURRENCY)
-    items = await asyncio.gather(*[
-        _process_paper(
-            paper, run_id=run_id, conn_factory=conn_factory,
-            phrase_encoder=phrase_enc, ontology=ontology, semaphore=semaphore,
-        )
-        for paper in papers
-    ])
-
-    cluster_labels: list[dict] = []
-    if clusters:
-        cluster_labels = await synthesis.label_clusters(clusters, run_id=run_id)
-
-    hypotheses: list[dict] = []
-    if gaps:
-        conn = conn_factory()
-        try:
-            for gap, g in gaps:
-                pitch = await synthesis.generate_hypothesis(
-                    gap, g, run_id=run_id, trend_context=trend_context,
+    # C2/C3: one pooled HTTP client and one sqlite connection for the whole run,
+    # shared by every LLM call in it (coordinator/extraction/synthesis) -- instead
+    # of each call opening its own client and only ever seeing this process's
+    # in-memory spend total. Opened here, on the event loop thread that actually
+    # awaits every one of those calls (never inside asyncio.to_thread -- sqlite3
+    # connections are thread-affine, same caveat as `_build_ontology` above).
+    budget_conn = conn_factory()
+    try:
+        async with httpx.AsyncClient(
+            base_url=config.ANTHROPIC_BASE_URL, timeout=config.ANTHROPIC_TIMEOUT,
+        ) as client:
+            semaphore = asyncio.Semaphore(config.AGENT_CONCURRENCY)
+            items = await asyncio.gather(*[
+                _process_paper(
+                    paper, run_id=run_id, conn_factory=conn_factory,
+                    phrase_encoder=phrase_enc, ontology=ontology, semaphore=semaphore,
+                    client=client, budget_conn=budget_conn,
                 )
-                review_id = synthesis.queue_hypothesis(conn, gap, pitch)
-                hypotheses.append({"review_id": review_id, "title": pitch.title, "claim": pitch.claim})
-        finally:
-            conn.close()
+                for paper in papers
+            ])
+
+            cluster_labels: list[dict] = []
+            if clusters:
+                cluster_labels = await synthesis.label_clusters(
+                    clusters, run_id=run_id, client=client, conn=budget_conn,
+                )
+
+            hypotheses: list[dict] = []
+            if gaps:
+                conn = conn_factory()
+                try:
+                    for gap, g in gaps:
+                        pitch = await synthesis.generate_hypothesis(
+                            gap, g, run_id=run_id, trend_context=trend_context,
+                            client=client, conn=budget_conn,
+                        )
+                        review_id = synthesis.queue_hypothesis(conn, gap, pitch)
+                        hypotheses.append({"review_id": review_id, "title": pitch.title, "claim": pitch.claim})
+                finally:
+                    conn.close()
+    finally:
+        budget_conn.close()
 
     finished_at = datetime.now(timezone.utc).isoformat()
     conn = conn_factory()

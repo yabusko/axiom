@@ -21,8 +21,10 @@ route_source` records which path actually produced a given decision.
 """
 from __future__ import annotations
 
+import sqlite3
 from typing import Literal
 
+import httpx
 from pydantic import BaseModel, ConfigDict
 
 from axiom import config, llm_providers
@@ -102,6 +104,8 @@ async def route_via_llm(
     abstract: str | None,
     *,
     run_id: str,
+    client: httpx.AsyncClient | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> RouteDecision:
     """The fast-tier LLM coordinator call `route()` replaced as the default
     path (A5). Not called by `route()` today -- the three deterministic
@@ -112,5 +116,6 @@ async def route_via_llm(
     parsed = await llm_providers.complete_json(
         "fast", _SYSTEM, prompt, _LLMRouteJSON,
         run_id=run_id, agent="coordinator", agent_type="route", paper_id=paper_id,
+        client=client, conn=conn,
     )
     return RouteDecision(action=parsed.action, reason=parsed.reason, route_source="llm")

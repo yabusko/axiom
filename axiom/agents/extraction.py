@@ -37,8 +37,10 @@ already judged it unusable.
 """
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass, field
 
+import httpx
 from pydantic import ValidationError
 
 from axiom import config, llm_providers
@@ -101,6 +103,8 @@ async def extract(
     run_id: str,
     max_retries: int | None = None,
     mode: str = "full",
+    client: httpx.AsyncClient | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> ExtractionOutcome:
     """Extract + verify, retrying the SAME agent up to `max_retries` times,
     accumulating passing entities across attempts (A2 -- see module docstring).
@@ -110,6 +114,11 @@ async def extract(
     config value takes effect immediately.
 
     `mode`: `"full"` (title+abstract, default) or `"title_only"` (A5).
+
+    `client`/`conn` (C2/C3): pass the run's pooled `httpx.AsyncClient` and a sqlite3
+    connection through to `complete_json` so every call in a run shares one HTTP
+    connection and reads the durable, cross-run spend total instead of each call
+    opening its own client and checking only this process's in-memory total.
 
     Raises `verifier.VerificationFailed` if nothing ever survives verification
     AND at least one entity was proposed at some point (the `empty_after_retry`
@@ -138,7 +147,7 @@ async def extract(
             result = await llm_providers.complete_json(
                 "fast", system, prompt, ExtractionResult,
                 run_id=run_id, agent="extraction", agent_type="extraction",
-                paper_id=paper_id, attempt=attempt,
+                paper_id=paper_id, attempt=attempt, client=client, conn=conn,
             )
         except ValidationError as exc:
             last_errors = verifier.errors_from_validation(exc)
