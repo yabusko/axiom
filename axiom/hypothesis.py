@@ -16,23 +16,20 @@ actually belong to the two communities and there are >=2 of them, retrying on
 failure. Trend context (OD10 velocity) is folded into the prompt directly
 rather than as a separate agent node.
 
-D4 (stage-2 fixes): `axiom/agents/synthesis.py::generate_hypothesis` is now
-the one real implementation -- strong-tier via the provider layer instead of
-this module's direct, Ollama-only `llm.chat_json` call, and it imports
-`SYSTEM`/`build_prompt`/`side_papers`/`verify`/`explain` below rather than
-duplicating them. `generate_hypothesis` in THIS module is kept, unchanged in
-contract, only because `api/main.py`'s `POST /graph/gaps/{i}/hypothesize`
-and `app/streamlit_app.py`'s hypothesize button both still call it directly
-by this exact name; once those call sites are repointed at
-`axiom.agents.synthesis.generate_hypothesis`, this function (and the
-Ollama-only path it represents) should be deleted outright.
+D4 (stage-2 fixes): `axiom/agents/synthesis.py::generate_hypothesis` is the one
+real implementation now -- strong-tier via the provider layer, used by both
+`api/main.py`'s `POST /graph/gaps/{i}/hypothesize` and `app/streamlit_app.py`'s
+hypothesize button. This module's own `generate_hypothesis` (the original,
+direct, Ollama-only `llm.chat_json` call) was deleted once both call sites
+were repointed -- `SYSTEM`/`build_prompt`/`side_papers`/`verify`/`explain`
+below are what's left: the shared prompt/verify/explain building blocks
+`synthesis.py` imports and reuses rather than duplicating.
 """
 from __future__ import annotations
 
 import networkx as nx
 from dataclasses import dataclass, field
 
-from axiom import config, llm
 from axiom.gaps import GapCandidate
 
 MAX_RETRIES = 3
@@ -140,52 +137,3 @@ def explain(pitch_data: dict, side_a_ids: set[str], side_b_ids: set[str]) -> str
     if not reasons:
         reasons.append("unknown verification failure")
     return "; ".join(reasons)
-
-
-def generate_hypothesis(
-    gap: GapCandidate, g: nx.DiGraph, *,
-    trend_context: list[str] | None = None,
-    model: str = config.OLLAMA_MODEL,
-    max_retries: int = MAX_RETRIES,
-) -> HypothesisPitch:
-    """Generate + verify a hypothesis pitch for one OD9 gap candidate.
-
-    Raises VerificationError if no retry produces a pitch with >=2
-    supporting_paper_ids drawn from both sides of the gap.
-    """
-    side_a = side_papers(g, gap.a.members)
-    side_b = side_papers(g, gap.b.members)
-    side_a_ids = {p["paper_id"] for p in side_a}
-    side_b_ids = {p["paper_id"] for p in side_b}
-    base_prompt = build_prompt(gap, side_a, side_b, trend_context)
-
-    last_data: dict | None = None
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        # D4: nudge with the ACTUAL reason the previous attempt failed
-        # (same self-correction pattern as axiom/agents/verifier.py), not a
-        # generic reminder of the hard constraint.
-        nudge = "" if last_data is None else (
-            "\n\nYour previous attempt failed verification:\n- "
-            + explain(last_data, side_a_ids, side_b_ids)
-            + "\nFix every issue above -- use ONLY the [bracketed] ids shown above."
-        )
-        try:
-            data = llm.chat_json(base_prompt + nudge, system=SYSTEM, model=model,
-                                  temperature=TEMPERATURE)
-        except llm.OllamaError as exc:
-            last_error = exc
-            continue
-
-        last_data = data
-        verified = verify(data, side_a_ids, side_b_ids)
-        if verified is not None:
-            return verified
-
-    if last_data is None and last_error is not None:
-        raise last_error
-
-    raise VerificationError(
-        f"Could not produce a verifiable pitch after {max_retries} attempts "
-        f"(last supporting_paper_ids={last_data.get('supporting_paper_ids') if last_data else None})"
-    )
