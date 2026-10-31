@@ -114,6 +114,11 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst      ON citation_edges(dst_id);
 -- and confidence semantics, so rows are never merged across the two tables (OD19).
 CREATE TABLE IF NOT EXISTS paper_concepts (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- B4: which agent_run produced this row. DEFAULT '' is transitional -- Phase 1 (schema)
+    -- lands ahead of Phase 2 (pipeline-implementer threads real run_id through
+    -- db.insert_paper_concepts/linking.py); the default keeps existing call sites and tests
+    -- passing in between, same additive-migration spirit as OD19/OD20.
+    run_id        TEXT NOT NULL DEFAULT '',
     paper_id      TEXT NOT NULL,
     name          TEXT NOT NULL,
     kind          TEXT NOT NULL,            -- method | task | dataset | metric
@@ -127,10 +132,32 @@ CREATE TABLE IF NOT EXISTS paper_concepts (
 );
 
 CREATE TABLE IF NOT EXISTS concept_cooccurrence (
+    run_id    TEXT NOT NULL DEFAULT '',      -- B4: transitional default, see paper_concepts above
     paper_id  TEXT NOT NULL,
     concept_a TEXT NOT NULL,                -- canonical; concept_a < concept_b
     concept_b TEXT NOT NULL,
     FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
+);
+
+-- B4: linking is idempotent per paper -- a rerun deletes that paper's prior rows (any run_id)
+-- before inserting its own, in one transaction (axiom/agents/linking.py). The unique index is
+-- the backstop: it makes a within-run duplicate insert (e.g. a retried attempt) fail loudly
+-- rather than silently double-counting a concept in the co-occurrence graph.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_paper_concepts_paper_canonical_kind
+    ON paper_concepts(paper_id, canonical, kind);
+
+-- C3: durable, cumulative LLM spend ledger -- replaces the in-memory-only, per-process
+-- counter in axiom/llm_providers.py, which reset on restart and couldn't enforce a true
+-- total-spend cap across multiple runs. One row per settled call (after the response comes
+-- back, actual tokens/cost, not the pre-call reservation estimate).
+CREATE TABLE IF NOT EXISTS llm_spend (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id     TEXT NOT NULL,
+    ts         DATETIME NOT NULL,
+    model      TEXT NOT NULL,
+    tokens_in  INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    cost       REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS agent_runs (
@@ -159,3 +186,4 @@ CREATE INDEX IF NOT EXISTS idx_paper_concepts_paper     ON paper_concepts(paper_
 CREATE INDEX IF NOT EXISTS idx_paper_concepts_canonical ON paper_concepts(canonical);
 CREATE INDEX IF NOT EXISTS idx_cooc_a ON concept_cooccurrence(concept_a);
 CREATE INDEX IF NOT EXISTS idx_cooc_b ON concept_cooccurrence(concept_b);
+CREATE INDEX IF NOT EXISTS idx_llm_spend_run ON llm_spend(run_id);

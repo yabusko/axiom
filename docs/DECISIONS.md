@@ -532,6 +532,93 @@ a user would notice on a local single-user laptop tool:
 
 ---
 
+## OD26 — Stage-2 fixes, Phase 1: design note (B1/C3/D1) + schema/config deltas
+
+**Context.** `AXIOM_FIXES_TASK.md` Phase 0 audit (branch `fix/agentic-review`, off
+`feat/agentic-pipeline`) confirmed every listed finding against the code as of `0db07f2` (full
+checklist in `.claude/fixes/PROGRESS.md`). This decision covers the three findings the task
+calls out for an explicit design note before coding, plus the schema/config changes Phase 1
+front-loads so the two Phase 2 implementer worktrees build against settled contracts.
+
+**B1 — matching cascade (design, not yet built).** Enrichment's problem isn't the threshold
+(that part, `VERIFIER_COSINE_MIN`/OD23, is fine) -- it's that there's only one step: embed the
+bare entity name with SPECTER2 (a document-level, title+abstract-concat encoder) and take the
+arg-max, with no exact-match short-circuit and no separation between "a good match" and "the
+least-bad match in a list of bad ones." Replacing it with a 3-step cascade:
+1. exact/normalized match (casefold, NFKC, collapsed whitespace) against `concept_canonical`
+   and `concepts.concept` labels -- cheap, exact, no embedding call needed for the common case
+   of an entity already named the way the ontology names it.
+2. embedding match against the same pool using a short-phrase model
+   (`ENRICHMENT_PHRASE_MODEL = BAAI/bge-small-en-v1.5`, not SPECTER2 -- a document encoder is
+   the wrong tool for a 2-4 word entity name), accepted only if `cosine >= VERIFIER_COSINE_MIN`
+   **and** `top1 - top2 >= ENRICHMENT_MARGIN_DELTA` (a close second place is a sign the match is
+   arbitrary, not confident).
+3. otherwise `new_concept`: **kept**, not dropped -- `canonical` = the normalized entity name
+   itself. This is the real behavior change: today's `unmatched` entities are filtered out of
+   linking entirely (`linking.py:38`); a paper using a method/dataset not yet in the ontology
+   currently contributes nothing to the concept graph for that entity. `new_concept` fixes that
+   at the cost of the graph slowly absorbing one-off names -- acceptable since `concept_graph`
+   already treats low-degree nodes as uninteresting for PageRank/communities.
+
+`ontology_source` is renamed `openalex_concept|concept_canonical|unmatched` ->
+`lexical|embedding|new_concept` (contracts.py enum + every call site in enrichment.py,
+linking.py, verifier.py, and the tests that assert on it) -- same three-way shape, clearer
+names that match what actually produced the match rather than which table it came from.
+`ENRICHMENT_PHRASE_MODEL` and `ENRICHMENT_MARGIN_DELTA` are added to config.py now as
+placeholders (the margin is a guess pending the B3 gate); pipeline-implementer builds the
+cascade against them in Phase 2, and the real delta value lands in a follow-up OD after the
+user labels `eval/enrichment_pairs.csv`.
+
+**C3 — persistent budget ledger (design, not yet built).** Two separate problems, same area:
+(a) spend lived only in `axiom/llm_providers.py` module globals, so it reset on every process
+restart and a `GET /agents/runs` history can't explain its own cost; (b) `_ensure_budget`
+checks-then-records with no reservation, so `AGENT_CONCURRENCY` (4) concurrent calls can all
+pass the pre-call check before any of them commits spend (already logged as an accepted Low
+risk in OD25, ~4% overshoot at current concurrency -- this fix removes the gap rather than
+re-accepting it). Design: a new `llm_spend` table (added to schema.sql now) holds one row per
+*settled* call (after the response, real token counts); an in-process `asyncio.Lock`-guarded
+reservation ledger (dict of `run_id -> reserved_usd`, implementer's call) tracks worst-case
+cost (`prompt_token_estimate * price_in + max_tokens * price_out`) from the moment a call is
+dispatched, released and replaced by the real `llm_spend` row once it settles. The budget check
+sums `committed (from llm_spend, cross-run total) + reserved (in-memory, this process)` against
+`LLM_BUDGET_USD` -- no race window, and the total survives a restart because the committed half
+is durable. `_spend_total`'s existing process-wide (not per-run) scoping was already correct
+(OD25) and carries over unchanged; this only adds durability and closes the reservation gap.
+
+**D1 — background runs (design, not yet built).** `POST /agents/run` moves from `await`ing the
+full pipeline inline to: insert the `agent_runs` row (`status=queued`), kick off the pipeline as
+a FastAPI `BackgroundTasks` job, return `202 {run_id}` immediately. The background job wraps the
+whole pipeline in `try/finally`: sets `status=running` on start, `status=done` or
+`status=failed` (with the error) in `finally`, and increments `agent_runs.papers_done` after
+each paper rather than only at the end, so `GET /agents/runs/{id}` reflects real progress on
+a run still in flight. That endpoint's response also gains per-verdict counts (group
+`agent_run_items` by `verdict`) and cost-so-far (sum `llm_spend` filtered by `run_id`, once C3
+lands) -- both currently absent. This is `api/main.py`-owned (main session), not
+pipeline-implementer's worktree, since main owns that file per the task's role split; D3/D4's
+`axiom/agents/*` side (real `verifier_attempts` count, promoting `hypothesis._SYSTEM` etc. to
+public names) is pipeline-implementer's, the endpoint wiring is main's.
+
+**Other schema/config deltas applied now (not separately noted above):**
+- `paper_concepts`/`concept_cooccurrence` gain a `run_id` column (B4) and a new unique index
+  `(paper_id, canonical, kind)` on `paper_concepts` -- the backstop for idempotent linking;
+  the actual delete-then-insert-in-one-transaction logic is pipeline-implementer's.
+- `MODEL_FAST`/`MODEL_STRONG` updated to `claude-haiku-5-5` / `claude-sonnet-5-5` with prices
+  re-verified live against platform.claude.com on 2026-10-31 (not from memory, since the task
+  flagged these as liable to have drifted): haiku-5-5 is $0.10/$0.50 per MTok for prompts
+  <=100k tokens (the only regime this app hits) vs haiku-4-5's $1/$5 -- a ~10x cost cut for the
+  fast tier; sonnet-5-5 is $2/$10, identical to the sonnet-5 it replaces, so this is a free
+  quality upgrade, not a cost tradeoff. `AGENT_MAX_TOKENS` replaces the flat 4096 with
+  per-agent-type values (route=200, extraction=1500, synthesis keeps 4096) -- wiring into
+  `complete_json` call sites is infra-implementer's (C4).
+- `AXIOM_OS_TRUSTSTORE` env gate added around OD24's `truststore.inject_into_ssl()` call (C5)
+  -- opt-in now instead of unconditional, since rewiring process-wide TLS trust is the right
+  call on this inspected-TLS laptop but a surprising one anywhere else; README troubleshooting
+  update is infra-implementer's (F3 overlap).
+- `ROUTE_TITLE_ONLY_MIN_WORDS = 40` added for A5's rule-based routing threshold; the actual
+  rule-before-LLM logic in `coordinator.py` is pipeline-implementer's.
+
+---
+
 ## Schema change log
 
 | Date       | Change                                              | By |
@@ -541,3 +628,4 @@ a user would notice on a local single-user laptop tool:
 | 2026-07-04 | Added `concept_canonical` (concept, canonical, source) and `paper_summaries` (paper_id, bullets_json, model, created_at) — OD14 | UI track |
 | 2026-07-04 | Added `review_queue` (id, gap_a_label, gap_b_label, title, claim, method_sketch, datasets_json, supporting_ids_json, status, created_at) — OD16 | UI track |
 | 2026-10-30 | Added `paper_concepts`, `concept_cooccurrence`, `agent_runs`, `agent_run_items` + indexes — agentic pipeline, OD19/OD20 | agentic track |
+| 2026-10-31 | Added `run_id` to `paper_concepts`/`concept_cooccurrence`, unique index `(paper_id, canonical, kind)`, new `llm_spend` table + index — stage-2 fixes B4/C3, OD26 | fixes track |

@@ -65,7 +65,7 @@ class ExtractionResult(BaseModel):
     paper_id: str; entities: list[Entity]
 class EnrichedEntity(Entity):
     canonical: str; cosine: float = Field(ge=-1.0, le=1.0)
-    ontology_source: Literal["openalex_concept", "concept_canonical", "unmatched"]
+    ontology_source: Literal["lexical", "embedding", "new_concept"]  # OD26/B1, was openalex_concept|concept_canonical|unmatched
 class EnrichmentResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
     paper_id: str; enriched: list[EnrichedEntity]
@@ -86,11 +86,13 @@ Constraints (`ge`/`le`) are enforced by Pydantic; the provider layer strips them
 
 ## 4. Schema delta (`db/schema.sql`, additive) — log in `docs/DECISIONS.md`'s schema-change log
 
-New tables: `paper_concepts` (agent-extracted entity rows: name, kind, canonical, cosine, evidence_span, confidence, source, created_at; FK → `papers.openalex_id`), `concept_cooccurrence` (paper_id, concept_a < concept_b; FK → `papers.openalex_id`), `agent_runs` (run_id PK, status, papers_total, papers_done, model_fast, model_strong, started_at, finished_at), `agent_run_items` (run_id+paper_id PK, route, verifier_attempts, verdict, error). Indexes on `paper_concepts(paper_id)`, `paper_concepts(canonical)`, `concept_cooccurrence(concept_a/b)`.
+New tables: `paper_concepts` (agent-extracted entity rows: run_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at; FK → `papers.openalex_id`), `concept_cooccurrence` (run_id, paper_id, concept_a < concept_b; FK → `papers.openalex_id`), `agent_runs` (run_id PK, status, papers_total, papers_done, model_fast, model_strong, started_at, finished_at), `agent_run_items` (run_id+paper_id PK, route, verifier_attempts, verdict, error). Indexes on `paper_concepts(paper_id)`, `paper_concepts(canonical)`, `concept_cooccurrence(concept_a/b)`.
+
+OD26/B4/C3 additions: `run_id` column on `paper_concepts`/`concept_cooccurrence` (which run produced the row); unique index `paper_concepts(paper_id, canonical, kind)` (idempotent-linking backstop — `linking.py` deletes a paper's prior rows before reinserting, in one transaction, so this should never actually trip in normal operation); new `llm_spend` table (id, run_id, ts, model, tokens_in, tokens_out, cost) + `idx_llm_spend_run` — durable, cross-run-cumulative spend ledger replacing the in-memory-only counter in `llm_providers.py`.
 
 ## 5. New `axiom/config.py` keys
 
-`MODEL_FAST`/`MODEL_STRONG` (Anthropic model IDs) + per-1M-token input/output prices + `MODEL_PRICE_CHECKED_DATE` (verified against the live Claude API pricing reference). `LLM_PROVIDER_PRIORITY = ("anthropic", "ollama")`, anthropic selected iff `ANTHROPIC_API_KEY` is set (mirrors OD14's no-key philosophy). `ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT`, `ANTHROPIC_MAX_RETRIES`, `ANTHROPIC_BACKOFF_CAP`. `AGENT_MAX_RETRIES = 3` (R4). `AGENT_CONCURRENCY` (R5 semaphore limit). `ENTITY_KINDS`, `ROUTE_ACTIONS` (single source for the Literal values). `VERIFIER_COSINE_MIN` (§7.5). `TRACE_DIR`, `EVAL_V2_QUERIES_PATH`, `EVAL_V2_SCALE_MAX = 2`, `AGENT_BENCH_PATH`. `STRUCT_RETRIEVAL_CANDIDATES` (R8 budget cap).
+`MODEL_FAST`/`MODEL_STRONG` (Anthropic model IDs) + per-1M-token input/output prices + `MODEL_PRICE_CHECKED_DATE` (verified against the live Claude API pricing reference — re-verified 2026-10-31, OD26: `claude-haiku-5-5`/`claude-sonnet-5-5`). `AGENT_MAX_TOKENS` dict (OD26/C4: per-agent-type max_tokens — route/extraction/synthesis — instead of one flat constant everywhere). `LLM_PROVIDER_PRIORITY = ("anthropic", "ollama")`, anthropic selected iff `ANTHROPIC_API_KEY` is set (mirrors OD14's no-key philosophy). `ANTHROPIC_BASE_URL`, `ANTHROPIC_TIMEOUT`, `ANTHROPIC_MAX_RETRIES`, `ANTHROPIC_BACKOFF_CAP`. `AGENT_MAX_RETRIES = 3` (R4). `AGENT_CONCURRENCY` (R5 semaphore limit). `ENTITY_KINDS`, `ROUTE_ACTIONS` (single source for the Literal values). `ROUTE_TITLE_ONLY_MIN_WORDS = 40` (OD26/A5: rule-based routing threshold). `VERIFIER_COSINE_MIN` (§7.5). `ENRICHMENT_PHRASE_MODEL`, `ENRICHMENT_MARGIN_DELTA` (OD26/B1: short-phrase model + top1-top2 margin for the matching cascade; margin is a placeholder pending the B3 label-and-calibrate gate). `TRACE_DIR`, `EVAL_V2_QUERIES_PATH`, `EVAL_V2_SCALE_MAX = 2`, `AGENT_BENCH_PATH`. `STRUCT_RETRIEVAL_CANDIDATES` (R8 budget cap). `AXIOM_OS_TRUSTSTORE` env var (OD26/C5: gates OD24's `truststore.inject_into_ssl()`, opt-in not unconditional).
 
 ## 6. Integration with existing graph/gaps/velocity/retrieval (OD11-safe)
 
@@ -107,3 +109,22 @@ New tables: `paper_concepts` (agent-extracted entity rows: name, kind, canonical
 ## 8. R11 check
 
 No LangChain/LangGraph/agent framework introduced. Plain `asyncio` + `httpx` (already pinned) + Pydantic v2 (already a transitive FastAPI dep, now also used directly) + existing `networkx`/`numpy`. Hand-rolled coordinator/worker functions, `asyncio.gather`/`Semaphore` — matches OD10/OD14's minimal-deps discipline.
+
+## 9. Stage-2 fixes, Phase 1 design (full rationale in `docs/DECISIONS.md` OD26)
+
+Three findings from `AXIOM_FIXES_TASK.md` got a design pass before Phase 2 build:
+
+- **B1 (enrichment cascade).** Replace the single embed-and-argmax step with: exact/normalized
+  match → short-phrase-model (`ENRICHMENT_PHRASE_MODEL`) match gated on cosine **and**
+  top1−top2 margin (`ENRICHMENT_MARGIN_DELTA`) → `new_concept` (kept, canonical = normalized
+  name — today's `unmatched` entities are silently dropped from linking; this stops that).
+  `ontology_source` renamed `lexical|embedding|new_concept` (§3).
+- **C3 (budget ledger).** New durable `llm_spend` table (§4) + an in-process reservation
+  (worst-case cost reserved before dispatch, settled after) closes the check-then-record race
+  flagged as an accepted risk in OD25, and survives a process restart.
+- **D1 (background runs).** `POST /agents/run` returns `202 {run_id}` immediately
+  (`BackgroundTasks`, `try/finally` → `done`/`failed`); `GET /agents/runs/{id}` gains
+  per-verdict counts and cost-so-far. `api/main.py`-owned (main session), not a worktree.
+
+None of these are built yet — Phase 2 implementers code against the schema/config deltas
+already applied (§4/§5).
