@@ -139,6 +139,18 @@ CREATE TABLE IF NOT EXISTS concept_cooccurrence (
     FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
 );
 
+-- B4: an existing database from before this index existed can already hold rows that
+-- violate it -- the pre-cascade enrichment logic (B1) could legitimately produce more than
+-- one entity resolving to the same (paper_id, canonical, kind) for one paper. CREATE UNIQUE
+-- INDEX IF NOT EXISTS still fails on that pre-existing data even though the index itself
+-- doesn't exist yet, breaking db.init_db()'s "safe to run against an existing database"
+-- contract. Drop every duplicate but the lowest id (arbitrary but stable) before creating the
+-- index, every time this script runs -- a no-op once no duplicates remain, so it's safe to
+-- keep here permanently rather than as a one-off manual fix.
+DELETE FROM paper_concepts WHERE id NOT IN (
+    SELECT MIN(id) FROM paper_concepts GROUP BY paper_id, canonical, kind
+);
+
 -- B4: linking is idempotent per paper -- a rerun deletes that paper's prior rows (any run_id)
 -- before inserting its own, in one transaction (axiom/agents/linking.py). The unique index is
 -- the backstop: it makes a within-run duplicate insert (e.g. a retried attempt) fail loudly
