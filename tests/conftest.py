@@ -292,3 +292,31 @@ def api_client(patched_db_path, fake_store, monkeypatch):
     monkeypatch.setattr(main, "get_gap_analysis", _gaps)
 
     return TestClient(main.app)
+
+
+@pytest.fixture
+def field_client(api_client, patched_db_path, fake_store, monkeypatch, tmp_path):
+    """api_client, plus a registered field ("test-field") pointing at the same
+    seeded db/fake store the global endpoints use -- for the /fields/* routes,
+    which read a field row's own db_path/collection rather than config.DB_PATH/
+    get_store(). Returns (client, field_id)."""
+    import api.main as main
+    from axiom import fields as fieldsmod
+
+    monkeypatch.setattr(config, "FIELDS_DB_PATH", tmp_path / "fields.db")
+    monkeypatch.setattr(main, "_field_store", lambda row: fake_store)
+
+    fconn = fieldsmod.connect_fields()
+    try:
+        fieldsmod.init_fields_db(fconn)
+        row = fieldsmod.create_field(fconn, topic="retrieval augmented generation", target=8)
+        fconn.execute(
+            "UPDATE fields SET db_path = ?, collection = ?, status = 'ready' WHERE id = ?",
+            (str(patched_db_path), "test-collection", row["id"]),
+        )
+        fconn.commit()
+        field_id = row["id"]
+    finally:
+        fconn.close()
+
+    return api_client, field_id

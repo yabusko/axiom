@@ -42,6 +42,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     # already included it), a real backfill on one that predates this stage.
     _ensure_column(conn, "paper_concepts", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
     _ensure_column(conn, "concept_cooccurrence", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
+    # Stage-3 product redesign: Shortlist needs notes + attached papers-to-read
+    # per direction, which review_queue (OD16) never had.
+    _ensure_column(conn, "review_queue", "notes", "notes TEXT")
+    _ensure_column(conn, "review_queue", "papers_to_read_json", "papers_to_read_json TEXT NOT NULL DEFAULT '[]'")
     conn.commit()
 
 
@@ -210,6 +214,32 @@ def list_review_queue(conn: sqlite3.Connection, status: str | None = None) -> li
 def set_review_status(conn: sqlite3.Connection, item_id: int, status: str) -> None:
     assert status in ("pending", "approved", "rejected")
     conn.execute("UPDATE review_queue SET status = ? WHERE id = ?", (status, item_id))
+    conn.commit()
+
+
+def get_review_item(conn: sqlite3.Connection, item_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM review_queue WHERE id = ?", (item_id,)).fetchone()
+
+
+def update_review_item(
+    conn: sqlite3.Connection, item_id: int, *,
+    status: str | None = None, notes: str | None = None,
+    papers_to_read: list[str] | None = None,
+) -> None:
+    """Stage-3 Shortlist: a direction's status (draft/kept/discarded, reusing
+    review_queue's status column with product-facing labels on the API
+    surface -- see api/main.py's ShortlistStatus mapping), freeform notes,
+    and the paper_ids a user attached as "to read." Only the fields actually
+    passed get updated."""
+    if status is not None:
+        conn.execute("UPDATE review_queue SET status = ? WHERE id = ?", (status, item_id))
+    if notes is not None:
+        conn.execute("UPDATE review_queue SET notes = ? WHERE id = ?", (notes, item_id))
+    if papers_to_read is not None:
+        conn.execute(
+            "UPDATE review_queue SET papers_to_read_json = ? WHERE id = ?",
+            (json.dumps(papers_to_read), item_id),
+        )
     conn.commit()
 
 

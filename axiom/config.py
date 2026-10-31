@@ -32,6 +32,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "axiom.db"
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 
+# --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) ----
+# A "field" is one topic's corpus: its own SQLite file (schema.sql, same shape
+# as DB_PATH) + its own Qdrant collection, so multiple fields can coexist. The
+# pre-existing corpus at DB_PATH/COLLECTION_NAME becomes the registry's
+# "default" field (unchanged path/collection, no re-ingest) rather than a
+# special case -- see ARCHITECTURE_NOTE.md §1.
+FIELDS_DB_PATH = PROJECT_ROOT / "data" / "fields.db"
+FIELDS_DIR = PROJECT_ROOT / "data" / "fields"
+FIELD_DEFAULT_ID = "default"
+# OD32: Start always targets the full corpus, no small-first tier -- matches
+# the real 300-paper corpus already built in stage 2, not CORPUS_TARGET's
+# generic 500 default below (see docs/DECISIONS.md OD32).
+FIELD_DEFAULT_TARGET = 300
+
 
 def _load_dotenv(path: Path) -> None:
     """Minimal `.env` loader -- no new dependency (repo keeps the stack pinned

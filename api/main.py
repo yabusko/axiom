@@ -21,6 +21,7 @@ Docs at http://localhost:8000/docs
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -32,9 +33,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, llm_providers
+from axiom import concept_graph, config, db, fields as fieldsmod, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
@@ -222,6 +224,129 @@ class AgentRunStatusOut(BaseModel):
     cost_so_far: float = 0.0
 
 
+# --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
+class FieldCreateIn(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    target: int = Field(default=config.FIELD_DEFAULT_TARGET, ge=10, le=1000)
+
+
+class FieldCreateOut(BaseModel):
+    field_id: str
+    est_cost_usd: float
+    est_seconds: int
+
+
+class FieldOut(BaseModel):
+    id: str
+    topic: str
+    status: str
+    papers_total: int | None
+    last_opened_at: str | None
+
+
+class FieldStatusOut(BaseModel):
+    id: str
+    topic: str
+    status: str                 # queued | building | ready | failed
+    step: str | None            # fetching | embedding | extracting | None
+    papers_total: int | None
+    papers_done: int
+    cost_so_far: float
+    error: str | None
+    created_at: str
+
+
+class TopicOut(BaseModel):
+    cid: int
+    labels: list[str]
+    size: int
+
+
+class OverviewOut(BaseModel):
+    field_id: str
+    topic: str
+    papers: int
+    in_corpus_citations: int
+    topic_communities: int
+    candidate_gaps: int
+    topics: list[TopicOut]
+    rising: list[KeywordVelocityOut]
+    key_papers: list[PaperRankOut]
+
+
+class SideDetailOut(BaseModel):
+    labels: list[str]
+    size: int
+    top_papers: list[PaperRankOut]
+    methods: list[str]
+    datasets: list[str]
+
+
+class GapDetailOut(BaseModel):
+    index: int
+    a: SideDetailOut
+    b: SideDetailOut
+    semantic_similarity: float
+    inter_citations: int
+    total_in_corpus_citations: int
+    gap_score: float
+    g_score: float
+    components: dict[str, float]
+    meets_threshold: bool
+
+
+class EntityOut(BaseModel):
+    name: str
+    kind: str
+    canonical: str
+    evidence_span: str
+    confidence: float
+
+
+class FieldPaperOut(BaseModel):
+    paper_id: str
+    title: str | None
+    abstract: str | None
+    year: int | None
+    venue: str | None
+    cited_by_count: int
+    doi: str | None
+    entities: list[EntityOut]
+
+
+# draft/kept/discarded is the product-facing vocabulary (PRODUCT.md); the
+# underlying review_queue.status column keeps its OD16 HITL values
+# (pending/approved/rejected) -- translated at this boundary only, so the
+# approve/reject HITL code paths above stay untouched.
+_SHORTLIST_TO_DB = {"draft": "pending", "kept": "approved", "discarded": "rejected"}
+_DB_TO_SHORTLIST = {v: k for k, v in _SHORTLIST_TO_DB.items()}
+
+
+class ShortlistItemOut(BaseModel):
+    id: int
+    gap_a_label: str
+    gap_b_label: str
+    title: str
+    claim: str
+    method_sketch: str
+    datasets: list[str]
+    supporting_paper_ids: list[str]
+    status: str
+    notes: str | None
+    papers_to_read: list[str]
+    created_at: str
+
+
+class ShortlistCreateIn(BaseModel):
+    gap_index: int = Field(ge=0)
+
+
+class ShortlistPatchIn(BaseModel):
+    status: str | None = Field(default=None, pattern="^(draft|kept|discarded)$")
+    notes: str | None = None
+    papers_to_read: list[str] | None = None
+
+
 # --- App -----------------------------------------------------------------------
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -229,6 +354,14 @@ async def _lifespan(app: FastAPI):
     # first request that happens to need it -- that first caller shouldn't pay a
     # multi-second model-load latency hit just for being first.
     get_encoder()
+    # Stage-3 fields registry: ensure its db exists and the pre-existing corpus
+    # is registered as field "default" (ARCHITECTURE_NOTE.md §1) -- idempotent.
+    fconn = fieldsmod.connect_fields()
+    try:
+        fieldsmod.init_fields_db(fconn)
+        fieldsmod.ensure_default_field(fconn)
+    finally:
+        fconn.close()
     yield
 
 
@@ -628,3 +761,311 @@ def concepts_communities():
 @app.get("/concepts/central", response_model=list[ConceptCentralityOut])
 def concepts_central():
     return get_concept_analysis().central
+
+
+# --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
+# No field_id-keyed caching yet (deliberate scope cut for this pass, logged in
+# .claude/product/PROGRESS.md): every field-scoped read below recomputes from
+# that field's own db/collection per request. ARCHITECTURE_NOTE.md's
+# alternative -- keying the existing lru_cache singletons above by field_id --
+# is a reasonable follow-up once there's more than one field to actually
+# notice the recompute cost on; a single researcher's few-hundred-paper
+# corpus analyzes in low single-digit seconds, not a latency problem yet.
+
+def _resolve_field(field_id: str) -> sqlite3.Row:
+    fconn = fieldsmod.connect_fields()
+    try:
+        row = fieldsmod.get_field(fconn, field_id)
+    finally:
+        fconn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="no such field")
+    return row
+
+
+def _field_graph(row: sqlite3.Row):
+    conn = db.connect(row["db_path"])
+    try:
+        return graphmod.load_graph(conn)
+    finally:
+        conn.close()
+
+
+def _field_store(row: sqlite3.Row) -> AxiomQdrant:
+    """Separate seam from get_store() (the "default"/legacy global singleton)
+    so tests can monkeypatch a fake store per field without a real Qdrant
+    connection, same pattern as get_store() itself."""
+    return AxiomQdrant(collection=row["collection"])
+
+
+def _field_gap_analysis(row: sqlite3.Row, g=None):
+    g = g or _field_graph(row)
+    conn = db.connect(row["db_path"])
+    try:
+        store = _field_store(row)
+        return gapsmod.analyze(g, conn, store.fetch_dense_vectors())
+    finally:
+        conn.close()
+
+
+def _entities_for_papers(conn, paper_ids: list[str], kinds: tuple[str, ...]) -> list[str]:
+    if not paper_ids:
+        return []
+    placeholders = ",".join("?" for _ in paper_ids)
+    kind_placeholders = ",".join("?" for _ in kinds)
+    rows = conn.execute(
+        f"SELECT DISTINCT canonical FROM paper_concepts "
+        f"WHERE paper_id IN ({placeholders}) AND kind IN ({kind_placeholders}) "
+        f"ORDER BY canonical",
+        [*paper_ids, *kinds],
+    ).fetchall()
+    return [r["canonical"] for r in rows]
+
+
+def _top_papers(g, member_ids: list[str], top_k: int = 5) -> list:
+    ranked = sorted(
+        member_ids, key=lambda pid: g.nodes[pid].get("cited_by_count", 0) if pid in g.nodes else 0,
+        reverse=True,
+    )[:top_k]
+    out = []
+    for pid in ranked:
+        node = g.nodes.get(pid, {}) if pid in g.nodes else {}
+        out.append(graphmod.PaperRank(
+            paper_id=pid, title=node.get("title"), year=node.get("year"),
+            venue=node.get("venue"), cited_by_count=node.get("cited_by_count", 0),
+            local_in_degree=g.in_degree(pid) if pid in g.nodes else 0, pagerank=0.0,
+        ))
+    return out
+
+
+@app.post("/fields", response_model=FieldCreateOut, status_code=202)
+def create_field(body: FieldCreateIn, background_tasks: BackgroundTasks):
+    fconn = fieldsmod.connect_fields()
+    try:
+        row = fieldsmod.create_field(fconn, topic=body.topic, target=body.target)
+    finally:
+        fconn.close()
+    background_tasks.add_task(fieldsmod.build_field, row["id"], body.topic, body.target)
+    estimate = fieldsmod.estimate_extraction(body.target)
+    return FieldCreateOut(field_id=row["id"], **estimate)
+
+
+@app.get("/fields", response_model=list[FieldOut])
+def list_fields():
+    fconn = fieldsmod.connect_fields()
+    try:
+        rows = fieldsmod.list_fields(fconn)
+    finally:
+        fconn.close()
+    return [FieldOut(**dict(r)) for r in rows]
+
+
+@app.get("/fields/{field_id}", response_model=FieldStatusOut)
+def field_status(field_id: str):
+    fconn = fieldsmod.connect_fields()
+    try:
+        out = fieldsmod.live_status(fconn, field_id)
+        if out is None:
+            raise HTTPException(status_code=404, detail="no such field")
+        fieldsmod.touch_last_opened(fconn, field_id)
+    finally:
+        fconn.close()
+    return FieldStatusOut(**out)
+
+
+@app.get("/fields/{field_id}/overview", response_model=OverviewOut)
+def field_overview(field_id: str):
+    row = _resolve_field(field_id)
+    g = _field_graph(row)
+    gap_analysis = _field_gap_analysis(row, g)
+    stats = graphmod.stats(g)
+    conn = db.connect(row["db_path"])
+    try:
+        velocity_analysis = velocitymod.get_top_velocity_keywords(conn, n=8)
+    finally:
+        conn.close()
+    rising = [k for k in velocity_analysis.keywords if k.velocity > 0][:6]
+    key_papers = graphmod.influence(g, top_k=6)
+    topics = sorted(gap_analysis.communities.values(), key=lambda c: c.size, reverse=True)
+    return OverviewOut(
+        field_id=field_id, topic=row["topic"], papers=stats["papers"],
+        in_corpus_citations=stats["edges_in_corpus"],
+        topic_communities=len(gap_analysis.communities), candidate_gaps=len(gap_analysis.gaps),
+        topics=[TopicOut(cid=c.cid, labels=c.labels, size=c.size) for c in topics],
+        rising=[KeywordVelocityOut.model_validate(k) for k in rising],
+        key_papers=[PaperRankOut.model_validate(p) for p in key_papers],
+    )
+
+
+@app.get("/fields/{field_id}/gaps", response_model=GapAnalysisOut)
+def field_gaps(field_id: str):
+    row = _resolve_field(field_id)
+    return GapAnalysisOut.model_validate(_field_gap_analysis(row))
+
+
+@app.get("/fields/{field_id}/gaps/{gap_index}", response_model=GapDetailOut)
+def field_gap_detail(field_id: str, gap_index: int):
+    row = _resolve_field(field_id)
+    g = _field_graph(row)
+    analysis = _field_gap_analysis(row, g)
+    if gap_index < 0 or gap_index >= len(analysis.gaps):
+        raise HTTPException(status_code=404, detail="no gap candidate at that index")
+    gap = analysis.gaps[gap_index]
+    stats = graphmod.stats(g)
+
+    conn = db.connect(row["db_path"])
+    try:
+        sides = []
+        for community in (gap.a, gap.b):
+            top_papers = _top_papers(g, community.members)
+            sides.append(SideDetailOut(
+                labels=community.labels, size=community.size, top_papers=[
+                    PaperRankOut.model_validate(p) for p in top_papers
+                ],
+                methods=_entities_for_papers(conn, community.members, ("method",)),
+                datasets=_entities_for_papers(conn, community.members, ("dataset",)),
+            ))
+    finally:
+        conn.close()
+
+    return GapDetailOut(
+        index=gap_index, a=sides[0], b=sides[1],
+        semantic_similarity=gap.semantic_similarity, inter_citations=gap.inter_citations,
+        total_in_corpus_citations=stats["edges_in_corpus"],
+        gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
+        meets_threshold=gap.meets_threshold,
+    )
+
+
+@app.get("/fields/{field_id}/papers/{paper_id}", response_model=FieldPaperOut)
+def field_paper_detail(field_id: str, paper_id: str):
+    row = _resolve_field(field_id)
+    conn = db.connect(row["db_path"])
+    try:
+        rows = db.papers_by_ids(conn, [paper_id])
+        paper = rows.get(paper_id)
+        if paper is None:
+            raise HTTPException(status_code=404, detail="paper not found")
+        entity_rows = conn.execute(
+            "SELECT name, kind, canonical, evidence_span, confidence FROM paper_concepts "
+            "WHERE paper_id = ? ORDER BY confidence DESC",
+            (paper_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return FieldPaperOut(
+        paper_id=paper["openalex_id"], title=paper["title"], abstract=paper["abstract"],
+        year=paper["publication_year"], venue=paper["venue"],
+        cited_by_count=paper["cited_by_count"], doi=paper["doi"],
+        entities=[EntityOut(**dict(r)) for r in entity_rows],
+    )
+
+
+@app.get("/fields/{field_id}/shortlist", response_model=list[ShortlistItemOut])
+def field_shortlist(field_id: str, status: str | None = Query(None, pattern="^(draft|kept|discarded)$")):
+    row = _resolve_field(field_id)
+    db_status = _SHORTLIST_TO_DB.get(status) if status else None
+    conn = db.connect(row["db_path"])
+    try:
+        rows = db.list_review_queue(conn, status=db_status)
+    finally:
+        conn.close()
+    return [_shortlist_item_out(r) for r in rows]
+
+
+def _shortlist_item_out(r: sqlite3.Row) -> ShortlistItemOut:
+    return ShortlistItemOut(
+        id=r["id"], gap_a_label=r["gap_a_label"], gap_b_label=r["gap_b_label"],
+        title=r["title"], claim=r["claim"], method_sketch=r["method_sketch"],
+        datasets=json.loads(r["datasets_json"]),
+        supporting_paper_ids=json.loads(r["supporting_ids_json"]),
+        status=_DB_TO_SHORTLIST.get(r["status"], r["status"]),
+        notes=r["notes"],
+        papers_to_read=json.loads(r["papers_to_read_json"]) if r["papers_to_read_json"] else [],
+        created_at=r["created_at"],
+    )
+
+
+@app.post("/fields/{field_id}/shortlist", response_model=ShortlistItemOut)
+async def field_shortlist_create(field_id: str, body: ShortlistCreateIn):
+    """Combines what the current app does as two independent call sites
+    (AUDIT.md: Streamlit's inline button and POST /graph/gaps/{i}/hypothesize
+    both call generate_hypothesis + add_to_review_queue separately) into one."""
+    row = _resolve_field(field_id)
+    g = _field_graph(row)
+    analysis = _field_gap_analysis(row, g)
+    if body.gap_index < 0 or body.gap_index >= len(analysis.gaps):
+        raise HTTPException(status_code=404, detail="no gap candidate at that index")
+    gap = analysis.gaps[body.gap_index]
+
+    conn = db.connect(row["db_path"])
+    try:
+        v = velocitymod.get_top_velocity_keywords(conn, n=10)
+        trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
+        try:
+            pitch = await synthesis_agent.generate_hypothesis(
+                gap, g, run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
+            )
+        except llm_providers.LLMError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except hypothesismod.VerificationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
+        review_id = db.add_to_review_queue(
+            conn, gap_a_label=gap.a.label, gap_b_label=gap.b.label,
+            title=pitch.title, claim=pitch.claim, method_sketch=pitch.method_sketch,
+            datasets=pitch.datasets, supporting_paper_ids=pitch.supporting_paper_ids,
+        )
+        item = db.get_review_item(conn, review_id)
+    finally:
+        conn.close()
+    return _shortlist_item_out(item)
+
+
+@app.patch("/fields/{field_id}/shortlist/{item_id}", response_model=ShortlistItemOut)
+def field_shortlist_patch(field_id: str, item_id: int, body: ShortlistPatchIn):
+    row = _resolve_field(field_id)
+    conn = db.connect(row["db_path"])
+    try:
+        if db.get_review_item(conn, item_id) is None:
+            raise HTTPException(status_code=404, detail="no such shortlist item")
+        db.update_review_item(
+            conn, item_id,
+            status=_SHORTLIST_TO_DB.get(body.status) if body.status else None,
+            notes=body.notes, papers_to_read=body.papers_to_read,
+        )
+        item = db.get_review_item(conn, item_id)
+    finally:
+        conn.close()
+    return _shortlist_item_out(item)
+
+
+@app.get("/fields/{field_id}/shortlist/export.md")
+def field_shortlist_export(field_id: str):
+    row = _resolve_field(field_id)
+    conn = db.connect(row["db_path"])
+    try:
+        kept = db.list_review_queue(conn, status="approved")
+    finally:
+        conn.close()
+    lines = [f"# {row['topic']} — shortlist", ""]
+    if not kept:
+        lines.append("_No kept directions yet._")
+    for r in kept:
+        lines.append(f"## {r['title']}")
+        lines.append("")
+        lines.append(r["claim"])
+        lines.append("")
+        lines.append(f"**Method sketch:** {r['method_sketch']}")
+        datasets = json.loads(r["datasets_json"])
+        if datasets:
+            lines.append(f"**Datasets:** {', '.join(datasets)}")
+        supporting = json.loads(r["supporting_ids_json"])
+        if supporting:
+            lines.append(f"**Supporting papers:** {', '.join(supporting)}")
+        if r["notes"]:
+            lines.append(f"**Notes:** {r['notes']}")
+        lines.append("")
+        lines.append("_AI-generated, unverified — review before relying on it._")
+        lines.append("")
+    return PlainTextResponse("\n".join(lines), media_type="text/markdown")
