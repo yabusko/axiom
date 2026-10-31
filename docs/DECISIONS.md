@@ -816,6 +816,41 @@ judgment does. Written to `eval/ndcg_v2_second_grader_sample.json` -- the origin
 `ndcg_queries_v2.json` and its `_provenance` (AI-drafted, fast tier, no human review) are
 untouched; this is a second opinion recorded alongside it, not a replacement.
 
+## OD30 — D5 query-aware structural arm: real data, honest negative result
+
+**Context.** D5 asked for a genuinely query-aware structural retrieval arm (map the query
+itself to ontology concepts via the B1 cascade, score candidates by weighted overlap with
+their own `paper_concepts`) -- distinct from the existing `hybrid_struct` arm, which only
+scores how well a candidate's concepts overlap with OTHER candidates in its own pool and
+never looks at the query. Needed real `paper_concepts` data on the eval corpus first.
+
+**Ran the real pipeline on 300 real eval-corpus papers** (`logs/run_agent_benchmark_eval_corpus.py`,
+not committed): 300/300 accepted, $0.1095 spent, 188s wall time, 1741 `paper_concepts` rows
+written. (Separate budget pool from the main corpus's `llm_spend` -- `data/eval.db` and
+`data/axiom.db` are different files with their own `llm_spend` tables; worth noting as a gap
+in C3's "total spend" guarantee across the two, not worth fixing now at this $ scale.)
+
+**Bug found and fixed while building the comparison script
+(`scripts/eval_structural_query_aware.py`): the eval corpus has no ontology at all.**
+`enrichment.build_ontology()` draws its pool from `concept_canonical`/`concepts` -- both
+empty on `data/eval.db`, which was never ingested with real OpenAlex concept metadata (the
+pre-existing OD11/OD20 gap the original audit already flagged). Every query matched zero
+concepts on the first real run. Fixed by falling back to the agent-extracted
+`paper_concepts.canonical` set as the query-matching pool when the normal source is empty --
+the only real concepts this corpus actually has. 44/51 queries matched at least one concept
+after the fix (ontology pool size 1512).
+
+**Result, honestly reported either way as instructed:** mean nDCG@10 over the 51 v2 queries,
+same candidate pool size for all three arms -- hybrid alone **0.8904**, hybrid + the existing
+pool-cohesion structural arm **0.6168** (notably worse), hybrid + this query-aware arm
+**0.8727** (roughly neutral, slightly worse). **Neither structural arm helps on this corpus.**
+The query-aware arm is a much smaller regression than the pool-cohesion one, consistent with
+it actually using query-relevant signal rather than pure pool self-similarity, but it's still
+a regression, not an improvement. Per the task's own instruction, this is NOT exposed as an
+optional search mode -- `scripts/eval_structural_query_aware.py` stays an eval-only analysis
+script, same as the existing `hybrid_struct` arm. Report at
+`eval/report_hybrid_struct_query_aware.md`.
+
 ---
 
 ## Schema change log
