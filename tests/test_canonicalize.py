@@ -1,7 +1,39 @@
-"""Tests for axiom.canonicalize — grouping, hallucination filter, manual skip."""
+"""Tests for axiom.canonicalize — grouping, hallucination filter, manual skip.
+
+Mocks axiom.llm_providers.complete_json directly (not the conftest-global
+fake_llm fixture, which only stands in for axiom.llm.chat_json) -- stage-3
+cleanup item A.1.6 moved this module off axiom/llm.py onto the shared
+provider client.
+"""
 from __future__ import annotations
 
-from axiom import canonicalize, db
+import pytest
+
+from axiom import canonicalize, db, llm_providers as lp
+
+
+class _FakeComplete:
+    """Programmable stand-in for `llm_providers.complete_json`, queued in order."""
+
+    def __init__(self):
+        self.responses: list = []
+        self.calls: list[str] = []
+
+    async def __call__(self, tier, system, prompt, model_cls, *, agent,
+                        agent_type=None, run_id="adhoc", paper_id=None,
+                        attempt=1, temperature=None, client=None, conn=None):
+        self.calls.append(prompt)
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return model_cls(**item)
+
+
+@pytest.fixture
+def fake_llm(monkeypatch):
+    fake = _FakeComplete()
+    monkeypatch.setattr(lp, "complete_json", fake)
+    return fake
 
 
 def test_canonicalize_batch_maps_groups(fake_llm):

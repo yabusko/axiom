@@ -258,6 +258,8 @@ AGENT_MAX_TOKENS = {
     "extraction": 1500,
     "synthesis": 4096,
     "pair_judgment": 80,             # B3/E3: a short structured {label, reason} judgment
+    "summarize": 300,                # OD14: exactly 3 bullets, <25 words each
+    "canonicalize": 1500,            # OD14: a 50-label synonym-grouping batch
 }
 _DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed above
 

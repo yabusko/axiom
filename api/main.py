@@ -34,7 +34,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, llm, llm_providers
+from axiom import concept_graph, config, db, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
@@ -427,7 +427,7 @@ def remove_bookmark(paper_id: str):
 
 @app.post("/reading-list/{paper_id}/summarize", response_model=SummaryOut)
 def summarize(paper_id: str, force: bool = False):
-    """3-bullet summary (OD14, local Ollama). Cached in SQLite; force=true to refresh."""
+    """3-bullet summary (OD14). Cached in SQLite; force=true to refresh."""
     conn = db.connect()
     try:
         if not force:
@@ -444,10 +444,10 @@ def summarize(paper_id: str, force: bool = False):
 
         try:
             result = summarizemod.summarize_paper(paper_id, row["title"], row["abstract"])
-        except llm.OllamaError as exc:
+        except llm_providers.LLMError as exc:
             raise HTTPException(status_code=503, detail=str(exc))
 
-        db.save_summary(conn, paper_id, result.bullets, config.OLLAMA_MODEL)
+        db.save_summary(conn, paper_id, result.bullets, llm_providers.model_for_tier("fast"))
         return SummaryOut(paper_id=paper_id, bullets=result.bullets, cached=False)
     finally:
         conn.close()

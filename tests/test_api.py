@@ -70,8 +70,13 @@ def test_summarize_cached_path(api_client, patched_db_path):
     assert body["cached"] is True and body["bullets"] == ["b1", "b2", "b3"]
 
 
-def test_summarize_fresh_path_writes_db(api_client, patched_db_path, fake_llm):
-    fake_llm.responses = [{"bullets": ["one", "two", "three"]}]
+def test_summarize_fresh_path_writes_db(api_client, patched_db_path, monkeypatch):
+    from axiom import llm_providers as lp
+
+    async def fake_complete_json(tier, system, prompt, model_cls, **_):
+        return model_cls(bullets=["one", "two", "three"])
+
+    monkeypatch.setattr(lp, "complete_json", fake_complete_json)
     body = api_client.post("/reading-list/A1/summarize").json()
     assert body["cached"] is False and body["bullets"] == ["one", "two", "three"]
     conn = db.connect(patched_db_path)

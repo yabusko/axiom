@@ -1,6 +1,5 @@
 """LLM keyword canonicalization (Task 3.2, OD14): merge concept-label synonyms
-(e.g. "LoRA" / "Low-Rank Adaptation") into one canonical form using a local
-Ollama model -- no API key, no cost.
+(e.g. "LoRA" / "Low-Rank Adaptation") into one canonical form.
 
 Batches distinct concept labels (default 50/batch, per the backlog spec),
 asks the model to group true synonyms and name each group's canonical label,
@@ -8,13 +7,23 @@ and persists the mapping to `concept_canonical` (db/schema.sql) so it's
 computed once per corpus, not on every velocity query. Idempotent: re-running
 overwrites prior `source='auto'` rows but never touches `source='manual'`
 rows (the manual-override path the backlog's acceptance criteria call for).
+
+Routed through `axiom/llm_providers.py` (the one pooled LLM client, picking
+Anthropic if `ANTHROPIC_API_KEY` is set else local Ollama -- same
+provider-selection and spend/trace ledger as the rest of the agentic
+pipeline) rather than calling `axiom/llm.py` directly, which this module did
+until stage-3 cleanup item A.1.6. Ollama is still the default with no key
+set, so a dev box keeps the original "no API key, no cost" behavior.
 """
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from dataclasses import dataclass
 
-from axiom import config, db, llm
+from pydantic import BaseModel, ConfigDict
+
+from axiom import db, llm_providers
 
 _SYSTEM = (
     "You are grouping near-duplicate machine learning research concept labels "
@@ -36,24 +45,39 @@ def _prompt(labels: list[str]) -> str:
     )
 
 
+class _Group(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    canonical: str
+    members: list[str]
+
+
+class _CanonicalGroups(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    groups: list[_Group]
+
+
 @dataclass
 class CanonicalizationResult:
     mapping: dict[str, str]      # concept -> canonical, one entry per input label
     groups: list[list[str]]      # non-trivial groups only (size > 1), for review
 
 
-def canonicalize_batch(labels: list[str], *, model: str = config.OLLAMA_MODEL) -> CanonicalizationResult:
-    data = llm.chat_json(_prompt(labels), system=_SYSTEM, model=model)
+async def canonicalize_batch_async(labels: list[str]) -> CanonicalizationResult:
+    result = await llm_providers.complete_json(
+        "fast", _SYSTEM, _prompt(labels), _CanonicalGroups,
+        agent="canonicalize", agent_type="canonicalize",
+    )
     mapping: dict[str, str] = {}
     groups: list[list[str]] = []
     label_set = set(labels)
-    for g in data.get("groups", []):
-        canonical = g.get("canonical")
-        members = [m for m in g.get("members", []) if m in label_set]
-        if not canonical or not members:
+    for g in result.groups:
+        members = [m for m in g.members if m in label_set]
+        if not g.canonical or not members:
             continue
         for m in members:
-            mapping.setdefault(m, canonical)
+            mapping.setdefault(m, g.canonical)
         if len(members) > 1:
             groups.append(members)
     # Any label the model dropped or malformed maps to itself (safe fallback).
@@ -62,8 +86,12 @@ def canonicalize_batch(labels: list[str], *, model: str = config.OLLAMA_MODEL) -
     return CanonicalizationResult(mapping=mapping, groups=groups)
 
 
-def run(conn: sqlite3.Connection, *, batch_size: int = 50,
-        model: str = config.OLLAMA_MODEL, log=print) -> int:
+def canonicalize_batch(labels: list[str]) -> CanonicalizationResult:
+    """Sync wrapper -- every caller today (the batch script, tests) is sync."""
+    return asyncio.run(canonicalize_batch_async(labels))
+
+
+def run(conn: sqlite3.Connection, *, batch_size: int = 50, log=print) -> int:
     """Canonicalize every distinct concept in the corpus; persist to SQLite.
 
     Skips concepts already manually overridden. Returns the number of
@@ -78,7 +106,7 @@ def run(conn: sqlite3.Connection, *, batch_size: int = 50,
     written = 0
     for start in range(0, len(todo), batch_size):
         batch = todo[start:start + batch_size]
-        result = canonicalize_batch(batch, model=model)
+        result = canonicalize_batch(batch)
         for concept, canonical in result.mapping.items():
             db.upsert_canonical(conn, concept, canonical, source="auto")
             written += 1
