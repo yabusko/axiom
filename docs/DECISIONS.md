@@ -885,6 +885,28 @@ no history rewrite this stage), and documented the regeneration path (including
 pulling the old committed copies back out of `origin/main` history) in
 `data_prep/README.md`.
 
+## OD32 — Start flow always builds the full ~300-paper corpus, no small-first option
+
+**Context.** Stage 3 (product) Phase B product definition needed a default for the
+Start screen's corpus-size behavior; the task brief's own laptop rule already caps
+every field at <=300 papers, but didn't say whether Start should default to that
+ceiling immediately or offer a faster small build first.
+
+**Decision.** Start always targets the full ~300-paper corpus (no separate
+small/fast tier). No UI control to pick a smaller size for the MVP.
+
+**Why.** The real corpus already built in stage 2 (300 OpenAlex papers, topic
+"retrieval-augmented generation") is the one the demo scenario (see
+`docs/product/PRODUCT.md`) will actually use, and stage 2's own pipeline runs
+on it are the system's only real performance/cost data point so far. Offering
+a second, smaller default size multiplies the states the build-progress UI and
+its time/cost estimate need to handle correctly for no validated benefit this
+stage -- nothing in the audit or the user's answers asked for a faster-but-smaller
+tier. If a real need for incremental/expandable fields shows up later, it's a
+straightforward additive UI change, not a backend redesign (the per-field
+SQLite+Qdrant storage plan in §4E already supports re-running a build against
+an existing field).
+
 ---
 
 ## Schema change log
