@@ -258,6 +258,14 @@ def papers_by_ids(
     return {r["openalex_id"]: r for r in rows}
 
 
+def recent_papers(conn: sqlite3.Connection, limit: int) -> dict[str, sqlite3.Row]:
+    """Fetch up to `limit` papers (no particular order beyond SQLite's default) keyed
+    by openalex_id. Used by POST /agents/run when the caller doesn't supply explicit
+    paper_ids -- was raw SQL inline in api/main.py, centralized here (D2)."""
+    rows = conn.execute("SELECT openalex_id, title, abstract FROM papers LIMIT ?", (limit,)).fetchall()
+    return {r["openalex_id"]: r for r in rows}
+
+
 # --- Agentic pipeline (OD19-OD24, lifted from axiom/agents/* per the Phase-4
 # architecture review -- those modules did raw SQL via the caller's
 # connection, which this centralizes) ------------------------------------------
@@ -273,6 +281,16 @@ def create_agent_run(
         VALUES (?, 'running', ?, 0, ?, ?, ?)
         """,
         (run_id, papers_total, model_fast, model_strong, started_at),
+    )
+    conn.commit()
+
+
+def increment_agent_run_papers_done(conn: sqlite3.Connection, run_id: str) -> None:
+    """D1: called once per paper as it finishes, so a run still in flight reports real
+    progress via GET /agents/runs/{id} instead of papers_done only jumping to its final
+    value when the whole run completes."""
+    conn.execute(
+        "UPDATE agent_runs SET papers_done = papers_done + 1 WHERE run_id = ?", (run_id,)
     )
     conn.commit()
 

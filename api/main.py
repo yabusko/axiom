@@ -22,14 +22,17 @@ from __future__ import annotations
 
 import json
 import sys
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from axiom import concept_graph, config, db, llm
 from axiom import gaps as gapsmod
@@ -38,7 +41,6 @@ from axiom import hypothesis as hypothesismod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
 from axiom.agents import pipeline as agents_pipeline
-from axiom.agents.contracts import RunStatusOut
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant
 
@@ -197,19 +199,43 @@ class ConceptCentralityOut(BaseModel):
 
 
 class AgentRunIn(BaseModel):
-    paper_ids: list[str] | None = None
-    limit: int | None = None
+    paper_ids: list[str] | None = Field(default=None, max_length=50)
+    limit: int | None = Field(default=None, ge=1, le=50)
+    synthesize: bool = False
 
 
 class AgentRunOut(BaseModel):
     run_id: str
 
 
+class AgentRunStatusOut(BaseModel):
+    run_id: str
+    status: str
+    papers_total: int
+    papers_done: int
+    model_fast: str | None
+    model_strong: str | None
+    started_at: str | None
+    finished_at: str | None
+    verdict_counts: dict[str, int] = {}
+    cost_so_far: float = 0.0
+
+
 # --- App -----------------------------------------------------------------------
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # D2: load the sentence encoder once at process startup instead of inside the
+    # first request that happens to need it -- that first caller shouldn't pay a
+    # multi-second model-load latency hit just for being first.
+    get_encoder()
+    yield
+
+
 app = FastAPI(
     title="Axiom API",
     version="0.1.0",
     description="REST seam over axiom/*: search, trends (OD10), citation graph + gaps (OD9).",
+    lifespan=_lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -510,20 +536,38 @@ def reject_review_item(item_id: int):
 # --- Agentic pipeline (R1-R6, docs/agentic/ARCHITECTURE.md) -------------------
 # Async, unlike every route above (R5) -- the pipeline awaits LLM calls;
 # everything else in this file stays CPU-bound sync `def` on purpose (OD12).
-@app.post("/agents/run", response_model=AgentRunOut)
-async def agents_run(body: AgentRunIn | None = None):
+async def _run_agents_background(
+    papers: list[agents_pipeline.PaperInput], run_id: str, *,
+    clusters: list[dict] | None, gaps: list, trend_context: list[str] | None,
+) -> None:
+    """D1: the actual pipeline run, scheduled as a background task so the request
+    handler can return 202 immediately. Mirrors run_pipeline's own try/finally shape
+    for the one failure mode it can't cover itself -- an exception raised before (or
+    after) its own agent_runs bookkeeping, which would otherwise leave the row stuck
+    at 'running' forever with no record of what happened."""
+    try:
+        await agents_pipeline.run_pipeline(
+            papers, encoder=get_encoder(), run_id=run_id,
+            clusters=clusters, gaps=gaps, trend_context=trend_context,
+        )
+        get_concept_analysis.cache_clear()
+    except Exception as exc:
+        conn = db.connect()
+        try:
+            db.fail_agent_run(conn, run_id, error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
+        finally:
+            conn.close()
+
+
+@app.post("/agents/run", response_model=AgentRunOut, status_code=202)
+def agents_run(body: AgentRunIn | None, background_tasks: BackgroundTasks):
     body = body or AgentRunIn()
     conn = db.connect()
     try:
         if body.paper_ids:
             rows = db.papers_by_ids(conn, body.paper_ids)
         else:
-            limit = body.limit or 50
-            rows = {
-                r["openalex_id"]: r for r in conn.execute(
-                    "SELECT openalex_id, title, abstract FROM papers LIMIT ?", (limit,)
-                ).fetchall()
-            }
+            rows = db.recent_papers(conn, body.limit or 50)
     finally:
         conn.close()
     if not rows:
@@ -533,27 +577,44 @@ async def agents_run(body: AgentRunIn | None = None):
         agents_pipeline.PaperInput(paper_id=pid, title=r["title"], abstract=r["abstract"])
         for pid, r in rows.items()
     ]
-    summary = await agents_pipeline.run_pipeline(papers, encoder=get_encoder())
-    # Phase-4 architecture review: linking may have just written fresh
-    # concept_cooccurrence rows -- drop the cached analysis so the next
-    # /concepts/* call reflects this run instead of staying silently stale
-    # until a process restart (same lru_cache tradeoff as get_graph()/
-    # get_gap_analysis(), but this endpoint's whole purpose is to produce
-    # the data those two serve, in the same process lifetime).
-    get_concept_analysis.cache_clear()
-    return AgentRunOut(run_id=summary["run_id"])
+
+    clusters: list[dict] | None = None
+    gaps: list | None = None
+    trend_context: list[str] | None = None
+    if body.synthesize:
+        concept_analysis = get_concept_analysis()
+        clusters = [
+            {"cluster_id": c.cid, "concepts": c.members} for c in concept_analysis.communities
+        ]
+        citation_graph = get_graph()
+        gaps = [(g, citation_graph) for g in get_gap_analysis().gaps[:3]]
+        conn = db.connect()
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10)
+            trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    run_id = uuid.uuid4().hex
+    background_tasks.add_task(
+        _run_agents_background, papers, run_id,
+        clusters=clusters, gaps=gaps, trend_context=trend_context,
+    )
+    return AgentRunOut(run_id=run_id)
 
 
-@app.get("/agents/runs/{run_id}", response_model=RunStatusOut)
+@app.get("/agents/runs/{run_id}", response_model=AgentRunStatusOut)
 def agents_run_status(run_id: str):
     conn = db.connect()
     try:
-        status = agents_pipeline.get_run_status(conn, run_id)
+        row = db.get_agent_run(conn, run_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="no such run")
+        verdict_counts = db.agent_run_verdict_counts(conn, run_id)
+        cost_so_far = db.run_llm_spend(conn, run_id)
     finally:
         conn.close()
-    if status is None:
-        raise HTTPException(status_code=404, detail="no such run")
-    return status
+    return AgentRunStatusOut(**dict(row), verdict_counts=verdict_counts, cost_so_far=cost_so_far)
 
 
 @app.get("/concepts/communities", response_model=list[ConceptCommunityOut])

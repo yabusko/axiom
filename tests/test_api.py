@@ -117,3 +117,64 @@ def test_review_queue_approve_reject(api_client, patched_db_path):
 
 def test_review_queue_status_validation(api_client):
     assert api_client.get("/review-queue", params={"status": "bogus"}).status_code == 422
+
+
+def test_agents_run_is_backgrounded_and_status_reports_progress(api_client, patched_db_path, monkeypatch):
+    import api.main as main
+
+    async def fake_run_pipeline(papers, *, encoder, run_id, clusters=None, gaps=None, trend_context=None, **_):
+        conn = db.connect(patched_db_path)
+        try:
+            db.create_agent_run(conn, run_id, papers_total=len(papers),
+                                 model_fast="fast", model_strong="strong", started_at="t0")
+            db.upsert_agent_run_item(conn, run_id, papers[0].paper_id, route="full",
+                                      verifier_attempts=1, verdict="accepted", error=None)
+            db.finish_agent_run(conn, run_id, papers_done=len(papers), finished_at="t1")
+        finally:
+            conn.close()
+        return {"run_id": run_id, "items": [], "cluster_labels": [], "hypotheses": []}
+
+    monkeypatch.setattr(main.agents_pipeline, "run_pipeline", fake_run_pipeline)
+
+    r = api_client.post("/agents/run", json={"limit": 1})
+    assert r.status_code == 202
+    run_id = r.json()["run_id"]
+
+    status = api_client.get(f"/agents/runs/{run_id}").json()
+    assert status["status"] == "done"
+    assert status["verdict_counts"] == {"accepted": 1}
+    assert status["cost_so_far"] == 0.0
+
+
+def test_agents_run_marks_failed_on_pipeline_error(api_client, patched_db_path, monkeypatch):
+    import api.main as main
+
+    async def failing_run_pipeline(papers, *, encoder, run_id, **_):
+        # real run_pipeline creates its agent_runs row before doing anything else that
+        # could fail -- mirror that here so the failure path has a row to mark 'failed'.
+        conn = db.connect(patched_db_path)
+        try:
+            db.create_agent_run(conn, run_id, papers_total=len(papers),
+                                 model_fast="fast", model_strong="strong", started_at="t0")
+        finally:
+            conn.close()
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(main.agents_pipeline, "run_pipeline", failing_run_pipeline)
+
+    run_id = api_client.post("/agents/run", json={"limit": 1}).json()["run_id"]
+    status = api_client.get(f"/agents/runs/{run_id}").json()
+    assert status["status"] == "failed"
+
+
+def test_agents_run_validates_limit(api_client):
+    assert api_client.post("/agents/run", json={"limit": 0}).status_code == 422
+    assert api_client.post("/agents/run", json={"limit": 51}).status_code == 422
+
+
+def test_agents_run_404_when_no_matching_papers(api_client):
+    assert api_client.post("/agents/run", json={"paper_ids": ["nope"]}).status_code == 404
+
+
+def test_agents_run_status_404_when_unknown(api_client):
+    assert api_client.get("/agents/runs/does-not-exist").status_code == 404
