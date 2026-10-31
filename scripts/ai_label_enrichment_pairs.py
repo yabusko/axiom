@@ -190,15 +190,21 @@ def shuffled_order(n: int, seed: int = SHUFFLE_SEED) -> list[int]:
 
 
 def estimate_cost(rows: list[dict]) -> float:
-    """Worst-case pre-run estimate: chars/4 input proxy + the pair_judgment max_tokens cap
-    for output, for both tiers, over every row -- mirrors llm_providers' own pre-call
-    reservation math (C3) so this number is the same kind of conservative upper bound."""
+    """Worst-case pre-run estimate: chars/2 input proxy (including the structured-output
+    schema's own serialized size) + the pair_judgment max_tokens cap for output, for both
+    tiers, over every row -- mirrors llm_providers._estimate_worst_case_cost's math (a real
+    B3 run measured a ~2.0 chars/token ratio for this kind of short technical text, not the
+    ~4 a naive proxy assumes -- see that function's docstring)."""
+    import json as _json
+    from axiom.llm_providers import build_schema
+
     max_tokens = config.AGENT_MAX_TOKENS["pair_judgment"]
+    schema_chars = len(_json.dumps(build_schema(PairJudgment)))
     total = 0.0
     for row in rows:
         prompt = _prompt(row["entity"], row["kind"], row["evidence_span"], row["candidate"])
-        chars = len(_SYSTEM) + len(prompt)
-        tokens_in = chars / 4
+        chars = len(_SYSTEM) + len(prompt) + schema_chars
+        tokens_in = chars / 2
         for model, price_in, price_out in (
             (config.MODEL_STRONG, config.MODEL_STRONG_PRICE_IN, config.MODEL_STRONG_PRICE_OUT),
             (config.MODEL_OPUS, config.MODEL_OPUS_PRICE_IN, config.MODEL_OPUS_PRICE_OUT),

@@ -697,6 +697,87 @@ nudge for consistency but is otherwise unchanged, and is flagged in its own docs
 path to delete once those two call sites are repointed at `axiom.agents.synthesis.
 generate_hypothesis(gap, g, *, run_id, trend_context=None, max_retries=...)`.
 
+## OD28 — B3 AI-labeling: no human review; a budget-estimator bug and a model-generation break found running it
+
+**Context.** The user explicitly asked to replace stage-2's remaining human-labeling gates
+(B3, E3) with independent AI labeling and run to the end of the stage without stopping for
+manual review. `scripts/ai_label_enrichment_pairs.py` runs two independent, blind judges
+(`strong` = claude-sonnet-5-5, a new `opus` tier = claude-opus-5-5) over
+`eval/enrichment_pairs.csv`: same rubric, temperature-controlled (see below), each seeing
+only entity/kind/evidence_span/candidate, never cosine/margin. A label counts for calibration
+only when both judges agree on "1" or "0"; disagreements and "unsure" are reported but
+excluded. A deterministic (non-LLM) acronym-definition detector flags, but never overrides,
+disagreements where the paper's own abstract defines a relevant acronym. **Every label this
+produces is AI-labeled with no human review — call it that everywhere (RESULTS.md,
+DECISIONS.md, README), never "human-labeled" or "hand-labeled".** `scripts/label_pairs.py`
+(the blind human CLI built for the original B3 gate) and `scripts/label_cli.py` are kept,
+unused for now, for an optional future human pass.
+
+**Bug found and fixed while running this for real: `temperature` is rejected outright.**
+The first real run came back 100% "unsure" at $0.0000 spend -- every one of 200 calls failed
+with `HTTP 400: "temperature is deprecated for this model"`. Every model this app now targets
+(the 5.5 generation: `MODEL_FAST`/`MODEL_STRONG`/the new `MODEL_OPUS`) rejects the parameter
+outright; `axiom.agents.synthesis.generate_hypothesis` (D4) has been passing a real
+temperature value since it was written and would have hit the exact same failure the first
+time it actually ran against the live API with a key set -- this had never been exercised for
+real before now. Fixed in `AnthropicProvider.complete_json`: the Anthropic payload never
+includes `temperature` regardless of what's passed; the parameter stays on `complete_json`'s
+signature only so `OllamaProvider`'s local models (which still honor it) don't need a
+different call shape.
+
+**Bug found and fixed: the budget-reservation cost estimate undercounts real cost by ~2x.**
+The real run's actual spend ($0.5381) came in well over its own pre-run worst-case estimate
+($0.3901) -- which should be impossible for a true upper bound. Measured directly from the
+real run's durable `llm_spend` rows: ~1250 input chars (system + prompt + the structured-
+output JSON schema) against ~616 real `tokens_in` -- a ~2.0 chars/token ratio for this kind of
+short, technical text, not the ~4 `_estimate_worst_case_cost` assumed, and that function also
+never counted the schema's own serialized size as billed input at all (it's sent via
+`output_config.format.json_schema`, and real content). Both fixed: `_estimate_worst_case_cost`
+now divides by 2, not 4, and `AnthropicProvider.complete_json` includes the schema's JSON size
+in the estimate's input length. This is a C3 budget-safety fix, not just a B3 one -- the old
+estimate's claimed "always >= the eventual real cost" guarantee did not actually hold, which
+matters for the one thing C3 exists to prevent (overshooting `LLM_BUDGET_USD`).
+
+**B3 result** (after both fixes, real run, $0.5381 spent this run / $0.5647 cumulative total):
+Cohen's kappa between the two judges was 0.7983 over all 100 pairs (substantial agreement).
+92/100 pairs got a usable agreed label (15 agreed "1", 77 agreed "0"); 8 were "unsure" on at
+least one side; zero outright A-vs-B disagreements.
+
+**Calibration (`scripts/calibrate_enrichment_threshold.py`, report at
+`eval/enrichment_threshold_calibration.md`):** highest recall at precision >= 0.9 picks
+tau=0.93 (barely below the inherited 0.95), delta=0.0 (no margin requirement) --
+precision=0.929, recall=0.867 on the 92 usable pairs. Applied to the reference run's full set
+of 208 `new_concept` entities (not just the 100-pair sample), only 6 would flip to a real
+ontology match under this looser threshold.
+
+**Decision: ontology gap, not threshold miscalibration.** 77/92 agreed labels were "0" --
+including among the HIGHEST-cosine candidates in the sample (it was built from the top 100 by
+cosine) -- and loosening tau/delta barely moves the `new_concept` rate. The embedding model
+produces moderately high cosine similarity for genuinely different concepts (broader/
+narrower, related-but-distinct, version differences) at a rate that makes a looser threshold
+a precision trade, not a real fix: the ontology (572 real candidate labels, not a sparse pool)
+simply doesn't contain most of these entities. `VERIFIER_COSINE_MIN`/`ENRICHMENT_MARGIN_DELTA`
+are updated to `0.93`/`0.0` (replacing OD26's placeholder `0.95`/`0.05`) -- a small, real,
+labeled-data-backed correction, not a loosening aimed at reducing the `new_concept` rate.
+
+**Follow-up: merge synonymous `new_concept` labels** (`scripts/merge_new_concept_synonyms.py`,
+applied for real). Since the ontology genuinely lacks these entities, the real risk is the
+SAME entity getting a different surface-form canonical in different papers, fragmenting the
+concept graph (e.g. "RAG" vs "retrieval-augmented generation" vs "retrieval augmented
+generation (RAG)" as three separate nodes instead of one). Ran the same exact/embedding
+matching logic pairwise over the `new_concept` canonicals themselves (same tau=0.93, no
+margin -- there's no runner-up to compare against when clustering a set against itself).
+Result: 11 clusters, 21 canonicals absorbed into one representative each (the most-occurring
+raw name in the cluster), 20 `paper_concepts` rows relabeled, 9 exact-duplicate rows this
+created cleaned up afterward. The biggest cluster: "retrieval-augmented generation" absorbed
+10 variants including both acronym forms ("...(RAG)") and compound-method variants
+("graph-based...", "naive...", "self-knowledge guided..."). Known limitation, accepted: this
+pass uses plain cosine similarity with no margin and no broader/narrower nuance -- unlike
+B3's own AI rubric, it cannot distinguish a true synonym from a narrower/broader near-
+neighbor (one cluster, "graph reasoning" absorbing "knowledge graph reasoning", is arguably
+too aggressive under that rubric). Net positive for graph quality; a human or AI review pass
+over the merge list is a reasonable future refinement, not required now.
+
 ---
 
 ## Schema change log

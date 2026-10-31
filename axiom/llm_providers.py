@@ -171,14 +171,18 @@ def estimate_cost(model: str, tokens_in: int, tokens_out: int) -> float:
 
 
 def _estimate_worst_case_cost(model: str, prompt_chars: int, max_tokens: int) -> float:
-    """Pre-call estimate used only to reserve budget (C3): input tokens via a
-    chars/4 proxy (no new tokenizer dependency), output tokens assumed to hit
-    the call's `max_tokens` cap (the true worst case -- the API will never
-    return more than that). Always >= the eventual real cost for a
-    successful call, so reserving this amount can only be conservative, never
-    let a call through that the real spend would have blocked."""
+    """Pre-call estimate used only to reserve budget (C3): input tokens via a chars/2 proxy
+    (no new tokenizer dependency), output tokens assumed to hit the call's `max_tokens` cap
+    (the true worst case -- the API will never return more than that).
+
+    chars/2, not chars/4: a real B3 calibration run measured ~1250 input chars (system +
+    prompt + the structured-output JSON schema) against ~616 real tokens_in -- a ~2.0
+    chars/token ratio for this kind of short, technical text, not the ~4 a chars/4 proxy
+    assumes. `prompt_chars` MUST include the schema's own serialized size (the caller is
+    responsible for that) for this to stay a real upper bound -- see the real measurement in
+    docs/DECISIONS.md's corresponding OD."""
     price_in, price_out = _price_for(model)
-    tokens_in_est = max(0, round(prompt_chars / 4))
+    tokens_in_est = max(0, round(prompt_chars / 2))
     return (tokens_in_est / 1_000_000) * price_in + (max_tokens / 1_000_000) * price_out
 
 
@@ -399,10 +403,13 @@ class AnthropicProvider:
     ) -> ModelT:
         model = self._tier_models[tier]
         max_tokens = _max_tokens_for(agent_type)
-        estimated_cost = _estimate_worst_case_cost(model, len(system) + len(prompt), max_tokens)
+        schema = build_schema(model_cls)
+        # The schema is itself real, billed input content (sent via output_config below) --
+        # omitting it from the estimate was most of the gap the chars/2 fix above addresses.
+        prompt_chars = len(system) + len(prompt) + len(json.dumps(schema))
+        estimated_cost = _estimate_worst_case_cost(model, prompt_chars, max_tokens)
         await _reserve_budget(conn, run_id, estimated_cost)
 
-        schema = build_schema(model_cls)
         payload = {
             "model": model,
             "max_tokens": max_tokens,

@@ -268,15 +268,17 @@ ENTITY_KINDS = ("method", "task", "dataset", "metric")
 ROUTE_ACTIONS = ("full", "title_only", "skip")
 ROUTE_TITLE_ONLY_MIN_WORDS = 40     # A5: abstract shorter than this (or missing) -> title_only
 
-# Calibrated 2026-10-31 (OD23) by inspecting all 109 real (entity, ontology-match) pairs
-# produced by a live 30-paper pipeline run, sorted by cosine. Matches are clean and correct
-# down to ~0.95 (e.g. 0.9748 'translation'->'Machine translation', 0.9608 'Chain-of-Thought
-# Prompting'->'Prompting'); below that, clear false positives start appearing (0.9477
-# 'Classification'->'Quantization', 0.9447 'summarization'->'Text segmentation'). Not a
-# perfect cutoff on this small (~40-label) ontology -- one false positive still slips through
-# just above the line (0.9531 'Dual Encoder'->'Decoding') and some correct matches near the
-# boundary may get rejected and retried -- but it's where true/false visibly separate overall.
-VERIFIER_COSINE_MIN = 0.95
+# Calibrated 2026-10-31 (OD28, superseding OD23's 0.95) from 92 real (entity, candidate,
+# cos, margin) pairs with a usable AI-labeled ground truth (two independent blind judges,
+# agreement only -- see scripts/ai_label_enrichment_pairs.py), picked by "highest recall at
+# precision >= 0.9" (scripts/calibrate_enrichment_threshold.py): precision=0.929,
+# recall=0.867 at this point. OD23's original calibration was against a different encoder
+# (SPECTER2, document-level) and a much smaller ontology (~40 labels); B1 moved entity
+# matching onto ENRICHMENT_PHRASE_MODEL below against a 572-label real ontology, so that
+# calibration no longer applied even before this one replaced it. Loosening tau/delta to
+# this point only flips 6/208 new_concept entities to a real match in the reference run --
+# most of the new_concept rate is a real ontology gap, not a threshold problem (OD28).
+VERIFIER_COSINE_MIN = 0.93
 
 # B1: short-phrase embedding model for the entity-name matching cascade (lexical match first,
 # then this, else new_concept) -- SPECTER2 above is a document-level encoder (title+abstract
@@ -284,11 +286,9 @@ VERIFIER_COSINE_MIN = 0.95
 # Prompting". ~130MB, CPU-fine. Loaded via the same plain transformers AutoModel/AutoTokenizer
 # pattern as axiom/embed.py (no new heavy dependency).
 ENRICHMENT_PHRASE_MODEL = "BAAI/bge-small-en-v1.5"
-# Placeholder pending the B3 gate: ask the user to label eval/enrichment_pairs.csv (>=60 real
-# (entity, candidate, cos, margin) rows), then set by "highest recall at precision >= 0.9" and
-# log the replacement decision (supersedes this placeholder, same pattern as OD23 superseding
-# VERIFIER_COSINE_MIN's old 0.70 placeholder). top1-top2 margin, not a cosine floor by itself.
-ENRICHMENT_MARGIN_DELTA = 0.05
+# Calibrated alongside VERIFIER_COSINE_MIN above (OD28) -- the labeled data supported no
+# margin requirement at all at this operating point. top1-top2 margin, not a cosine floor.
+ENRICHMENT_MARGIN_DELTA = 0.0
 
 TRACE_DIR = PROJECT_ROOT / "eval" / "runs"
 EVAL_V2_QUERIES_PATH = PROJECT_ROOT / "eval" / "ndcg_queries_v2.json"

@@ -64,16 +64,23 @@ def candidates_for(conn, paper_ids: list[str]) -> list[dict]:
 
 
 def estimate_cost(data: dict, indices: list[int]) -> float:
-    max_tokens = config.AGENT_MAX_TOKENS.get("synthesis", 4096)  # grading isn't in the dict; same ballpark as a prose call
+    """A realistic expected-cost estimate (not a worst-case bound -- grade_query's own
+    max_tokens is the flat 4096 default, assuming that every call would be wildly
+    pessimistic). chars/2, not chars/4: a real B3 calibration run measured a ~2.0
+    chars/token ratio for this kind of short technical text (see
+    llm_providers._estimate_worst_case_cost's docstring); output is estimated at ~25 tokens
+    per candidate judgment plus a small fixed JSON overhead, not the full max_tokens cap."""
     total = 0.0
     for i in indices:
         q = data["queries"][i]
         n_candidates = len(q["judgments"])
-        # grade_query's own prompt is ~80 chars/candidate + ~400 chars system/boilerplate
-        chars = 400 + n_candidates * 300
-        tokens_in = chars / 4
+        # grade_query's prompt includes each candidate's title + up to 500 chars of abstract,
+        # plus ~400 chars of system/boilerplate text.
+        chars_in = 400 + n_candidates * 550
+        tokens_in = chars_in / 2
+        tokens_out = 50 + n_candidates * 25
         total += ((tokens_in / 1_000_000) * config.MODEL_STRONG_PRICE_IN
-                  + (max_tokens / 1_000_000) * config.MODEL_STRONG_PRICE_OUT)
+                  + (tokens_out / 1_000_000) * config.MODEL_STRONG_PRICE_OUT)
     return total
 
 
