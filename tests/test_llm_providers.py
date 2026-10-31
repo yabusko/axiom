@@ -36,7 +36,11 @@ def _fast_and_isolated(tmp_path, monkeypatch):
 
 
 def _route_body(paper_id="W1", action="full", stop_reason="end_turn", tokens=(10, 5)):
-    data = {"paper_id": paper_id, "action": action, "reason": "ok"}
+    # `paper_id` kept as a parameter for call-site compatibility but no longer
+    # part of the payload -- RouteDecision has no paper_id field (A4, stage-2
+    # fixes): the model is never asked for one.
+    del paper_id
+    data = {"action": action, "reason": "ok"}
     return {
         "content": [{"type": "text", "text": json.dumps(data)}],
         "stop_reason": stop_reason,
@@ -218,7 +222,7 @@ def test_anthropic_schema_mismatch_raises_validation_error(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
 
     def handler(request):
-        bad = {"paper_id": "W1", "action": "not-a-valid-action", "reason": "x"}
+        bad = {"action": "not-a-valid-action", "reason": "x"}
         return httpx.Response(200, json={
             "content": [{"type": "text", "text": json.dumps(bad)}],
             "stop_reason": "end_turn",
@@ -270,7 +274,7 @@ def test_anthropic_exhausts_retries_raises_transport_error(monkeypatch):
 
 def test_ollama_complete_json_success(monkeypatch):
     def fake_chat_json(prompt, *, system=None, model=None, temperature=0.2, timeout=None):
-        return {"paper_id": "W1", "action": "full", "reason": "ok"}
+        return {"action": "full", "reason": "ok"}
     monkeypatch.setattr(llm, "chat_json", fake_chat_json)
 
     import asyncio
@@ -291,7 +295,7 @@ def test_ollama_retries_then_succeeds(monkeypatch):
         calls["n"] += 1
         if calls["n"] < 2:
             raise llm.OllamaError("unreachable")
-        return {"paper_id": "W1", "action": "full", "reason": "ok"}
+        return {"action": "full", "reason": "ok"}
     monkeypatch.setattr(llm, "chat_json", fake_chat_json)
     monkeypatch.setattr(config, "ANTHROPIC_MAX_RETRIES", 3)
     monkeypatch.setattr(config, "ANTHROPIC_BACKOFF_CAP", 0.01)
@@ -321,7 +325,7 @@ def test_ollama_exhausts_retries_raises_transport_error(monkeypatch):
 
 def test_ollama_schema_validation_error_traces_and_raises(monkeypatch):
     def fake_chat_json(prompt, *, system=None, model=None, temperature=0.2, timeout=None):
-        return {"paper_id": "W1", "action": "not-valid", "reason": "x"}
+        return {"action": "not-valid", "reason": "x"}
     monkeypatch.setattr(llm, "chat_json", fake_chat_json)
 
     import asyncio
@@ -348,7 +352,7 @@ def test_complete_json_dispatches_to_ollama_without_key(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", None)
 
     def fake_chat_json(prompt, *, system=None, model=None, temperature=0.2, timeout=None):
-        return {"paper_id": "W1", "action": "skip", "reason": "no abstract"}
+        return {"action": "skip", "reason": "no abstract"}
     monkeypatch.setattr(llm, "chat_json", fake_chat_json)
 
     import asyncio
