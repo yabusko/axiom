@@ -160,6 +160,8 @@ def _price_for(model: str) -> tuple[float, float]:
         return config.MODEL_FAST_PRICE_IN, config.MODEL_FAST_PRICE_OUT
     if model == config.MODEL_STRONG:
         return config.MODEL_STRONG_PRICE_IN, config.MODEL_STRONG_PRICE_OUT
+    if model == config.MODEL_OPUS:
+        return config.MODEL_OPUS_PRICE_IN, config.MODEL_OPUS_PRICE_OUT
     return 0.0, 0.0
 
 
@@ -375,7 +377,9 @@ async def _anthropic_post(client: httpx.AsyncClient, payload: dict) -> httpx.Res
 
 class AnthropicProvider:
     name = "anthropic"
-    _tier_models = {"fast": config.MODEL_FAST, "strong": config.MODEL_STRONG}
+    _tier_models = {
+        "fast": config.MODEL_FAST, "strong": config.MODEL_STRONG, "opus": config.MODEL_OPUS,
+    }
 
     async def complete_json(
         self,
@@ -511,7 +515,9 @@ def _estimate_tokens(text: str) -> int:
 
 class OllamaProvider:
     name = "ollama"
-    _tier_models = {"fast": config.OLLAMA_MODEL, "strong": config.OLLAMA_MODEL}
+    _tier_models = {
+        "fast": config.OLLAMA_MODEL, "strong": config.OLLAMA_MODEL, "opus": config.OLLAMA_MODEL,
+    }
 
     async def complete_json(
         self,

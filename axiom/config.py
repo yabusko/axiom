@@ -241,6 +241,12 @@ MODEL_FAST_PRICE_OUT = 0.50         # $ / 1M output tokens (prompts <=100k token
 MODEL_STRONG = "claude-sonnet-5-5"
 MODEL_STRONG_PRICE_IN = 2.00        # $ / 1M input tokens
 MODEL_STRONG_PRICE_OUT = 10.00      # $ / 1M output tokens
+# Third tier, not part of the pipeline's normal fast/strong split -- a second, stronger
+# independent labeler for AI-vs-AI calibration review (B3/E3, stage-2 fixes), same
+# verification date as the two above.
+MODEL_OPUS = "claude-opus-5-5"
+MODEL_OPUS_PRICE_IN = 4.00           # $ / 1M input tokens
+MODEL_OPUS_PRICE_OUT = 20.00         # $ / 1M output tokens
 
 LLM_BUDGET_USD = 3.00               # hard cap on total agentic-pipeline spend (laptop rule)
 
@@ -251,6 +257,7 @@ AGENT_MAX_TOKENS = {
     "route": 200,
     "extraction": 1500,
     "synthesis": 4096,
+    "pair_judgment": 150,            # B3/E3: a short structured {label, reason} judgment
 }
 _DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed above
 
