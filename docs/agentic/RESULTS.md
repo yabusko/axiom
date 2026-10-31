@@ -97,7 +97,7 @@ Real run against `data/axiom.db` (30 papers, synthetic test data) and the real e
 
 v1 (unchanged for comparison): hybrid 0.453 (`eval/report.md`, still on disk, re-verified
 2026-10-31), dense 0.345 (no standalone v1 dense report file currently on disk; this figure is
-pre-existing project history recorded in `docs/DECISIONS.md` and `Backlog.md` before this task
+pre-existing project history recorded in `docs/DECISIONS.md` and `docs/archive/Backlog.md` before this task
 started, not reproduced here). Not directly comparable to v2 (different queries,
 different scale, different corpus coverage after the real 1500-paper eval ingest vs v1's
 original sample).

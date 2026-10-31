@@ -10,7 +10,7 @@ product itself.
 > This README reflects the **as-built** system (2026-07-04), which has
 > diverged from the original plan in several places — see
 > `docs/DECISIONS.md` (OD6–OD14) for the full rationale on every divergence,
-> and `Backlog.md` for the task-by-task status.
+> and `docs/archive/Backlog.md` for the task-by-task status.
 
 ---
 
@@ -211,7 +211,7 @@ tests/                           pytest unit suite (conftest stubs torch/qdrant 
 docs/DECISIONS.md                every committed decision (OD1–OD14) + schema change log
 docs/demo_examples.md            real, reproducible output of every built feature
 docs/archive/WALKTHROUGH.md      deep-dive on the original P1 seam (historical — see its banner)
-Backlog.md                       full task-by-task status (as-built vs. original plan)
+docs/archive/Backlog.md          full task-by-task status (as-built vs. original plan)
 docker-compose.yml               Qdrant only
 ```
 
@@ -250,3 +250,12 @@ docker-compose.yml               Qdrant only
   pulled (`ollama pull qwen2.5:7b`).
 - **Slow first encode** → expected on CPU; SPECTER2 weights download once and
   are cached afterward.
+
+---
+
+## Origin and credits
+
+Axiom started as a TUM team project (Saleh Alizada, Yahor Busko, Yakub
+Yakubov) -- see `docs/archive/Backlog.md` for the original task-by-task plan
+and per-person ownership. The team split into separate repos afterward; this
+repo continues the project independently.
