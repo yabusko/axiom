@@ -13,7 +13,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from axiom import config, llm, tracing
+from axiom import config, db, llm, tracing
 from axiom.agents.contracts import ExtractionResult, RouteDecision
 from axiom import llm_providers as lp
 
@@ -354,3 +354,315 @@ def test_complete_json_dispatches_to_ollama_without_key(monkeypatch):
     import asyncio
     result = asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runL", agent="coordinator"))
     assert result.action == "skip"
+
+
+# --- C1: LLMHTTPError / retry set / retry-after ----------------------------------
+
+def test_non_retryable_4xx_raises_http_error_not_parse_error(monkeypatch):
+    """A 400 (bad request) must never be run through the model-output JSON
+    parser -- it's an API error envelope, not model output -- and must not
+    be retried."""
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    attempts = {"n": 0}
+
+    def handler(request):
+        attempts["n"] += 1
+        return httpx.Response(400, json={
+            "type": "error",
+            "error": {"type": "invalid_request_error", "message": "bad schema"},
+        })
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    with pytest.raises(lp.LLMHTTPError) as excinfo:
+        asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runM", agent="coordinator"))
+    assert excinfo.value.status == 400
+    assert excinfo.value.type == "invalid_request_error"
+    assert "bad schema" in excinfo.value.message
+    assert attempts["n"] == 1  # no retry on a non-retryable 4xx
+
+    assert tracing.read_trace("runM")[0]["verdict"] == "http_error"
+
+
+def test_non_retryable_4xx_malformed_body_degrades_gracefully(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+
+    def handler(request):
+        return httpx.Response(404, text="not found")
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    with pytest.raises(lp.LLMHTTPError) as excinfo:
+        asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runN", agent="coordinator"))
+    assert excinfo.value.status == 404
+
+
+@pytest.mark.parametrize("status", [408, 409])
+def test_408_409_are_retried_then_succeed(monkeypatch, status):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    attempts = {"n": 0}
+
+    def handler(request):
+        attempts["n"] += 1
+        if attempts["n"] < 2:
+            return httpx.Response(status, text="try again")
+        return httpx.Response(200, json=_route_body())
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    result = asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runO", agent="coordinator"))
+    assert isinstance(result, RouteDecision)
+    assert attempts["n"] == 2
+
+
+def test_retry_after_header_is_honored_over_backoff(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    # A huge backoff cap so if the code fell back to blind backoff, the
+    # slept duration would be nowhere near the header's tiny value.
+    monkeypatch.setattr(config, "ANTHROPIC_BACKOFF_CAP", 30.0)
+    attempts = {"n": 0}
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(lp.asyncio, "sleep", fake_sleep)
+
+    def handler(request):
+        attempts["n"] += 1
+        if attempts["n"] < 2:
+            return httpx.Response(429, text="slow down", headers={"retry-after": "0.05"})
+        return httpx.Response(200, json=_route_body())
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runP", agent="coordinator"))
+    assert sleeps == [pytest.approx(0.05)]
+
+
+def test_retry_after_missing_falls_back_to_backoff(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(lp.asyncio, "sleep", fake_sleep)
+
+    def handler(request):
+        return httpx.Response(429, text="slow down")  # no retry-after header
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    with pytest.raises(lp.LLMTransportError):
+        asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runQ", agent="coordinator"))
+    assert sleeps  # fell back to _backoff_seconds, which is nonzero
+
+
+# --- C2: pooled client reuse ------------------------------------------------------
+
+def test_passed_in_client_is_reused_and_never_closed(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(200, json=_route_body())
+
+    def _boom():
+        raise AssertionError("must not build its own client when one is passed in")
+    monkeypatch.setattr(lp, "_client_factory", _boom)
+
+    import asyncio
+
+    async def _run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://mocked") as client:
+            result = await lp.complete_json(
+                "fast", "sys", "prompt", RouteDecision, run_id="runR", agent="coordinator", client=client,
+            )
+            assert not client.is_closed  # complete_json must not close a client it didn't own
+            return result
+
+    result = asyncio.run(_run())
+    assert isinstance(result, RouteDecision)
+    assert len(calls) == 1
+
+
+def test_omitted_client_still_opens_and_closes_its_own(monkeypatch):
+    """Backward-compat: a caller that doesn't pass `client` keeps today's
+    per-call open/close behavior."""
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    built = []
+
+    def handler(request):
+        return httpx.Response(200, json=_route_body())
+
+    def factory():
+        client = _mock_client(handler)
+        built.append(client)
+        return client
+
+    monkeypatch.setattr(lp, "_client_factory", factory)
+
+    import asyncio
+    asyncio.run(lp.complete_json("fast", "sys", "prompt", RouteDecision, run_id="runS", agent="coordinator"))
+    assert len(built) == 1
+    assert built[0].is_closed
+
+
+# --- C3: durable, race-free budget tracking ---------------------------------------
+
+@pytest.fixture
+def real_conn(tmp_path):
+    conn = db.connect(tmp_path / "budget.db")
+    db.init_db(conn)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def test_conn_based_budget_check_uses_durable_total(monkeypatch, real_conn):
+    """With a `conn`, the pre-call budget check reads `db.total_llm_spend`
+    (durable/cross-run) instead of the in-process total -- a prior run's
+    committed spend (as if the process had restarted) still blocks a new
+    call even though `lp.total_spend()` knows nothing about it."""
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(config, "LLM_BUDGET_USD", 0.01)
+    db.record_llm_spend(real_conn, "old_run", ts="2026-01-01T00:00:00Z",
+                         model=config.MODEL_FAST, tokens_in=1, tokens_out=1, cost=0.02)
+    assert lp.total_spend() == 0.0  # in-process total knows nothing about it
+
+    def _boom():
+        raise AssertionError("should never build a client once over budget")
+    monkeypatch.setattr(lp, "_client_factory", _boom)
+
+    import asyncio
+    with pytest.raises(lp.BudgetExceededError):
+        asyncio.run(lp.complete_json(
+            "fast", "sys", "prompt", RouteDecision, run_id="run_new", agent="coordinator", conn=real_conn,
+        ))
+
+
+def test_settled_call_writes_a_durable_llm_spend_row(monkeypatch, real_conn):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+
+    def handler(request):
+        return httpx.Response(200, json=_route_body(tokens=(100, 50)))
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    asyncio.run(lp.complete_json(
+        "fast", "sys", "prompt", RouteDecision, run_id="run_durable", agent="coordinator", conn=real_conn,
+    ))
+    expected = lp.estimate_cost(config.MODEL_FAST, 100, 50)
+    assert db.total_llm_spend(real_conn) == pytest.approx(expected)
+    assert db.run_llm_spend(real_conn, "run_durable") == pytest.approx(expected)
+
+
+def test_failed_call_still_records_spend_when_tokens_were_consumed(monkeypatch, real_conn):
+    """A refusal still burned tokens on the API side -- it must still be
+    billed, not silently dropped just because the call "failed"."""
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+
+    def handler(request):
+        return httpx.Response(200, json=_route_body(stop_reason="refusal", tokens=(20, 5)))
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    with pytest.raises(lp.LLMRefusalError):
+        asyncio.run(lp.complete_json(
+            "fast", "sys", "prompt", RouteDecision, run_id="run_refused", agent="coordinator", conn=real_conn,
+        ))
+    expected = lp.estimate_cost(config.MODEL_FAST, 20, 5)
+    assert db.total_llm_spend(real_conn) == pytest.approx(expected)
+
+
+def test_reserve_and_release_budget_track_outstanding_reservations(monkeypatch, real_conn):
+    """Direct test of the reservation ledger itself (C3): two outstanding
+    reservations stack (not overwrite), a third that would push the total
+    over budget is refused, and releasing frees exactly its own share back."""
+    monkeypatch.setattr(config, "LLM_BUDGET_USD", 0.10)
+
+    import asyncio
+
+    async def _run():
+        await lp._reserve_budget(real_conn, "r1", 0.04)
+        await lp._reserve_budget(real_conn, "r2", 0.04)
+        assert lp._reserved_total == pytest.approx(0.08)
+        with pytest.raises(lp.BudgetExceededError):
+            await lp._reserve_budget(real_conn, "r3", 0.04)  # 0.08 + 0.04 > 0.10
+        await lp._release_budget(0.04)
+        assert lp._reserved_total == pytest.approx(0.04)
+        await lp._reserve_budget(real_conn, "r3", 0.04)  # room again
+        assert lp._reserved_total == pytest.approx(0.08)
+        await lp._release_budget(0.04)
+        await lp._release_budget(0.04)
+        assert lp._reserved_total == pytest.approx(0.0)
+
+    asyncio.run(_run())
+
+
+def test_concurrent_reservations_serialize_through_the_lock(monkeypatch, real_conn):
+    """Phase-4-style race, exercised directly on the reservation primitive
+    `complete_json` dispatches through: N concurrent reservations of the
+    same size against a fixed budget must admit exactly floor(budget/size)
+    of them, never more -- the asyncio.Lock serializes the check-and-reserve
+    step so concurrent callers (under config.AGENT_CONCURRENCY) can't all
+    read the same "still under budget" snapshot before any of them commits."""
+    monkeypatch.setattr(config, "LLM_BUDGET_USD", 0.10)
+
+    import asyncio
+
+    async def _attempt(i):
+        try:
+            await lp._reserve_budget(real_conn, f"r{i}", 0.03)
+            return "ok"
+        except lp.BudgetExceededError:
+            return "blocked"
+
+    async def _run_all():
+        return await asyncio.gather(*[_attempt(i) for i in range(10)])
+
+    results = asyncio.run(_run_all())
+    # floor(0.10 / 0.03) == 3 reservations fit (0.09 <= 0.10); a 4th would not.
+    assert results.count("ok") == 3
+    assert results.count("blocked") == 7
+    assert lp._reserved_total == pytest.approx(0.09)
+
+
+# --- C4: per-agent-type max_tokens -------------------------------------------------
+
+@pytest.mark.parametrize("agent_type,expected", [
+    ("route", config.AGENT_MAX_TOKENS["route"]),
+    ("extraction", config.AGENT_MAX_TOKENS["extraction"]),
+    ("synthesis", config.AGENT_MAX_TOKENS["synthesis"]),
+    (None, config._DEFAULT_MAX_TOKENS),
+    ("some_unlisted_type", config._DEFAULT_MAX_TOKENS),
+])
+def test_max_tokens_for_agent_type(agent_type, expected):
+    assert lp._max_tokens_for(agent_type) == expected
+
+
+def test_complete_json_sends_agent_type_max_tokens_in_payload(monkeypatch):
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "sk-test")
+    sent_payloads = []
+
+    def handler(request):
+        sent_payloads.append(json.loads(request.content))
+        return httpx.Response(200, json=_route_body())
+
+    monkeypatch.setattr(lp, "_client_factory", lambda: _mock_client(handler))
+
+    import asyncio
+    asyncio.run(lp.complete_json(
+        "fast", "sys", "prompt", RouteDecision, run_id="runT", agent="coordinator", agent_type="route",
+    ))
+    assert sent_payloads[0]["max_tokens"] == config.AGENT_MAX_TOKENS["route"]
