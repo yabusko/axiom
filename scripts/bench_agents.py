@@ -10,9 +10,8 @@ Reads the LLM-call trace files `axiom/tracing.py` writes to `eval/runs/<run_id>.
   - the distinct model IDs actually used.
 
 NOTE (gap flagged for the main session -- see
-.claude/agentic/patch_notes_eval_implementer.md): `axiom/tracing.py` does not
-exist in this worktree (it is owned by the parallel agent-implementer
-workstream, a different git worktree) -- AXIOM_AGENTIC_TASK.md §4 and
+# Trace line schema: axiom/tracing.py (see its own NOTE if the shape ever drifts)
+# -- confirm/align via that module directly.
 docs/agentic/ARCHITECTURE.md §1/§2 only describe its trace line in prose
 ("agent, model, tokens in/out, latency, cost, attempt, verdict + reasons"),
 not as a field-by-field schema. The key names below are inferred from that
@@ -20,7 +19,7 @@ prose plus `db/schema.sql`'s `agent_run_items.verdict` vocabulary
 ("accepted"/"rejected", the one place the real schema is unambiguous).
 `_get()` tolerates a few alternate spellings per field so this script
 degrades gracefully instead of crashing if the real tracing.py differs
-slightly; confirm/align via the patch note. Primary assumed shape, one JSON
+slightly; confirm/align via axiom/tracing.py directly. Primary assumed shape, one JSON
 object per line:
 
     {"run_id": str, "paper_id": str, "agent": str, "model": str, "tier": str,
@@ -45,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from axiom import config
 
 # Alternate key spellings this script tolerates, in priority order, in case
-# the real axiom/tracing.py (sibling-owned, not in this worktree) differs
+# the real axiom/tracing.py differs
 # slightly from the inferred schema above.
 _KEY_ALIASES: dict[str, tuple[str, ...]] = {
     "run_id": ("run_id",),
@@ -100,15 +99,26 @@ def _percentile(values: list[float], pct: float) -> float:
 # ---------------------------------------------------------------------------
 # Loading
 # ---------------------------------------------------------------------------
-def iter_trace_lines(trace_dir: Path):
-    """Yield every parsed JSON object across every `*.jsonl` file in `trace_dir`.
+def iter_trace_lines(trace_dir: Path, run_id: str | None = None):
+    """Yield every parsed JSON object across trace files in `trace_dir`.
+
+    With `run_id` given, reads only that run's file (`trace_dir/<run_id>.jsonl`
+    -- the exact name `axiom/tracing.py.trace_path` writes), so a bench run
+    never mixes lines from unrelated runs sitting in the same directory.
+    Without it, every `*.jsonl` file is read, as before.
 
     Malformed lines are skipped (benchmarking must never crash on a partially
     written trace file from a run that's still in progress or was killed).
     """
     if not trace_dir.exists():
         return
-    for path in sorted(trace_dir.glob("*.jsonl")):
+    if run_id is not None:
+        paths = [trace_dir / f"{run_id}.jsonl"]
+    else:
+        paths = sorted(trace_dir.glob("*.jsonl"))
+    for path in paths:
+        if not path.exists():
+            continue
         with path.open("r", encoding="utf-8") as fh:
             for raw in fh:
                 raw = raw.strip()
@@ -122,7 +132,7 @@ def iter_trace_lines(trace_dir: Path):
 
 def select_papers(lines: list[dict], n: int) -> set[str]:
     """The first `n` distinct paper_ids encountered, in first-seen order --
-    the laptop rule's "agent benchmark <= 50 papers" cap (AXIOM_AGENTIC_TASK.md
+    the laptop rule's "agent benchmark <= 50 papers" cap (the agentic design spec
     §1), applied here rather than left to whatever is on disk."""
     seen: list[str] = []
     seen_set: set[str] = set()
@@ -142,13 +152,25 @@ def select_papers(lines: list[dict], n: int) -> set[str]:
 def rejection_rates(lines: list[dict]) -> dict:
     """First-pass vs final verifier rejection rate (R4).
 
-    Groups trace lines into (run_id, paper_id, agent) call sequences (one
-    sequence = one agent's retries for one paper within one run). First-pass
-    rejection looks only at attempt==1; final rejection looks at the sequence's
-    highest-attempt line (what the pipeline ultimately did after <=3 tries).
+    Only verifier-layer lines count here -- `axiom/agents/verifier.py.
+    log_attempt` writes one trace line per verification attempt with
+    `agent="<agent>.verifier"` and `verdict` in {"accepted", "rejected"}.
+    The SAME trace file also has provider-layer lines (`agent="extraction"`,
+    verdicts "ok"/"refusal"/"schema_invalid"/... from `axiom/llm_providers.py`)
+    for the underlying LLM calls -- mixing those into this count would both
+    double-count a paper's attempts and misread "schema_invalid" or "refusal"
+    as if they were verifier rejections. Filter to lines whose `agent` ends
+    in ".verifier" before grouping.
+
+    Groups the remaining lines into (run_id, paper_id, agent) call sequences
+    (one sequence = one agent's retries for one paper within one run).
+    First-pass rejection looks only at attempt==1; final rejection looks at
+    the sequence's highest-attempt line (what the pipeline ultimately did
+    after <=3 tries).
     """
+    verifier_lines = [l for l in lines if str(_get(l, "agent") or "").endswith(".verifier")]
     sequences: dict[tuple, list[dict]] = {}
-    for line in lines:
+    for line in verifier_lines:
         key = (_get(line, "run_id"), _get(line, "paper_id"), _get(line, "agent"))
         sequences.setdefault(key, []).append(line)
 
@@ -174,10 +196,14 @@ def rejection_rates(lines: list[dict]) -> dict:
 def run_latency_stats(lines: list[dict]) -> dict:
     """p50/p95 wall-clock latency per (run_id, paper_id), in seconds.
 
-    A paper's "run latency" = last trace line's (ts + latency_s) minus the
-    first trace line's ts, across every agent call that paper went through
-    in that run -- an approximation of the per-paper pipeline wall time from
-    call-level traces (no dedicated per-paper start/stop line exists).
+    `ts` is logged at call COMPLETION (`axiom/tracing.py.log_call` stamps it
+    after the call returns), so a call's span is `[ts - latency_s, ts]`, not
+    `[ts, ts + latency_s]` -- treating `ts` as the start would exclude the
+    call's own duration from the measured span and understate elapsed time.
+    A paper's "run latency" is then the earliest start to the latest end
+    across every agent call that paper went through in that run -- an
+    approximation of the per-paper pipeline wall time from call-level traces
+    (no dedicated per-paper start/stop line exists).
     """
     groups: dict[tuple, list[dict]] = {}
     for line in lines:
@@ -192,8 +218,8 @@ def run_latency_stats(lines: list[dict]) -> dict:
             latency = _get(line, "latency_s", 0.0) or 0.0
             if ts is None:
                 continue
-            starts.append(ts)
-            ends.append(ts + float(latency))
+            starts.append(ts - float(latency))
+            ends.append(ts)
         if starts and ends:
             spans.append(max(ends) - min(starts))
 
@@ -242,18 +268,22 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=50,
                      help="max distinct papers to include (laptop cap, "
-                          "AXIOM_AGENTIC_TASK.md §1)")
+                          "the agentic design spec §1)")
     ap.add_argument("--trace-dir", type=str, default=None,
                      help="override config.TRACE_DIR")
     ap.add_argument("--out", type=str, default=None,
                      help="override config.AGENT_BENCH_PATH")
+    ap.add_argument("--run-id", type=str, default=None,
+                     help="restrict to one run's trace file (trace_dir/<run_id>.jsonl) "
+                          "instead of every *.jsonl file in trace_dir")
     args = ap.parse_args()
 
     trace_dir = Path(args.trace_dir) if args.trace_dir else config.TRACE_DIR
-    all_lines = list(iter_trace_lines(trace_dir))
+    all_lines = list(iter_trace_lines(trace_dir, run_id=args.run_id))
     if not all_lines:
+        source = f"run '{args.run_id}' under" if args.run_id else "under"
         raise SystemExit(
-            f"no trace lines found under '{trace_dir}' -- run the agent "
+            f"no trace lines found for {source} '{trace_dir}' -- run the agent "
             f"pipeline first (eval/runs/<run_id>.jsonl)."
         )
 

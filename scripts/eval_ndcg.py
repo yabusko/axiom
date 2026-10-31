@@ -214,7 +214,7 @@ def load_general_vectors(cache_path: Path) -> dict[str, list[float]]:
             f"'{cache_path}' not found -- `--mode dense_general` needs a one-time "
             "cache of BAAI/bge-small-en-v1.5 embeddings for the eval corpus "
             "({paper_id: [floats...]}). Build it once (a heavy job -- see the "
-            "eval-implementer patch note for the exact format) before running "
+            "axiom/tracing.py for the exact trace-line format) before running "
             "this mode."
         )
     return json.loads(cache_path.read_text(encoding="utf-8"))

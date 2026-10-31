@@ -1,6 +1,8 @@
 """Tests for axiom.graph — load, PageRank direction, influence, neighbors, stats."""
 from __future__ import annotations
 
+import networkx as nx
+
 from axiom import graph as graphmod
 
 
@@ -28,6 +30,59 @@ def test_pagerank_sums_to_one_and_ranks_cited(seeded_conn):
     # A1 and B1 are the most-cited-within-corpus nodes; they should top their peers.
     assert pr["A1"] > pr["A4"]
     assert pr["B1"] > pr["B4"]
+
+
+def test_pagerank_unweighted_edges_match_plain_networkx_pagerank(seeded_conn):
+    """B5 regression: on a graph where every edge has the default weight of
+    1 (none of graph.py's citation edges carry a `weight` attribute), the
+    now-weighted `_pagerank` must be numerically IDENTICAL to the old
+    unweighted behavior -- cross-checked here against networkx's own
+    `pagerank` with `weight=None` (i.e. also ignoring any weight), which is
+    exactly what the old out_degree/successor-count implementation computed.
+    """
+    import pytest
+    # networkx's public `pagerank()` unconditionally calls its scipy-backed
+    # implementation in this version -- no `method=` kwarg to opt out. The repo's
+    # own suite must stay green without scipy installed (B5), so the reference
+    # here is the pure-Python power iteration networkx keeps around internally,
+    # not the public dispatcher.
+    from networkx.algorithms.link_analysis.pagerank_alg import _pagerank_python
+
+    g = graphmod.load_graph(seeded_conn)
+    sub = graphmod.corpus_subgraph(g)
+    ours = graphmod._pagerank(sub)
+    reference = _pagerank_python(sub, alpha=0.85, max_iter=100, tol=1.0e-6, weight=None)
+    assert ours.keys() == reference.keys()
+    for node in ours:
+        assert ours[node] == pytest.approx(reference[node], rel=1e-4, abs=1e-6)
+
+
+def test_pagerank_is_actually_weighted():
+    """B5: a heavier edge pulls more rank than a lighter one out of the same
+    source -- the bug this fixes was that `_pagerank` never read the `weight`
+    edge attribute at all, so this would previously have been a tie.
+    """
+    g = nx.DiGraph()
+    g.add_edge("A", "B", weight=3)
+    g.add_edge("A", "C", weight=1)
+    g.add_edge("B", "A", weight=1)
+    g.add_edge("C", "A", weight=1)
+    pr = graphmod._pagerank(g)
+    assert pr["B"] > pr["C"]
+
+
+def test_pagerank_weighted_matches_hand_computed_fixed_point():
+    """Hand-checked once (not recomputed every run, per B5's instruction):
+    a symmetric directed triangle A->B->C->A with equal weight-1 edges has a
+    uniform stationary distribution (1/3 each) regardless of alpha, since
+    every node has exactly one successor receiving its entire rank."""
+    g = nx.DiGraph()
+    g.add_edge("A", "B", weight=1)
+    g.add_edge("B", "C", weight=1)
+    g.add_edge("C", "A", weight=1)
+    pr = graphmod._pagerank(g, alpha=0.85, max_iter=200, tol=1.0e-12)
+    for node in ("A", "B", "C"):
+        assert abs(pr[node] - 1.0 / 3.0) < 1e-6
 
 
 def test_influence_local_in_degree(seeded_conn):

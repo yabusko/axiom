@@ -460,7 +460,7 @@ convention; this isn't a reversal, just a second boundary where the tooling dema
 ## OD23 — `VERIFIER_COSINE_MIN` set by manual inspection, not swept to a target
 
 **Context.** The deterministic verifier (R3) rejects entity→ontology matches below a cosine
-threshold. Honesty rule (AXIOM_AGENTIC_TASK.md §1) forbids picking a threshold to hit a target
+threshold. Honesty rule (the agentic design spec) forbids picking a threshold to hit a target
 number.
 
 **Decision.** `axiom.config.VERIFIER_COSINE_MIN` is set by inspecting (entity, ontology-match)
@@ -498,7 +498,7 @@ machine but is worth knowing about on any other network this code runs on.
 
 ## OD25 — Phase 4 review: fixed High/Medium findings, logging the rest (Low/Informational)
 
-**Context.** `software-architect` and `security-reviewer` reviewed the full `feat/agentic-pipeline`
+**Context.** an architecture and security review pass covered the full `feat/agentic-pipeline`
 diff (Phase 4). One High finding (`LLM_BUDGET_USD` enforced per-run instead of as a process-wide
 total) and one Medium (raw SQL outside `axiom/db.py` in `linking.py`/`pipeline.py`) were fixed
 immediately, along with two Low/cheap wins the architect flagged as high-payoff (stale concept
@@ -506,29 +506,350 @@ graph cache after a run; a stale comment in `concept_graph.py`). Per the task's 
 remaining Low/Informational findings are logged here rather than fixed, since none change behavior
 a user would notice on a local single-user laptop tool:
 
-- **Budget-check race (Low, security-reviewer).** `_ensure_budget`/`_record_spend` still check-then-
+- **Budget-check race (Low).** `_ensure_budget`/`_record_spend` still check-then-
   record without a single atomic reservation, so up to `AGENT_CONCURRENCY` (4) concurrently-running
   papers could each pass the check before any records spend. Quantified worst case: ~3 extra calls
   × ~$0.04 (max single-call cost at `_DEFAULT_MAX_TOKENS=4096`, strong tier) ≈ $0.12 over the $3.00
   cap (~4%). Not worth the complexity of a reservation scheme at this $ scale; revisit if
   `LLM_BUDGET_USD` or `AGENT_CONCURRENCY` grow materially.
-- **`httpx.AsyncClient` not pooled (Low, software-architect).** `axiom/llm_providers.py` builds and
+- **`httpx.AsyncClient` not pooled (Low).** `axiom/llm_providers.py` builds and
   tears down a client per Anthropic call instead of reusing one across a run. Correct (no leak),
   just a latency nit under `AGENT_CONCURRENCY` fan-out. Defer unless bench numbers show it matters.
 - **`synthesis.py` imports underscore-prefixed names from `axiom/hypothesis.py`** (`_SYSTEM`,
   `_prompt`, `_verify`) to reuse OD16's verifier rules without duplicating them (deliberate, per
   OD22) — but it's a cross-module encapsulation break worth promoting to public names later, the
   same way OD19 promoted `graph._pagerank`, now that there are two call sites.
-- **`POST /agents/run`'s paper-fetch is sync DB I/O inside an `async def`** (Low, software-architect)
+- **`POST /agents/run`'s paper-fetch is sync DB I/O inside an `async def`** (Low)
   — blocks the event loop briefly; harmless for a single local user with no concurrent requests.
-- **`/agents/run` costs real money per call, no auth/rate-limit** (Low, security-reviewer,
+- **`/agents/run` costs real money per call, no auth/rate-limit** (Low, the review,
   explicitly theoretical under the existing localhost-only assumption, which this diff doesn't
   change — `CORS_ORIGINS` untouched, no `0.0.0.0` bind introduced). Worth a README note (Phase 5)
   that this port must never be exposed beyond localhost, unlike the rest of the app's $0 endpoints.
-- **Prompt injection / key handling / dependency hygiene**: security-reviewer found no issues —
+- **Prompt injection / key handling / dependency hygiene**: the review found no issues —
   `stop_reason` is checked on every path before parsing, `max_tokens` bounds cost regardless of
   abstract content, `evidence_span` never reaches a shell/eval/file path, `.env` is confirmed
   gitignored and never logged, `truststore` is a legitimate package. No action needed.
+
+---
+
+## OD26 — Stage-2 fixes, Phase 1: design note (B1/C3/D1) + schema/config deltas
+
+**Context.** `the fixes design spec` Phase 0 audit (branch `fix/agentic-review`, off
+`feat/agentic-pipeline`) confirmed every listed finding against the code as of `0db07f2` (full
+checklist in `.claude/fixes/PROGRESS.md`). This decision covers the three findings the task
+calls out for an explicit design note before coding, plus the schema/config changes Phase 1
+front-loads so the two Phase 2 build branches build against settled contracts.
+
+**B1 — matching cascade (design, not yet built).** Enrichment's problem isn't the threshold
+(that part, `VERIFIER_COSINE_MIN`/OD23, is fine) -- it's that there's only one step: embed the
+bare entity name with SPECTER2 (a document-level, title+abstract-concat encoder) and take the
+arg-max, with no exact-match short-circuit and no separation between "a good match" and "the
+least-bad match in a list of bad ones." Replacing it with a 3-step cascade:
+1. exact/normalized match (casefold, NFKC, collapsed whitespace) against `concept_canonical`
+   and `concepts.concept` labels -- cheap, exact, no embedding call needed for the common case
+   of an entity already named the way the ontology names it.
+2. embedding match against the same pool using a short-phrase model
+   (`ENRICHMENT_PHRASE_MODEL = BAAI/bge-small-en-v1.5`, not SPECTER2 -- a document encoder is
+   the wrong tool for a 2-4 word entity name), accepted only if `cosine >= VERIFIER_COSINE_MIN`
+   **and** `top1 - top2 >= ENRICHMENT_MARGIN_DELTA` (a close second place is a sign the match is
+   arbitrary, not confident).
+3. otherwise `new_concept`: **kept**, not dropped -- `canonical` = the normalized entity name
+   itself. This is the real behavior change: today's `unmatched` entities are filtered out of
+   linking entirely (`linking.py:38`); a paper using a method/dataset not yet in the ontology
+   currently contributes nothing to the concept graph for that entity. `new_concept` fixes that
+   at the cost of the graph slowly absorbing one-off names -- acceptable since `concept_graph`
+   already treats low-degree nodes as uninteresting for PageRank/communities.
+
+`ontology_source` is renamed `openalex_concept|concept_canonical|unmatched` ->
+`lexical|embedding|new_concept` (contracts.py enum + every call site in enrichment.py,
+linking.py, verifier.py, and the tests that assert on it) -- same three-way shape, clearer
+names that match what actually produced the match rather than which table it came from.
+`ENRICHMENT_PHRASE_MODEL` and `ENRICHMENT_MARGIN_DELTA` are added to config.py now as
+placeholders (the margin is a guess pending the B3 gate); the agents/concept-graph work builds the
+cascade against them in Phase 2, and the real delta value lands in a follow-up OD after the
+user labels `eval/enrichment_pairs.csv`.
+
+**C3 — persistent budget ledger (design, not yet built).** Two separate problems, same area:
+(a) spend lived only in `axiom/llm_providers.py` module globals, so it reset on every process
+restart and a `GET /agents/runs` history can't explain its own cost; (b) `_ensure_budget`
+checks-then-records with no reservation, so `AGENT_CONCURRENCY` (4) concurrent calls can all
+pass the pre-call check before any of them commits spend (already logged as an accepted Low
+risk in OD25, ~4% overshoot at current concurrency -- this fix removes the gap rather than
+re-accepting it). Design: a new `llm_spend` table (added to schema.sql now) holds one row per
+*settled* call (after the response, real token counts); an in-process `asyncio.Lock`-guarded
+reservation ledger (dict of `run_id -> reserved_usd`) tracks worst-case
+cost (`prompt_token_estimate * price_in + max_tokens * price_out`) from the moment a call is
+dispatched, released and replaced by the real `llm_spend` row once it settles. The budget check
+sums `committed (from llm_spend, cross-run total) + reserved (in-memory, this process)` against
+`LLM_BUDGET_USD` -- no race window, and the total survives a restart because the committed half
+is durable. `_spend_total`'s existing process-wide (not per-run) scoping was already correct
+(OD25) and carries over unchanged; this only adds durability and closes the reservation gap.
+
+**D1 — background runs (design, not yet built).** `POST /agents/run` moves from `await`ing the
+full pipeline inline to: insert the `agent_runs` row (`status=queued`), kick off the pipeline as
+a FastAPI `BackgroundTasks` job, return `202 {run_id}` immediately. The background job wraps the
+whole pipeline in `try/finally`: sets `status=running` on start, `status=done` or
+`status=failed` (with the error) in `finally`, and increments `agent_runs.papers_done` after
+each paper rather than only at the end, so `GET /agents/runs/{id}` reflects real progress on
+a run still in flight. That endpoint's response also gains per-verdict counts (group
+`agent_run_items` by `verdict`) and cost-so-far (sum `llm_spend` filtered by `run_id`, once C3
+lands) -- both currently absent. This is `api/main.py`-owned (main session), not
+the agents/concept-graph work's branch, since main owns that file; D3/D4's
+`axiom/agents/*` side (real `verifier_attempts` count, promoting `hypothesis._SYSTEM` etc. to
+public names) is the agents/concept-graph work's, the endpoint wiring is main's.
+
+**Other schema/config deltas applied now (not separately noted above):**
+- `paper_concepts`/`concept_cooccurrence` gain a `run_id` column (B4) and a new unique index
+  `(paper_id, canonical, kind)` on `paper_concepts` -- the backstop for idempotent linking;
+  the actual delete-then-insert-in-one-transaction logic is the agents/concept-graph work's.
+- `MODEL_FAST`/`MODEL_STRONG` updated to `claude-haiku-5-5` / `claude-sonnet-5-5` with prices
+  re-verified live against platform.claude.com on 2026-10-31 (not from memory, since the task
+  flagged these as liable to have drifted): haiku-5-5 is $0.10/$0.50 per MTok for prompts
+  <=100k tokens (the only regime this app hits) vs haiku-4-5's $1/$5 -- a ~10x cost cut for the
+  fast tier; sonnet-5-5 is $2/$10, identical to the sonnet-5 it replaces, so this is a free
+  quality upgrade, not a cost tradeoff. `AGENT_MAX_TOKENS` replaces the flat 4096 with
+  per-agent-type values (route=200, extraction=1500, synthesis keeps 4096) -- wiring into
+  `complete_json` call sites is the provider/eval-tooling work's (C4).
+- `AXIOM_OS_TRUSTSTORE` env gate added around OD24's `truststore.inject_into_ssl()` call (C5)
+  -- opt-in now instead of unconditional, since rewiring process-wide TLS trust is the right
+  call on this inspected-TLS laptop but a surprising one anywhere else; README troubleshooting
+  update is the provider/eval-tooling work's (F3 overlap).
+- `ROUTE_TITLE_ONLY_MIN_WORDS = 40` added for A5's rule-based routing threshold; the actual
+  rule-before-LLM logic in `coordinator.py` is the agents/concept-graph work's.
+
+## OD27 — Stage-2 fixes, Phase 2: pipeline-core findings landed (A1-A5, B1/B2/B5, D3/D4)
+
+**A1/A3 (verifier.py).** `verify_extraction` now checks `evidence_span` against the title OR
+the abstract (previously abstract only), with both sides run through a new `normalize_text`
+(NFKC, casefold, collapsed whitespace, unified dash/quote variants) before comparing. A new
+check, `name_relates_to_span`, fails an entity whose claimed `name` doesn't actually relate to
+its own cited span -- substring, a multi-word name's own first-letter acronym, or token
+overlap `|tokens(name) & tokens(span)| / |tokens(name)|` >= 0.5 (denominator is the name's own
+token count, not the span's, so a long span doesn't dilute the score). New `VerifierError`
+code `name_span_mismatch`.
+
+**A2 (extraction.py/pipeline.py).** `extraction.extract` now accumulates PASSING entities
+across retry attempts (keyed by name+kind+evidence_span) instead of one pass/fail verdict for
+the whole response; a response that mixes a good entity with a bad one no longer drops the good
+one. The whole call only raises `VerificationFailed` (paper rejected) if every entity ever
+proposed, across every attempt, failed verification -- distinguished from a paper that
+genuinely has nothing to extract (zero entities proposed, not an error) via a new
+`empty_after_retry` `VerifierError` code attached to the exception. `extract()`'s return value
+changed from the bare `ExtractionResult` to `ExtractionOutcome(paper_id, entities, attempts)` so
+D3's real attempt count travels with it; `enrichment.enrich` got the matching
+`EnrichmentOutcome(result, attempts)`. `agent_run_items.verdict`'s own vocabulary
+(accepted/rejected/skipped/error) is unchanged -- `bench_agents.py`'s rejection-rate counting
+(by the per-attempt `*.verifier` trace line's `verdict` field, "accepted"/"rejected" only) is
+unaffected; `empty_after_retry` only ever appears inside the recorded error TEXT.
+
+**A4 (contracts.py).** `paper_id` removed from `RouteDecision` and `ExtractionResult` --
+`extra="forbid"` means a model (or a stub mimicking one) that tries to echo a `paper_id` back
+now fails Pydantic validation outright, it can't silently succeed with a wrong value.
+`axiom/agents/pipeline.py` sources every write's paper id from its own `PaperInput`, never from
+anything a model returned.
+
+**A5 (coordinator.py).** `route()` is now three deterministic rules, no LLM call: no title/no
+abstract -> skip; abstract missing or under `ROUTE_TITLE_ONLY_MIN_WORDS` words -> title_only;
+else -> full. These are exhaustive, so the LLM coordinator call (`route_via_llm`, kept for a
+future genuinely-ambiguous case) is unreachable from `route()` today -- a real cost reduction,
+not a gap, since routing used to cost one fast-tier call per paper regardless. New
+`RouteDecision.route_source: Literal["rule", "llm"]` records which path decided. `title_only`
+gets its own extraction prompt (`extraction._SYSTEM_TITLE_ONLY`) and verifies spans against the
+title only, ignoring whatever (already-judged-too-thin) abstract text the input still carries.
+
+**B1/B2 (enrichment.py/linking.py).** Built per OD26's design: exact/normalized match (no
+embedding call) -> `PhraseEncoder` (new, mean-pooled `BAAI/bge-small-en-v1.5` via plain
+`transformers.AutoModel`/`AutoTokenizer`, same pattern as `axiom/embed.py`'s `Specter2Encoder`
+but the bge mean-pooling recipe, not SPECTER2's CLS-token recipe; no `sentence-transformers`
+dependency added) gated on cosine >= `VERIFIER_COSINE_MIN` AND top1-top2 margin >=
+`ENRICHMENT_MARGIN_DELTA` -> `new_concept` (kept). `linking.link` no longer filters anything --
+every enriched entity is written now that nothing is dropped as "unmatched". `axiom/agents/
+pipeline.py::run_pipeline` gained a `phrase_encoder` parameter (defaults to a lazily-built
+process-wide singleton, `enrichment.get_default_phrase_encoder()`); the existing `encoder`
+parameter (still accepted so `api/main.py`'s `POST /agents/run` call keeps working unchanged)
+is no longer used by enrichment -- SPECTER2 was always the wrong tool for a short entity name,
+and now nothing routes entity-matching through it.
+
+**B5 (graph.py).** `_pagerank`'s power iteration now reads each edge's `weight` attribute
+(default 1 when absent) for both `out_deg` and the per-successor rank share, instead of a plain
+edge count. `tests/test_graph.py` adds a regression proving this is numerically identical to
+the old unweighted behavior when every edge has the default weight of 1 (cross-checked against
+`networkx.pagerank(..., weight=None)`), plus a weighted case and a hand-checked symmetric-cycle
+fixed point. `tests/test_concept_graph.py`'s `autouse` fixture that monkeypatched `graph.
+pagerank` with `nx.pagerank` (under a docstring claiming the real function "does not exist
+yet" -- it already did) is deleted; those tests now exercise axiom's own implementation.
+
+**D3 (pipeline.py).** The accepted path's `agent_run_items.verifier_attempts` is now
+`max(extraction_outcome.attempts, enrichment_outcome.attempts)` -- the real number of
+self-correction rounds this paper needed -- instead of a hardcoded `1`.
+
+**D4 (hypothesis.py/synthesis.py).** `axiom.hypothesis`'s shared pieces (`_SYSTEM`, `_prompt`,
+`_side_papers`, `_verify`) are promoted to public names (`SYSTEM`, `build_prompt`,
+`side_papers`, `verify`) and a new `explain()` gives the structured reasons behind a failed
+verification; `axiom.agents.synthesis.generate_hypothesis` (strong-tier, via the provider
+layer) is the one real implementation going forward and now nudges its retries with `explain()`'s
+actual failure reasons instead of a fixed generic reminder string, the same self-correction
+pattern `verifier.format_errors_for_retry` already uses. `axiom.hypothesis.generate_hypothesis`
+(the original, synchronous, Ollama-only call) is NOT deleted: `api/main.py`'s `POST /graph/
+gaps/{i}/hypothesize` and `app/streamlit_app.py`'s hypothesize button both still call it
+directly by that name, and this track doesn't own either file. It got the same `explain()`-based
+nudge for consistency but is otherwise unchanged, and is flagged in its own docstring as the
+path to delete once those two call sites are repointed at `axiom.agents.synthesis.
+generate_hypothesis(gap, g, *, run_id, trend_context=None, max_retries=...)`.
+
+## OD28 — B3 AI-labeling: no human review; a budget-estimator bug and a model-generation break found running it
+
+**Context.** The user explicitly asked to replace stage-2's remaining human-labeling gates
+(B3, E3) with independent AI labeling and run to the end of the stage without stopping for
+manual review. `scripts/ai_label_enrichment_pairs.py` runs two independent, blind judges
+(`strong` = claude-sonnet-5-5, a new `opus` tier = claude-opus-5-5) over
+`eval/enrichment_pairs.csv`: same rubric, temperature-controlled (see below), each seeing
+only entity/kind/evidence_span/candidate, never cosine/margin. A label counts for calibration
+only when both judges agree on "1" or "0"; disagreements and "unsure" are reported but
+excluded. A deterministic (non-LLM) acronym-definition detector flags, but never overrides,
+disagreements where the paper's own abstract defines a relevant acronym. **Every label this
+produces is AI-labeled with no human review — call it that everywhere (RESULTS.md,
+DECISIONS.md, README), never "human-labeled" or "hand-labeled".** `scripts/label_pairs.py`
+(the blind human CLI built for the original B3 gate) and `scripts/label_cli.py` are kept,
+unused for now, for an optional future human pass.
+
+**Bug found and fixed while running this for real: `temperature` is rejected outright.**
+The first real run came back 100% "unsure" at $0.0000 spend -- every one of 200 calls failed
+with `HTTP 400: "temperature is deprecated for this model"`. Every model this app now targets
+(the 5.5 generation: `MODEL_FAST`/`MODEL_STRONG`/the new `MODEL_OPUS`) rejects the parameter
+outright; `axiom.agents.synthesis.generate_hypothesis` (D4) has been passing a real
+temperature value since it was written and would have hit the exact same failure the first
+time it actually ran against the live API with a key set -- this had never been exercised for
+real before now. Fixed in `AnthropicProvider.complete_json`: the Anthropic payload never
+includes `temperature` regardless of what's passed; the parameter stays on `complete_json`'s
+signature only so `OllamaProvider`'s local models (which still honor it) don't need a
+different call shape.
+
+**Bug found and fixed: the budget-reservation cost estimate undercounts real cost by ~2x.**
+The real run's actual spend ($0.5381) came in well over its own pre-run worst-case estimate
+($0.3901) -- which should be impossible for a true upper bound. Measured directly from the
+real run's durable `llm_spend` rows: ~1250 input chars (system + prompt + the structured-
+output JSON schema) against ~616 real `tokens_in` -- a ~2.0 chars/token ratio for this kind of
+short, technical text, not the ~4 `_estimate_worst_case_cost` assumed, and that function also
+never counted the schema's own serialized size as billed input at all (it's sent via
+`output_config.format.json_schema`, and real content). Both fixed: `_estimate_worst_case_cost`
+now divides by 2, not 4, and `AnthropicProvider.complete_json` includes the schema's JSON size
+in the estimate's input length. This is a C3 budget-safety fix, not just a B3 one -- the old
+estimate's claimed "always >= the eventual real cost" guarantee did not actually hold, which
+matters for the one thing C3 exists to prevent (overshooting `LLM_BUDGET_USD`).
+
+**B3 result** (after both fixes, real run, $0.5381 spent this run / $0.5647 cumulative total):
+Cohen's kappa between the two judges was 0.7983 over all 100 pairs (substantial agreement).
+92/100 pairs got a usable agreed label (15 agreed "1", 77 agreed "0"); 8 were "unsure" on at
+least one side; zero outright A-vs-B disagreements.
+
+**Calibration (`scripts/calibrate_enrichment_threshold.py`, report at
+`eval/enrichment_threshold_calibration.md`):** highest recall at precision >= 0.9 picks
+tau=0.93 (barely below the inherited 0.95), delta=0.0 (no margin requirement) --
+precision=0.929, recall=0.867 on the 92 usable pairs. Applied to the reference run's full set
+of 208 `new_concept` entities (not just the 100-pair sample), only 6 would flip to a real
+ontology match under this looser threshold.
+
+**Decision: ontology gap, not threshold miscalibration.** 77/92 agreed labels were "0" --
+including among the HIGHEST-cosine candidates in the sample (it was built from the top 100 by
+cosine) -- and loosening tau/delta barely moves the `new_concept` rate. The embedding model
+produces moderately high cosine similarity for genuinely different concepts (broader/
+narrower, related-but-distinct, version differences) at a rate that makes a looser threshold
+a precision trade, not a real fix: the ontology (572 real candidate labels, not a sparse pool)
+simply doesn't contain most of these entities. `VERIFIER_COSINE_MIN`/`ENRICHMENT_MARGIN_DELTA`
+are updated to `0.93`/`0.0` (replacing OD26's placeholder `0.95`/`0.05`) -- a small, real,
+labeled-data-backed correction, not a loosening aimed at reducing the `new_concept` rate.
+
+**Follow-up: merge synonymous `new_concept` labels** (`scripts/merge_new_concept_synonyms.py`,
+applied for real). Since the ontology genuinely lacks these entities, the real risk is the
+SAME entity getting a different surface-form canonical in different papers, fragmenting the
+concept graph (e.g. "RAG" vs "retrieval-augmented generation" vs "retrieval augmented
+generation (RAG)" as three separate nodes instead of one). Ran the same exact/embedding
+matching logic pairwise over the `new_concept` canonicals themselves (same tau=0.93, no
+margin -- there's no runner-up to compare against when clustering a set against itself).
+Result: 11 clusters, 21 canonicals absorbed into one representative each (the most-occurring
+raw name in the cluster), 20 `paper_concepts` rows relabeled, 9 exact-duplicate rows this
+created cleaned up afterward. The biggest cluster: "retrieval-augmented generation" absorbed
+10 variants including both acronym forms ("...(RAG)") and compound-method variants
+("graph-based...", "naive...", "self-knowledge guided..."). Known limitation, accepted: this
+pass uses plain cosine similarity with no margin and no broader/narrower nuance -- unlike
+B3's own AI rubric, it cannot distinguish a true synonym from a narrower/broader near-
+neighbor (one cluster, "graph reasoning" absorbing "knowledge graph reasoning", is arguably
+too aggressive under that rubric). Net positive for graph quality; a human or AI review pass
+over the merge list is a reasonable future refinement, not required now.
+
+## OD29 — E3 AI-vs-AI second-grader review: a real bug found running it, then a real result
+
+**Context.** Same user instruction as OD28: replace E3's human-review gate with an
+independent AI second opinion. `scripts/ai_second_grader_sample.py` picks a fixed-seed random
+10-query sample of `eval/ndcg_queries_v2.json` and has a second, independent judge re-grade
+the same pooled candidates from scratch, blind to the original grader's judgments and to the
+retrieval ranks.
+
+**Bug found and fixed: the "second grader" wasn't actually a different model.**
+`scripts/build_eval_v2_queries.py::grade_query` hardcoded `tier="fast"` -- reusing it
+unmodified for the "second, independent, stronger" grader the task called for silently
+re-ran the SAME fast-tier model that produced the original labels, confirmed by the first
+real run's trace file (`claude-haiku-5-5` on both sides). That run's kappa (0.6827) measured
+same-model inference noise, not real cross-model agreement, and was discarded. Fixed:
+`grade_query` gained a `tier` parameter (default `"fast"`, so `build_eval_v2_queries.py`'s own
+usage is unchanged) and the second-grader script now actually passes `tier="strong"`.
+
+**Also found: `data/eval.db` predates the agentic schema entirely.** It's kept separate from
+the main corpus db by design (OD11), so nothing had ever run `db.init_db()` against it --
+the first attempt crashed outright on a missing `llm_spend` table. Fixed by calling
+`db.init_db()` on it before use (verified safe: `CREATE TABLE IF NOT EXISTS` left its 1500
+existing papers untouched).
+
+**Also found: the real spend from this script is invisible to the durable ledger.**
+`grade_query` doesn't thread a `conn` through to `complete_json`, so nothing lands in
+`llm_spend` for this call path -- `db.total_llm_spend` would report $0 after a run that
+genuinely spent money. Reports `llm_providers.spend_so_far(run_id)` (the in-process total)
+instead, same as `build_eval_v2_queries.py`'s own cost line already does.
+
+**Result** (real run, strong tier, $0.1129 spent): Cohen's kappa between the original
+fast-tier grader and this independent strong-tier re-grade was **0.6319** (moderate-to-
+substantial agreement) over 129 judgments sampled from 10 queries, agreement rate 77.5%.
+Lower than B3's 0.7983 same-same-task kappa, which is expected: a 3-point ordinal relevance
+judgment has more room for two different models to disagree than a binary same-concept
+judgment does. Written to `eval/ndcg_v2_second_grader_sample.json` -- the original
+`ndcg_queries_v2.json` and its `_provenance` (AI-drafted, fast tier, no human review) are
+untouched; this is a second opinion recorded alongside it, not a replacement.
+
+## OD30 — D5 query-aware structural arm: real data, honest negative result
+
+**Context.** D5 asked for a genuinely query-aware structural retrieval arm (map the query
+itself to ontology concepts via the B1 cascade, score candidates by weighted overlap with
+their own `paper_concepts`) -- distinct from the existing `hybrid_struct` arm, which only
+scores how well a candidate's concepts overlap with OTHER candidates in its own pool and
+never looks at the query. Needed real `paper_concepts` data on the eval corpus first.
+
+**Ran the real pipeline on 300 real eval-corpus papers** (`logs/run_agent_benchmark_eval_corpus.py`,
+not committed): 300/300 accepted, $0.1095 spent, 188s wall time, 1741 `paper_concepts` rows
+written. (Separate budget pool from the main corpus's `llm_spend` -- `data/eval.db` and
+`data/axiom.db` are different files with their own `llm_spend` tables; worth noting as a gap
+in C3's "total spend" guarantee across the two, not worth fixing now at this $ scale.)
+
+**Bug found and fixed while building the comparison script
+(`scripts/eval_structural_query_aware.py`): the eval corpus has no ontology at all.**
+`enrichment.build_ontology()` draws its pool from `concept_canonical`/`concepts` -- both
+empty on `data/eval.db`, which was never ingested with real OpenAlex concept metadata (the
+pre-existing OD11/OD20 gap the original audit already flagged). Every query matched zero
+concepts on the first real run. Fixed by falling back to the agent-extracted
+`paper_concepts.canonical` set as the query-matching pool when the normal source is empty --
+the only real concepts this corpus actually has. 44/51 queries matched at least one concept
+after the fix (ontology pool size 1512).
+
+**Result, honestly reported either way as instructed:** mean nDCG@10 over the 51 v2 queries,
+same candidate pool size for all three arms -- hybrid alone **0.8904**, hybrid + the existing
+pool-cohesion structural arm **0.6168** (notably worse), hybrid + this query-aware arm
+**0.8727** (roughly neutral, slightly worse). **Neither structural arm helps on this corpus.**
+The query-aware arm is a much smaller regression than the pool-cohesion one, consistent with
+it actually using query-relevant signal rather than pure pool self-similarity, but it's still
+a regression, not an improvement. Per the task's own instruction, this is NOT exposed as an
+optional search mode -- `scripts/eval_structural_query_aware.py` stays an eval-only analysis
+script, same as the existing `hybrid_struct` arm. Report at
+`eval/report_hybrid_struct_query_aware.md`.
 
 ---
 
@@ -541,3 +862,4 @@ a user would notice on a local single-user laptop tool:
 | 2026-07-04 | Added `concept_canonical` (concept, canonical, source) and `paper_summaries` (paper_id, bullets_json, model, created_at) — OD14 | UI track |
 | 2026-07-04 | Added `review_queue` (id, gap_a_label, gap_b_label, title, claim, method_sketch, datasets_json, supporting_ids_json, status, created_at) — OD16 | UI track |
 | 2026-10-30 | Added `paper_concepts`, `concept_cooccurrence`, `agent_runs`, `agent_run_items` + indexes — agentic pipeline, OD19/OD20 | agentic track |
+| 2026-10-31 | Added `run_id` to `paper_concepts`/`concept_cooccurrence`, unique index `(paper_id, canonical, kind)`, new `llm_spend` table + index — stage-2 fixes B4/C3, OD26 | fixes track |

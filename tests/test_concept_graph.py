@@ -1,11 +1,14 @@
 """Offline tests for axiom/concept_graph.py (R7).
 
 Builds a tiny fake `concept_cooccurrence` table in a tmp SQLite db (real
-schema via axiom.db.init_db) -- no Qdrant, no torch, no network. `graph.pagerank`
-does not exist yet (OD19 promotion is a one-line main-session change on
-graph.py, not landed in this worktree) -- monkeypatch injects a fake
-power-iteration implementation so these tests don't hard-fail on that gap;
-see the patch note.
+schema via axiom.db.init_db) -- no Qdrant, no torch, no network.
+
+B5: exercises axiom's REAL `graph.pagerank` (promoted, weighted
+power-iteration, see graph.py) directly -- no monkeypatch. An earlier
+version of this file injected `nx.pagerank` in an autouse fixture under the
+claim that `graph.pagerank` "does not exist yet"; that was already false by
+the time this ran (OD19's promotion had landed), so the suite was silently
+never exercising axiom's own implementation. Removed.
 """
 from __future__ import annotations
 
@@ -54,21 +57,6 @@ def cooc_db(tmp_path):
     finally:
         conn.close()
     return path
-
-
-@pytest.fixture(autouse=True)
-def fake_pagerank(monkeypatch):
-    """Inject a real (small, pure-Python) power-iteration PageRank as
-    `graph.pagerank` so concept_graph.py's call succeeds regardless of
-    whether OD19's promotion has landed on graph.py yet."""
-    def _pagerank(g: nx.Graph, alpha: float = 0.85, max_iter: int = 100,
-                  tol: float = 1.0e-6) -> dict[str, float]:
-        # networkx ships its own pagerank for undirected/weighted graphs --
-        # good enough to exercise ranking behavior in this fake.
-        return nx.pagerank(g, alpha=alpha, max_iter=max_iter, tol=tol, weight="weight")
-
-    monkeypatch.setattr(graphmod, "pagerank", _pagerank, raising=False)
-    return _pagerank
 
 
 def test_load_graph_builds_weighted_undirected_graph(cooc_db):

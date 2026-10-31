@@ -15,20 +15,28 @@ rule-based (not LLM self-report) Verifier that checks `supporting_paper_ids`
 actually belong to the two communities and there are >=2 of them, retrying on
 failure. Trend context (OD10 velocity) is folded into the prompt directly
 rather than as a separate agent node.
+
+D4 (stage-2 fixes): `axiom/agents/synthesis.py::generate_hypothesis` is the one
+real implementation now -- strong-tier via the provider layer, used by both
+`api/main.py`'s `POST /graph/gaps/{i}/hypothesize` and `app/streamlit_app.py`'s
+hypothesize button. This module's own `generate_hypothesis` (the original,
+direct, Ollama-only `llm.chat_json` call) was deleted once both call sites
+were repointed -- `SYSTEM`/`build_prompt`/`side_papers`/`verify`/`explain`
+below are what's left: the shared prompt/verify/explain building blocks
+`synthesis.py` imports and reuses rather than duplicating.
 """
 from __future__ import annotations
 
 import networkx as nx
 from dataclasses import dataclass, field
 
-from axiom import config, llm
 from axiom.gaps import GapCandidate
 
 MAX_RETRIES = 3
 TEMPERATURE = 0.3          # per backlog: temperature <= 0.3 for the generator
 MAX_PAPERS_PER_SIDE = 6    # cap prompt size; most-cited first
 
-_SYSTEM = (
+SYSTEM = (
     "You are pitching a candidate thesis direction that bridges two clusters "
     "of research papers which are topically related but rarely cite each "
     "other. Ground every claim in the titles/abstracts given -- never invent "
@@ -51,7 +59,7 @@ class VerificationError(RuntimeError):
     """Raised after exhausting retries without a verifiable pitch."""
 
 
-def _side_papers(g: nx.DiGraph, member_ids: list[str]) -> list[dict]:
+def side_papers(g: nx.DiGraph, member_ids: list[str]) -> list[dict]:
     rows = [g.nodes[pid] for pid in member_ids if pid in g.nodes]
     rows_with_id = list(zip(member_ids, rows))
     rows_with_id.sort(key=lambda pair: pair[1].get("cited_by_count", 0), reverse=True)
@@ -61,8 +69,8 @@ def _side_papers(g: nx.DiGraph, member_ids: list[str]) -> list[dict]:
     ]
 
 
-def _prompt(gap: GapCandidate, side_a: list[dict], side_b: list[dict],
-            trend_context: list[str] | None) -> str:
+def build_prompt(gap: GapCandidate, side_a: list[dict], side_b: list[dict],
+                  trend_context: list[str] | None) -> str:
     def fmt_side(label: str, papers: list[dict]) -> str:
         lines = [f"  - [{p['paper_id']}] {p['title']} ({p['year']})" for p in papers]
         return f"{label}:\n" + "\n".join(lines)
@@ -85,7 +93,7 @@ def _prompt(gap: GapCandidate, side_a: list[dict], side_b: list[dict],
     )
 
 
-def _verify(pitch_data: dict, side_a_ids: set[str], side_b_ids: set[str]) -> HypothesisPitch | None:
+def verify(pitch_data: dict, side_a_ids: set[str], side_b_ids: set[str]) -> HypothesisPitch | None:
     """Rule-based check (not an LLM self-report): >=2 supporting ids, both sides represented."""
     ids = [i for i in pitch_data.get("supporting_paper_ids", []) if isinstance(i, str)]
     valid_ids = [i for i in ids if i in side_a_ids or i in side_b_ids]
@@ -105,48 +113,27 @@ def _verify(pitch_data: dict, side_a_ids: set[str], side_b_ids: set[str]) -> Hyp
     )
 
 
-def generate_hypothesis(
-    gap: GapCandidate, g: nx.DiGraph, *,
-    trend_context: list[str] | None = None,
-    model: str = config.OLLAMA_MODEL,
-    max_retries: int = MAX_RETRIES,
-) -> HypothesisPitch:
-    """Generate + verify a hypothesis pitch for one OD9 gap candidate.
-
-    Raises VerificationError if no retry produces a pitch with >=2
-    supporting_paper_ids drawn from both sides of the gap.
-    """
-    side_a = _side_papers(g, gap.a.members)
-    side_b = _side_papers(g, gap.b.members)
-    side_a_ids = {p["paper_id"] for p in side_a}
-    side_b_ids = {p["paper_id"] for p in side_b}
-    prompt = _prompt(gap, side_a, side_b, trend_context)
-
-    last_data: dict | None = None
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        # Nudge harder each retry: repeat the hard constraint explicitly.
-        nudge = "" if attempt == 0 else (
-            "\n\nYour previous attempt did not include >=2 valid paper ids "
-            "with at least one from EACH side. Fix `supporting_paper_ids` — "
-            "use ONLY the [bracketed] ids shown above."
+def explain(pitch_data: dict, side_a_ids: set[str], side_b_ids: set[str]) -> str:
+    """D4: the structured reasons `verify()` returned `None`, for a retry
+    nudge -- the same self-correction pattern `axiom/agents/verifier.py`
+    uses (send the model its ACTUAL failure, not a generic reminder)."""
+    ids = [i for i in pitch_data.get("supporting_paper_ids", []) if isinstance(i, str)]
+    valid_ids = [i for i in ids if i in side_a_ids or i in side_b_ids]
+    has_a = any(i in side_a_ids for i in valid_ids)
+    has_b = any(i in side_b_ids for i in valid_ids)
+    reasons = []
+    if len(valid_ids) < 2:
+        reasons.append(
+            f"supporting_paper_ids needs >=2 valid ids from the lists above "
+            f"(got {len(valid_ids)}: {valid_ids})"
         )
-        try:
-            data = llm.chat_json(prompt + nudge, system=_SYSTEM, model=model,
-                                  temperature=TEMPERATURE)
-        except llm.OllamaError as exc:
-            last_error = exc
-            continue
-
-        last_data = data
-        verified = _verify(data, side_a_ids, side_b_ids)
-        if verified is not None:
-            return verified
-
-    if last_data is None and last_error is not None:
-        raise last_error
-
-    raise VerificationError(
-        f"Could not produce a verifiable pitch after {max_retries} attempts "
-        f"(last supporting_paper_ids={last_data.get('supporting_paper_ids') if last_data else None})"
-    )
+    if not has_a:
+        reasons.append("no valid id from Side A is included")
+    if not has_b:
+        reasons.append("no valid id from Side B is included")
+    for field in ("title", "claim", "method_sketch"):
+        if not pitch_data.get(field):
+            reasons.append(f"`{field}` is missing or empty")
+    if not reasons:
+        reasons.append("unknown verification failure")
+    return "; ".join(reasons)
