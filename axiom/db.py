@@ -23,10 +23,25 @@ def connect(db_path=None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, add_column_ddl: str) -> None:
+    """Add `column` to `table` if it isn't already there. `CREATE TABLE IF NOT EXISTS` in
+    schema.sql is a no-op against a table that already exists -- a database created before a
+    column was added to that table's definition never gets it from the schema alone. SQLite
+    has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so check first."""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {add_column_ddl}")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     """Create all tables/indexes from the shared schema (idempotent)."""
     sql = config.SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(sql)
+    # B4 (OD26): paper_concepts/concept_cooccurrence predate the run_id column (OD19/OD20
+    # created them without it) -- a no-op on a fresh database (executescript's CREATE TABLE
+    # already included it), a real backfill on one that predates this stage.
+    _ensure_column(conn, "paper_concepts", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "concept_cooccurrence", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 

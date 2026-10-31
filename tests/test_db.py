@@ -94,7 +94,67 @@ def test_papers_by_ids_empty(empty_conn):
 
 
 def test_reset_corpus_fk_safe(seeded_conn):
+    # paper_concepts/concept_cooccurrence FK -> papers.openalex_id; reset_corpus must clear
+    # them before papers or a non-empty agent-pipeline run blocks every future reset.
+    seeded_conn.execute(
+        "INSERT INTO paper_concepts (run_id, paper_id, name, kind, canonical, cosine, "
+        "evidence_span, confidence, source, created_at) VALUES "
+        "('r1', 'A1', 'LoRA', 'method', 'Low-Rank Adaptation', 0.98, 'uses LoRA', 0.9, "
+        "'agent', '2026-01-01')"
+    )
+    seeded_conn.execute(
+        "INSERT INTO concept_cooccurrence (run_id, paper_id, concept_a, concept_b) "
+        "VALUES ('r1', 'A1', 'a', 'b')"
+    )
+    seeded_conn.commit()
+
     db.reset_corpus(seeded_conn)
-    for table in ("papers", "concepts", "citation_edges", "review_queue"):
+    for table in ("papers", "concepts", "citation_edges", "review_queue",
+                  "paper_concepts", "concept_cooccurrence"):
         n = seeded_conn.execute(f"SELECT COUNT(*) c FROM {table}").fetchone()["c"]
         assert n == 0
+
+
+def test_init_db_backfills_run_id_on_pre_existing_tables(tmp_path):
+    """A database created before the run_id column existed (OD19/OD20 predates OD26) must
+    still work after init_db -- CREATE TABLE IF NOT EXISTS is a no-op against a table that's
+    already there, so the column has to be added by hand."""
+    path = tmp_path / "pre_od26.db"
+    conn = db.connect(path)
+    try:
+        conn.executescript("""
+            CREATE TABLE papers (openalex_id TEXT PRIMARY KEY, title TEXT, abstract TEXT,
+                publication_year INTEGER, venue_id TEXT, venue TEXT,
+                cited_by_count INTEGER DEFAULT 0, doi TEXT);
+            CREATE TABLE paper_concepts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, paper_id TEXT NOT NULL, name TEXT NOT NULL,
+                kind TEXT NOT NULL, canonical TEXT NOT NULL, cosine REAL NOT NULL,
+                evidence_span TEXT NOT NULL, confidence REAL NOT NULL,
+                source TEXT NOT NULL DEFAULT 'agent', created_at DATETIME NOT NULL);
+            CREATE TABLE concept_cooccurrence (
+                paper_id TEXT NOT NULL, concept_a TEXT NOT NULL, concept_b TEXT NOT NULL);
+        """)
+        conn.commit()
+        assert "run_id" not in {r["name"] for r in conn.execute("PRAGMA table_info(paper_concepts)")}
+
+        db.init_db(conn)  # must not raise
+
+        pc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(paper_concepts)")}
+        cooc_cols = {r["name"] for r in conn.execute("PRAGMA table_info(concept_cooccurrence)")}
+        assert "run_id" in pc_cols
+        assert "run_id" in cooc_cols
+
+        # the backfilled default lets an old-shape row round-trip without a NOT NULL error
+        conn.execute(
+            "INSERT INTO papers (openalex_id) VALUES ('W1')"
+        )
+        conn.execute(
+            "INSERT INTO paper_concepts (paper_id, name, kind, canonical, cosine, "
+            "evidence_span, confidence, created_at) VALUES "
+            "('W1', 'x', 'method', 'X', 0.9, 'x', 0.9, '2026-01-01')"
+        )
+        conn.commit()
+        row = conn.execute("SELECT run_id FROM paper_concepts").fetchone()
+        assert row["run_id"] == ""
+    finally:
+        conn.close()
