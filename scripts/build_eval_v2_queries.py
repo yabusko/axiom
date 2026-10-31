@@ -1,4 +1,4 @@
-"""Generate the real eval v2 query/judgment file (R9, AXIOM_AGENTIC_TASK.md §4).
+"""Generate the real eval v2 query/judgment file (R9, the agentic design spec §4).
 
 For each of ~50 queries: pool top-k candidates from `dense` + `hybrid` against
 the eval corpus (config.EVAL_COLLECTION_NAME / config.EVAL_DB_PATH), grade the

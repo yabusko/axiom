@@ -1,8 +1,7 @@
 """Offline tests for scripts/bench_agents.py (R10).
 
-Fake `eval/runs/*.jsonl` trace fixtures only -- no real agent pipeline, no
-axiom.tracing (doesn't exist in this worktree; see the module's NOTE and the
-patch note for the schema gap this infers around).
+Fake `eval/runs/*.jsonl` trace fixtures only -- no real agent pipeline call,
+just hand-written trace lines matching axiom.tracing's real line shape.
 """
 from __future__ import annotations
 

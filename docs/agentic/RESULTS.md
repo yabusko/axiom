@@ -46,7 +46,7 @@ papers), real Anthropic API calls (`claude-haiku-4-5`), 2026-10-30/31.
 v1 (unchanged for comparison): hybrid 0.453 (`eval/report.md`, still on disk, re-verified
 2026-10-31), dense 0.345 (no standalone v1 dense report file currently on disk; this figure is
 pre-existing project history recorded in `docs/DECISIONS.md` and `Backlog.md` before this task
-started, not reproduced by this session). Not directly comparable to v2 (different queries,
+started, not reproduced here). Not directly comparable to v2 (different queries,
 different scale, different corpus coverage after the real 1500-paper eval ingest vs v1's
 original sample).
 
@@ -77,9 +77,8 @@ where `scripts/ingest_eval_corpus.py` expects it, copied into place.
 
 ## Known gaps / not done
 
-- Synthesis (cluster labels + hypothesis pitch, strong tier) not exercised end-to-end — `clusters=`
-  isn't wired from `concept_graph.analyze()` into `/agents/run` yet (see the agent-implementer
-  patch note, §3, for the exact wiring).
+- Synthesis (cluster labels + hypothesis pitch, strong tier) wiring landed in stage-2 fixes
+  (`POST /agents/run {"synthesize": true}`) but hasn't been exercised with a real run yet.
 - `dense_general` eval mode not run (needs a separate heavy embedding-cache build).
 - `scripts/label_cli.py review` human pass on the v2 labels not run (needs an actual annotator).
 - `_ensure_budget`/`_record_spend` has a bounded check-then-record race under concurrency

@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst      ON citation_edges(dst_id);
 CREATE TABLE IF NOT EXISTS paper_concepts (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     -- B4: which agent_run produced this row. DEFAULT '' is transitional -- Phase 1 (schema)
-    -- lands ahead of Phase 2 (pipeline-implementer threads real run_id through
+    -- lands ahead of Phase 2 (the linking code threads real run_id through
     -- db.insert_paper_concepts/linking.py); the default keeps existing call sites and tests
     -- passing in between, same additive-migration spirit as OD19/OD20.
     run_id        TEXT NOT NULL DEFAULT '',

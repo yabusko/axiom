@@ -1,6 +1,6 @@
 # Agentic pipeline — architecture
 
-Contracts for the router-worker agent pipeline (see `AXIOM_AGENTIC_TASK.md`). Additive to the existing `axiom/*` stack (OD1–OD18); nothing here changes a frozen signature.
+Contracts for the router-worker agent pipeline (see the agentic design spec). Additive to the existing `axiom/*` stack (OD1–OD18); nothing here changes a frozen signature.
 
 ## 1. Module map
 
@@ -119,7 +119,7 @@ No LangChain/LangGraph/agent framework introduced. Plain `asyncio` + `httpx` (al
 
 ## 9. Stage-2 fixes, Phase 1 design (full rationale in `docs/DECISIONS.md` OD26)
 
-Three findings from `AXIOM_FIXES_TASK.md` got a design pass before Phase 2 build:
+Three findings from the fixes design spec got a design pass before Phase 2 build:
 
 - **B1 (enrichment cascade).** Replace the single embed-and-argmax step with: exact/normalized
   match → short-phrase-model (`ENRICHMENT_PHRASE_MODEL`) match gated on cosine **and**
@@ -131,9 +131,9 @@ Three findings from `AXIOM_FIXES_TASK.md` got a design pass before Phase 2 build
   flagged as an accepted risk in OD25, and survives a process restart.
 - **D1 (background runs).** `POST /agents/run` returns `202 {run_id}` immediately
   (`BackgroundTasks`, `try/finally` → `done`/`failed`); `GET /agents/runs/{id}` gains
-  per-verdict counts and cost-so-far. `api/main.py`-owned (main session), not a worktree.
+  per-verdict counts and cost-so-far. `api/main.py`-owned (main session), not a separate branch.
 
-None of these are built yet — Phase 2 implementers code against the schema/config deltas
+None of these are built yet — Phase 2 implementation code against the schema/config deltas
 already applied (§4/§5).
 
 ## 10. Stage-2 fixes, Phase 2: pipeline-core landed changes

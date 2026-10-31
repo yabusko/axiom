@@ -175,7 +175,7 @@ def test_cli_requires_a_subcommand(fixture_path):
 
 def test_real_v2_skeleton_file_is_loadable_and_well_formed():
     """Sanity check against the actual eval/ndcg_queries_v2.json skeleton this
-    implementer wrote -- confirms label_cli.py's schema assumptions match it."""
+    the script wrote -- confirms label_cli.py's schema assumptions match it."""
     path = Path(__file__).resolve().parent.parent / "eval" / "ndcg_queries_v2.json"
     data = label_cli.load(path)
     assert data["_scale_max"] == 2

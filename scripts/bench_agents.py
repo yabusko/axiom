@@ -10,9 +10,8 @@ Reads the LLM-call trace files `axiom/tracing.py` writes to `eval/runs/<run_id>.
   - the distinct model IDs actually used.
 
 NOTE (gap flagged for the main session -- see
-.claude/agentic/patch_notes_eval_implementer.md): `axiom/tracing.py` does not
-exist in this worktree (it is owned by the parallel agent-implementer
-workstream, a different git worktree) -- AXIOM_AGENTIC_TASK.md §4 and
+# Trace line schema: axiom/tracing.py (see its own NOTE if the shape ever drifts)
+# -- confirm/align via that module directly.
 docs/agentic/ARCHITECTURE.md §1/§2 only describe its trace line in prose
 ("agent, model, tokens in/out, latency, cost, attempt, verdict + reasons"),
 not as a field-by-field schema. The key names below are inferred from that
@@ -20,7 +19,7 @@ prose plus `db/schema.sql`'s `agent_run_items.verdict` vocabulary
 ("accepted"/"rejected", the one place the real schema is unambiguous).
 `_get()` tolerates a few alternate spellings per field so this script
 degrades gracefully instead of crashing if the real tracing.py differs
-slightly; confirm/align via the patch note. Primary assumed shape, one JSON
+slightly; confirm/align via axiom/tracing.py directly. Primary assumed shape, one JSON
 object per line:
 
     {"run_id": str, "paper_id": str, "agent": str, "model": str, "tier": str,
@@ -45,7 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from axiom import config
 
 # Alternate key spellings this script tolerates, in priority order, in case
-# the real axiom/tracing.py (sibling-owned, not in this worktree) differs
+# the real axiom/tracing.py differs
 # slightly from the inferred schema above.
 _KEY_ALIASES: dict[str, tuple[str, ...]] = {
     "run_id": ("run_id",),
@@ -133,7 +132,7 @@ def iter_trace_lines(trace_dir: Path, run_id: str | None = None):
 
 def select_papers(lines: list[dict], n: int) -> set[str]:
     """The first `n` distinct paper_ids encountered, in first-seen order --
-    the laptop rule's "agent benchmark <= 50 papers" cap (AXIOM_AGENTIC_TASK.md
+    the laptop rule's "agent benchmark <= 50 papers" cap (the agentic design spec
     §1), applied here rather than left to whatever is on disk."""
     seen: list[str] = []
     seen_set: set[str] = set()
@@ -269,7 +268,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=50,
                      help="max distinct papers to include (laptop cap, "
-                          "AXIOM_AGENTIC_TASK.md §1)")
+                          "the agentic design spec §1)")
     ap.add_argument("--trace-dir", type=str, default=None,
                      help="override config.TRACE_DIR")
     ap.add_argument("--out", type=str, default=None,

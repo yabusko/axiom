@@ -110,7 +110,7 @@ def test_budget_exceeded_blocks_before_any_call(monkeypatch):
 def test_budget_is_global_not_per_run(monkeypatch):
     """Phase-4 architecture review finding: two run_ids, each individually
     under budget, must still trip the cap once their combined spend reaches
-    it -- LLM_BUDGET_USD is a single process-wide total (AXIOM_AGENTIC_TASK.md
+    it -- LLM_BUDGET_USD is a single process-wide total (the agentic design spec
     §1), not a per-run allowance."""
     monkeypatch.setattr(config, "LLM_BUDGET_USD", 0.03)
     lp._record_spend("run1", 0.02)
