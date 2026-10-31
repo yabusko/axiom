@@ -778,6 +778,44 @@ neighbor (one cluster, "graph reasoning" absorbing "knowledge graph reasoning", 
 too aggressive under that rubric). Net positive for graph quality; a human or AI review pass
 over the merge list is a reasonable future refinement, not required now.
 
+## OD29 — E3 AI-vs-AI second-grader review: a real bug found running it, then a real result
+
+**Context.** Same user instruction as OD28: replace E3's human-review gate with an
+independent AI second opinion. `scripts/ai_second_grader_sample.py` picks a fixed-seed random
+10-query sample of `eval/ndcg_queries_v2.json` and has a second, independent judge re-grade
+the same pooled candidates from scratch, blind to the original grader's judgments and to the
+retrieval ranks.
+
+**Bug found and fixed: the "second grader" wasn't actually a different model.**
+`scripts/build_eval_v2_queries.py::grade_query` hardcoded `tier="fast"` -- reusing it
+unmodified for the "second, independent, stronger" grader the task called for silently
+re-ran the SAME fast-tier model that produced the original labels, confirmed by the first
+real run's trace file (`claude-haiku-5-5` on both sides). That run's kappa (0.6827) measured
+same-model inference noise, not real cross-model agreement, and was discarded. Fixed:
+`grade_query` gained a `tier` parameter (default `"fast"`, so `build_eval_v2_queries.py`'s own
+usage is unchanged) and the second-grader script now actually passes `tier="strong"`.
+
+**Also found: `data/eval.db` predates the agentic schema entirely.** It's kept separate from
+the main corpus db by design (OD11), so nothing had ever run `db.init_db()` against it --
+the first attempt crashed outright on a missing `llm_spend` table. Fixed by calling
+`db.init_db()` on it before use (verified safe: `CREATE TABLE IF NOT EXISTS` left its 1500
+existing papers untouched).
+
+**Also found: the real spend from this script is invisible to the durable ledger.**
+`grade_query` doesn't thread a `conn` through to `complete_json`, so nothing lands in
+`llm_spend` for this call path -- `db.total_llm_spend` would report $0 after a run that
+genuinely spent money. Reports `llm_providers.spend_so_far(run_id)` (the in-process total)
+instead, same as `build_eval_v2_queries.py`'s own cost line already does.
+
+**Result** (real run, strong tier, $0.1129 spent): Cohen's kappa between the original
+fast-tier grader and this independent strong-tier re-grade was **0.6319** (moderate-to-
+substantial agreement) over 129 judgments sampled from 10 queries, agreement rate 77.5%.
+Lower than B3's 0.7983 same-same-task kappa, which is expected: a 3-point ordinal relevance
+judgment has more room for two different models to disagree than a binary same-concept
+judgment does. Written to `eval/ndcg_v2_second_grader_sample.json` -- the original
+`ndcg_queries_v2.json` and its `_provenance` (AI-drafted, fast tier, no human review) are
+untouched; this is a second opinion recorded alongside it, not a replacement.
+
 ---
 
 ## Schema change log
