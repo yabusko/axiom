@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Gap detail (Direction A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .bridge-diagram {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    background: var(--surface);
+    display: flex;
+    justify-content: center;
+  }
+  .bridge-diagram svg { max-width: 100%; height: auto; }
+
+  .side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .side-panel { border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--space-3); background: var(--surface); }
+  .side-panel .side-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-1); }
+  .side-panel .side-count { font-family: var(--font-mono); color: var(--ink-muted); font-size: 0.95rem; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-1) 0 var(--space-2); }
+  .tag {
+    font-size: 0.78rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 3px 9px;
+    color: var(--ink-muted);
+    font-family: var(--font-sans);
+  }
+  .tag.extracted { border-color: var(--teal); color: var(--teal); }
+
+  .paper-ledger { display: flex; flex-direction: column; margin-top: var(--space-1); }
+  .paper-row {
+    display: flex; justify-content: space-between; gap: var(--space-2); align-items: baseline;
+    text-decoration: none; color: var(--ink); padding: 10px 0; border-bottom: 1px solid var(--rule); flex-wrap: wrap;
+  }
+  .paper-ledger .paper-row:first-child { border-top: 1px solid var(--rule); }
+  .paper-row:hover .paper-title { color: var(--teal); }
+  .paper-row .paper-title { font-weight: 600; font-size: 0.95rem; }
+  .paper-row .paper-meta { font-family: var(--font-mono); font-size: var(--small); color: var(--ink-muted); white-space: nowrap; }
+
+  details.cross-check {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 4px var(--space-3);
+    background: transparent;
+  }
+  details.cross-check > summary {
+    cursor: pointer; padding: var(--space-2) 0; font-weight: 600; list-style: none; font-family: var(--font-serif); font-size: 1.05rem;
+  }
+  details.cross-check > summary::-webkit-details-marker { display: none; }
+  details.cross-check > summary::before { content: "+ "; color: var(--teal); font-family: var(--font-sans); }
+  details.cross-check[open] > summary::before { content: "− "; }
+  details.cross-check .cross-check-body { padding-bottom: var(--space-2); }
+</style>
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Direction A — Field Ledger:</strong> visual-direction exploration, Phase D. Re-skin of <code>wireframes/gap-detail.html</code>, same content.
+  <span class="sep">|</span>
+  <a href="../index.html">All directions</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="#">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="#" class="active">Research gaps</a>
+    <a href="#">Shortlist</a>
+  </nav>
+  <div class="field-context"><strong>Retrieval-augmented generation</strong> · 300 papers · built 31 Oct 2026</div>
+</header>
+
+<main>
+  <div class="page-head">
+    <p class="faint" style="margin-bottom:6px;"><a class="btn-quiet" href="#" style="text-decoration:none; padding:2px 0;">← Back to research gaps</a></p>
+    <h1>Gap 1 of 15: an NLP/ML-methods cluster barely cites the question-answering cluster right next to it</h1>
+    <p class="lede">43 papers centered on NLP and machine-learning methods sit at 98.8% semantic similarity to a 20-paper question-answering cluster, but only 32 citations cross between them. That's a thin link for how closely related the two groups' work actually looks.</p>
+  </div>
+
+  <div class="badge-row">
+    <span class="badge">Uncalibrated score</span>
+    <span class="badge-note">G-score <span class="mono">0.618</span> blends similarity, disconnection, concept velocity and authority with default weights not yet calibrated against labeled gap data — read it as a ranking signal, not a verified measurement.</span>
+  </div>
+
+  <div class="section">
+    <div class="bridge-diagram">
+      <svg viewBox="0 0 640 260" width="100%" role="img" aria-label="Bridge diagram: Side A, 43 papers, and Side B, 20 papers, enclosed in a dashed boundary marking 98.8% semantic similarity, connected by a thin line labeled 32 citations.">
+        <rect x="6" y="6" width="628" height="248" rx="130" fill="none" stroke="#5B6670" stroke-width="1.25" stroke-dasharray="5 6"/>
+        <text x="320" y="30" text-anchor="middle" font-size="13" fill="#5B6670" font-family="Inter, sans-serif">98.8% semantic similarity (embedding centroids)</text>
+
+        <rect x="50" y="85" width="210" height="110" rx="2" fill="none" stroke="#0F5257" stroke-width="1.75"/>
+        <text x="155" y="130" text-anchor="middle" font-size="17" font-weight="700" fill="#1E2A33" font-family="'Source Serif 4', serif">Side A</text>
+        <text x="155" y="153" text-anchor="middle" font-size="14" fill="#0F5257" font-family="'IBM Plex Mono', monospace">43 papers</text>
+        <text x="155" y="173" text-anchor="middle" font-size="11" fill="#5B6670" font-family="Inter, sans-serif">NLP, philosophy, ML methods</text>
+
+        <rect x="380" y="85" width="210" height="110" rx="2" fill="none" stroke="#0F5257" stroke-width="1.75"/>
+        <text x="485" y="130" text-anchor="middle" font-size="17" font-weight="700" fill="#1E2A33" font-family="'Source Serif 4', serif">Side B</text>
+        <text x="485" y="153" text-anchor="middle" font-size="14" fill="#0F5257" font-family="'IBM Plex Mono', monospace">20 papers</text>
+        <text x="485" y="173" text-anchor="middle" font-size="11" fill="#5B6670" font-family="Inter, sans-serif">Question answering</text>
+
+        <line x1="260" y1="140" x2="380" y2="140" stroke="#0F5257" stroke-width="2"/>
+        <text x="320" y="126" text-anchor="middle" font-size="13" font-weight="600" fill="#1E2A33" font-family="'IBM Plex Mono', monospace">32 citations</text>
+        <text x="320" y="225" text-anchor="middle" font-size="11" fill="#5B6670" font-family="Inter, sans-serif">out of 1,699 in-corpus citations total</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="side-by-side">
+      <div class="side-panel">
+        <div class="side-head">
+          <h3>Side A</h3>
+          <div class="side-count">43 papers</div>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Natural language processing</span>
+          <span class="tag">Philosophy</span>
+          <span class="tag">Programming language</span>
+          <span class="tag">Machine learning</span>
+        </div>
+        <p class="faint" style="margin-bottom:var(--space-2);">These are raw OpenAlex concept tags — coarse category labels, not the pipeline's own extraction. Treat them as a rough description of the cluster, not a methods list.</p>
+        <h3 style="font-size:0.95rem; margin-top:var(--space-3); font-family: var(--font-sans); font-weight:600;">Evidence papers</h3>
+        <div class="paper-ledger">
+          <a class="paper-row" href="#">
+            <div class="paper-title">SQuAD: 100,000+ Questions for Machine Comprehension of Text</div>
+            <div class="paper-meta">2016 · 6,208 citations</div>
+          </a>
+          <a class="paper-row" href="#">
+            <div class="paper-title">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</div>
+            <div class="paper-meta">2019 · 48,487 citations</div>
+          </a>
+        </div>
+      </div>
+
+      <div class="side-panel">
+        <div class="side-head">
+          <h3>Side B</h3>
+          <div class="side-count">20 papers</div>
+        </div>
+        <div class="tag-row">
+          <span class="tag">Natural language processing</span>
+          <span class="tag">Question answering</span>
+          <span class="tag">Programming language</span>
+        </div>
+        <p class="faint" style="margin-bottom:var(--space-2);">A fourth raw tag on this cluster ("Hop (telecommunications)") is clearly mislabeled noise from OpenAlex's concept tagger — left out here rather than shown as if meaningful.</p>
+        <h3 style="font-size:0.95rem; margin-top:var(--space-3); font-family: var(--font-sans); font-weight:600;">Evidence papers</h3>
+        <div class="paper-ledger">
+          <a class="paper-row" href="#">
+            <div class="paper-title">WikiQA: A Challenge Dataset for Open-Domain Question Answering</div>
+            <div class="paper-meta">2015 · 830 citations</div>
+          </a>
+          <a class="paper-row" href="#">
+            <div class="paper-title">Semantic Parsing on Freebase from Question-Answer Pairs</div>
+            <div class="paper-meta">EMNLP 2013 · 1,583 citations</div>
+          </a>
+        </div>
+        <h3 style="font-size:0.95rem; margin-top:var(--space-3); font-family: var(--font-sans); font-weight:600;">Methods &amp; datasets extracted from these papers</h3>
+        <p class="faint" style="margin-bottom:6px;">From the agent pipeline's per-paper entity extraction (sample: 1 of 20 papers shown in detail — open "Semantic Parsing on Freebase" above for the full breakdown).</p>
+        <div class="tag-row">
+          <span class="tag extracted">method: semantic parser</span>
+          <span class="tag extracted">method: bridging operation</span>
+          <span class="tag extracted">dataset: freebase</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <details class="cross-check">
+      <summary>Cross-check with embedding geometry</summary>
+      <div class="cross-check-body">
+        <p class="muted">An independent, citation-free read on the same two clusters: pure distance between their embedding centroids in vector space, with no citation graph involved at all. This is useful as a second opinion, and especially useful on corpora too citation-sparse for the method above — but on its own it has no path to a direction pitch.</p>
+        <p><strong>Centroid cosine similarity:</strong> <span class="mono">98.8%</span> — the same embedding geometry feeds both signals here, so this number matches the similarity shown above.</p>
+        <p class="faint">Detailed bridge-ratio scoring and the 2-D embedding neighborhood plot aren't computed in this wireframe's sample data; in the shipped product they'd appear here.</p>
+        <div class="badge-row" style="margin-top:4px;">
+          <span class="badge">AI-generated</span>
+          <span class="badge-note">Neither signal on this page has been checked by a human against ground-truth gap labels.</span>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h3 style="margin-top:0;">Draft direction</h3>
+      <p class="muted">Axiom can draft a short, citeable pitch that names both sides of this gap and proposes a direction connecting them. It's generated, not verified — you'll review and edit it before it goes on your shortlist.</p>
+      <a class="btn btn-primary" href="#">Draft direction</a>
+    </div>
+  </div>
+</main>
+
+<footer class="page-footer">Visual direction A — "Field Ledger". Phase D, product redesign. Content and layout carried over from the Phase C wireframe; typography, color, spacing and elevation are new.</footer>
+
+</body>
+</html>

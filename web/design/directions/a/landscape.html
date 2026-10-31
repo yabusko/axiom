@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Landscape (Direction A)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ---------- Direction A: ledger-row list ---------- */
+  .stat-ledger {
+    display: flex;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .stat-cell {
+    flex: 1;
+    padding: var(--space-2) var(--space-2);
+    border-right: 1px solid var(--rule);
+  }
+  .stat-cell:last-child { border-right: none; }
+  .stat-cell .stat-label { font-size: var(--small); color: var(--ink-muted); margin-bottom: 6px; }
+  .stat-cell .stat-value { font-family: var(--font-mono); font-size: 1.75rem; font-weight: 500; color: var(--ink); }
+
+  .ledger-list { display: flex; flex-direction: column; }
+  .ledger-row {
+    position: relative;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ledger-row:first-child { border-top: 1px solid var(--rule); }
+  .ledger-row .bar-track {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px;
+    background: var(--ink-wash);
+    width: 100%;
+  }
+  .ledger-row .bar-fill {
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px;
+    background: var(--teal);
+  }
+  .ledger-row .row-top { display: flex; justify-content: space-between; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; }
+  .ledger-row .row-title { font-weight: 600; }
+  .ledger-row .row-count { font-family: var(--font-mono); color: var(--ink-muted); white-space: nowrap; }
+  .ledger-row .row-sub { color: var(--ink-muted); font-size: var(--small); margin-top: 4px; max-width: 70ch; }
+  .ledger-row.dim { opacity: 0.72; }
+
+  .spark-wrap { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); }
+  .spark-wrap svg { display: block; }
+  .spark-label { font-size: var(--small); color: var(--ink-muted); font-family: var(--font-mono); }
+
+  .paper-ledger { display: flex; flex-direction: column; }
+  .paper-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+    align-items: baseline;
+    text-decoration: none;
+    color: var(--ink);
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .paper-ledger .paper-row:first-child { border-top: 1px solid var(--rule); }
+  .paper-row:hover .paper-title { color: var(--teal); }
+  .paper-row .paper-title { font-weight: 600; color: var(--ink); }
+  .paper-row .paper-meta { font-family: var(--font-mono); font-size: var(--small); color: var(--ink-muted); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Direction A — Field Ledger:</strong> visual-direction exploration, Phase D. Re-skin of <code>wireframes/landscape.html</code>, same content.
+  <span class="sep">|</span>
+  <a href="../index.html">All directions</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="#">Start</a>
+    <a href="landscape.html" class="active">Landscape</a>
+    <a href="#">Research gaps</a>
+    <a href="#">Shortlist</a>
+  </nav>
+  <div class="field-context"><strong>Retrieval-augmented generation</strong> · 300 papers · built 31 Oct 2026</div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Landscape</h1>
+    <p class="lede">An overview of this field's topics, what's accelerating, and the papers other work in this corpus leans on most.</p>
+  </div>
+
+  <div class="section">
+    <div class="stat-ledger">
+      <div class="stat-cell">
+        <div class="stat-label">Papers</div>
+        <div class="stat-value">300</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">In-corpus citations</div>
+        <div class="stat-value">1,699</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Topic communities</div>
+        <div class="stat-value">31</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Candidate research gaps</div>
+        <div class="stat-value">15</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Topics</h2>
+    </div>
+    <p class="muted" style="margin-top:-4px;">Ranked by size. These are the same communities the research gaps are built from — there's one clustering everywhere in Axiom, not a separate map per screen. Sized by papers.</p>
+    <div class="ledger-list">
+      <div class="ledger-row">
+        <div class="bar-track"></div><div class="bar-fill" style="width:22.3%"></div>
+        <div class="row-top">
+          <span class="row-title">Automatic summarization &amp; NLP/ML methods</span>
+          <span class="row-count">67 papers</span>
+        </div>
+        <div class="row-sub">OpenAlex concept tags: Automatic summarization, Natural language processing, Machine learning, Philosophy</div>
+      </div>
+      <div class="ledger-row">
+        <div class="bar-track"></div><div class="bar-fill" style="width:19.3%"></div>
+        <div class="row-top">
+          <span class="row-title">Question answering, mathematics &amp; programming-language methods</span>
+          <span class="row-count">58 papers</span>
+        </div>
+        <div class="row-sub">OpenAlex concept tags: Natural language processing, Question answering, Mathematics, Programming language</div>
+      </div>
+      <div class="ledger-row">
+        <div class="bar-track"></div><div class="bar-fill" style="width:14.3%"></div>
+        <div class="row-top">
+          <span class="row-title">NLP, philosophy &amp; programming-language-adjacent methods</span>
+          <span class="row-count">43 papers</span>
+        </div>
+        <div class="row-sub">OpenAlex concept tags: Natural language processing, Philosophy, Programming language, Machine learning · appears on one side of 3 of this field's top research gaps</div>
+      </div>
+      <div class="ledger-row">
+        <div class="bar-track"></div><div class="bar-fill" style="width:6.7%"></div>
+        <div class="row-top">
+          <span class="row-title">Question answering (focused)</span>
+          <span class="row-count">20 papers</span>
+        </div>
+        <div class="row-sub">OpenAlex concept tags: Natural language processing, Question answering, Programming language</div>
+      </div>
+      <div class="ledger-row dim">
+        <div class="row-top">
+          <span class="row-title">27 more topic communities</span>
+          <span class="row-count" style="opacity:0.7;">not itemized in this sample</span>
+        </div>
+        <div class="row-sub">Smaller communities (168 papers combined). The full set is browsable in the shipped product; this wireframe details only the communities behind the top-ranked gaps.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Rising concepts</h2>
+    </div>
+    <p class="muted" style="margin-top:-4px;">Comparing mentions in papers from 2013–2019 against 2020–2026. Shown as a ratio of recent to prior mentions, not a raw percent — a concept with zero prior mentions still has somewhere to rise from.</p>
+    <div class="ledger-list">
+      <div class="ledger-row">
+        <div class="row-top">
+          <span class="row-title">Machine translation</span>
+          <span class="row-count">11 recent vs. 0 prior mentions</span>
+        </div>
+        <div class="spark-wrap">
+          <svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true">
+            <polyline points="4,30 116,6" fill="none" stroke="#1E2A33" stroke-width="2"/>
+            <circle cx="4" cy="30" r="3" fill="#1E2A33"/>
+            <circle cx="116" cy="6" r="3" fill="#0F5257"/>
+          </svg>
+          <span class="spark-label">2013–19 → 2020–26</span>
+        </div>
+      </div>
+      <div class="ledger-row">
+        <div class="row-top">
+          <span class="row-title">Human–computer interaction</span>
+          <span class="row-count">10 recent vs. 0 prior mentions</span>
+        </div>
+        <div class="spark-wrap">
+          <svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true">
+            <polyline points="4,30 116,8" fill="none" stroke="#1E2A33" stroke-width="2"/>
+            <circle cx="4" cy="30" r="3" fill="#1E2A33"/>
+            <circle cx="116" cy="8" r="3" fill="#0F5257"/>
+          </svg>
+          <span class="spark-label">2013–19 → 2020–26</span>
+        </div>
+      </div>
+      <div class="ledger-row">
+        <div class="row-top">
+          <span class="row-title">Social psychology</span>
+          <span class="row-count">11 recent vs. 0 prior mentions</span>
+        </div>
+        <div class="spark-wrap">
+          <svg width="120" height="34" viewBox="0 0 120 34" aria-hidden="true">
+            <polyline points="4,30 116,6" fill="none" stroke="#1E2A33" stroke-width="2"/>
+            <circle cx="4" cy="30" r="3" fill="#1E2A33"/>
+            <circle cx="116" cy="6" r="3" fill="#0F5257"/>
+          </svg>
+          <span class="spark-label">2013–19 → 2020–26</span>
+        </div>
+      </div>
+    </div>
+    <p class="faint" style="margin-top:var(--space-2);">No fading concepts met the minimum sample size in this corpus at this window.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Key papers</h2>
+    </div>
+    <p class="muted" style="margin-top:-4px;">Ranked by influence within this corpus's citation graph (PageRank), not raw citation count alone.</p>
+    <div class="paper-ledger">
+      <a class="paper-row" href="#">
+        <div class="paper-title">SQuAD: 100,000+ Questions for Machine Comprehension of Text</div>
+        <div class="paper-meta">2016 · 6,208 citations · PageRank 0.0829</div>
+      </a>
+      <a class="paper-row" href="#">
+        <div class="paper-title">WikiQA: A Challenge Dataset for Open-Domain Question Answering</div>
+        <div class="paper-meta">2015 · 830 citations · PageRank 0.0807</div>
+      </a>
+      <a class="paper-row" href="#">
+        <div class="paper-title">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</div>
+        <div class="paper-meta">2019 · 48,487 citations · PageRank 0.0585</div>
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer class="page-footer">Visual direction A — "Field Ledger". Phase D, product redesign. Content and layout carried over from the Phase C wireframe; typography, color, spacing and elevation are new.</footer>
+
+</body>
+</html>

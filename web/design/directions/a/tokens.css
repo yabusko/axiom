@@ -1,0 +1,209 @@
+/* Axiom — Direction A: "Field Ledger" (editorial / archival / evidence-ledger).
+   Phase D visual-direction exploration. Re-skin of the Phase C wireframes —
+   same content and layout structure, new type/color/spacing/elevation system. */
+
+:root {
+  --paper: #F6F3EC;
+  --ink: #1E2A33;
+  --ink-muted: #5B6670;
+  --rule: #D8D2C4;
+  --teal: #0F5257;
+  --amber-flag: #9C6B1F;
+
+  /* derived, used sparingly — never a second bold accent */
+  --teal-wash: rgba(15, 82, 87, 0.07);
+  --ink-wash: rgba(30, 42, 51, 0.045);
+  --surface: #FBF9F4;
+
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-8: 64px;
+
+  --radius: 2px;
+
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-sans: "Inter", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --h1: 2.5rem;
+  --h2: 1.75rem;
+  --h3: 1.25rem;
+  --body: 1rem;
+  --small: 0.875rem;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--body);
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  margin: 0 0 0.45em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+h1 { font-size: var(--h1); font-weight: 700; }
+h2 { font-size: var(--h2); font-weight: 600; }
+h3 { font-size: var(--h3); font-weight: 600; }
+
+p { margin: 0 0 0.9em; max-width: 70ch; }
+.muted { color: var(--ink-muted); }
+.faint { color: var(--ink-muted); font-size: var(--small); opacity: 0.85; }
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+a { color: var(--teal); text-decoration-color: rgba(15,82,87,0.35); }
+a:hover { text-decoration-color: var(--teal); }
+
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* ---------- Reviewer strip (not part of the product) ---------- */
+.review-strip {
+  background: var(--surface);
+  border-bottom: 1px dashed var(--rule);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--small);
+  color: var(--ink-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+}
+.review-strip strong { color: var(--ink); font-weight: 600; }
+.review-strip a { margin-right: 2px; }
+.review-strip .sep { color: var(--rule); }
+.review-strip .current { font-weight: 600; text-decoration: underline; }
+
+/* ---------- Header / nav ---------- */
+.app-header {
+  border-bottom: 1px solid var(--rule);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+}
+.brand { display: flex; align-items: baseline; gap: var(--space-1); }
+.brand .wordmark {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.brand .wordmark::before {
+  content: "";
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: var(--teal);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.brand .tagline { color: var(--ink-muted); font-size: var(--small); }
+
+nav.primary-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+nav.primary-nav a {
+  display: inline-block;
+  padding: 6px 2px;
+  text-decoration: none;
+  font-size: 0.92rem;
+  color: var(--ink-muted);
+  border-bottom: 2px solid transparent;
+}
+nav.primary-nav a:hover { color: var(--ink); }
+nav.primary-nav a.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--teal);
+}
+.field-context {
+  font-family: var(--font-mono);
+  font-size: var(--small);
+  color: var(--ink-muted);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.field-context strong { color: var(--ink); font-weight: 500; font-family: var(--font-sans); }
+
+main { max-width: 1120px; margin: 0 auto; padding: var(--space-4) var(--space-3) var(--space-8); }
+
+.page-head { margin-bottom: var(--space-4); }
+.page-head .lede { color: var(--ink-muted); max-width: 70ch; }
+
+/* ---------- Badges ---------- */
+.badge-row { display: flex; flex-wrap: wrap; gap: 8px var(--space-2); align-items: center; margin: 6px 0 var(--space-2); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--amber-flag);
+  color: var(--amber-flag);
+  background: transparent;
+}
+.badge-note { font-size: var(--small); color: var(--ink-muted); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.btn:hover { background: var(--ink-wash); }
+.btn-primary { background: var(--teal); color: var(--paper); border-color: var(--teal); }
+.btn-primary:hover { background: #0c4347; }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--ink-muted); text-decoration: none; }
+.btn-quiet:hover { color: var(--ink); }
+
+/* ---------- Sections / ledger card ---------- */
+.section { margin-bottom: var(--space-6); }
+.section-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-2); flex-wrap: wrap; }
+
+.card {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-3);
+}
+
+footer.page-footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 var(--space-3) var(--space-6);
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 760px) {
+  main { padding: var(--space-3) var(--space-2) var(--space-6); }
+  .app-header { padding: var(--space-2); }
+  nav.primary-nav { width: 100%; }
+}
