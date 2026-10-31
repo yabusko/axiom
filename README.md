@@ -79,8 +79,11 @@ python scripts/canonicalize_concepts.py
 # 5. Launch the UI
 streamlit run app/streamlit_app.py
 
-# 6. (optional) FastAPI service layer, for API/React consumption
+# 6. FastAPI service layer -- required by the web app below
 uvicorn api.main:app --reload   # docs at http://localhost:8000/docs
+
+# 7. (optional) the React web app -- see web/README.md
+cd web && npm install && npm run dev   # http://localhost:5173
 ```
 
 ### Sharing the corpus with teammates
@@ -134,6 +137,19 @@ human-reviewed).
 
 ---
 
+## Web app (React, stage-3 product redesign)
+
+`web/` is a React + Vite + TypeScript SPA covering the primary flow -- Start a
+field, Landscape, Research gaps (list + detail), the Paper panel, and Shortlist
+with Markdown export -- against new `/fields/*` endpoints in `api/main.py`
+(`docs/product/ARCHITECTURE_NOTE.md`). It reverses OD15's earlier decision to
+deprioritize a React frontend (OD33, `docs/DECISIONS.md`) now that a real
+design spec exists: `docs/product/PRODUCT.md`, `web/design/wireframes/`, and
+`docs/product/DESIGN_SYSTEM.md`. See `web/README.md` to run it; Streamlit
+stays the internal lab console and keeps working unmodified.
+
+---
+
 ## Architecture
 
 ```
@@ -151,7 +167,7 @@ scripts/ingest_openalex.py ──────────────►  SQLite
         │                        axiom/graph.py ◄──┤ (NetworkX, PageRank, OD6/OD8)
         │                        axiom/gaps.py  ◄──┤ (Louvain communities + gap pairs, OD9)
         │                        axiom/velocity.py ◄┤ (trend ranking, OD10)
-        │                        axiom/canonicalize.py, axiom/summarize.py ◄─ axiom/llm.py (Ollama, OD14)
+        │                        axiom/canonicalize.py, axiom/summarize.py ◄─ axiom/llm_providers.py (OD14)
         ▼
 ┌─────────────────────────────┐        ┌──────────────────────────────┐
 │ app/streamlit_app.py         │        │ api/main.py (FastAPI, OD12)   │
@@ -188,11 +204,19 @@ axiom/velocity.py                OD10 trend/velocity engine
 axiom/canonicalize.py            T3.2 LLM keyword canonicalization (OD14)
 axiom/summarize.py               T7.4 paper summarization (OD14)
 axiom/hypothesis.py              OD16 hypothesis pitch + rule-based verifier (PBI 5)
-axiom/llm.py                     shared local-Ollama client (OD14)
+axiom/llm.py                     local-Ollama client (used directly only by the agentic pipeline's
+                                  OllamaProvider fallback, axiom/llm_providers.py)
+axiom/llm_providers.py           shared LLM client -- Anthropic if ANTHROPIC_API_KEY is set, else
+                                  local Ollama; one pooled client, spend ledger, tracing
+axiom/fields.py                  stage-3 fields registry + build job (one SQLite+Qdrant
+                                  collection per field, docs/product/ARCHITECTURE_NOTE.md)
 
-app/streamlit_app.py             6-tab UI: Trending, Research gaps, Search, Reading list, Review queue, Advanced: vector geometry
+app/streamlit_app.py             6-tab internal lab console: Trending, Research gaps, Search,
+                                  Reading list, Review queue, Advanced: vector geometry
 app/vector_tools.py              Vector tools render functions (Proximity Analyzer + Vector Gap Discovery)
-api/main.py                      FastAPI service layer (OD12)
+api/main.py                      FastAPI service layer (OD12) -- search/trends/graph/gaps/reading-list
+                                  routes, plus the stage-3 /fields/* surface web/ is built against
+web/                              React + Vite + TypeScript SPA, the product surface (OD33) -- see web/README.md
 
 scripts/bootstrap_synthetic.py   30-paper synthetic demo corpus
 scripts/ingest_openalex.py       real OpenAlex ingest CLI
@@ -245,9 +269,16 @@ docker-compose.yml               Qdrant only
   seconds, then bootstrap/ingest.
 - **"The index is empty"** → run `scripts/bootstrap_synthetic.py` or
   `scripts/ingest_openalex.py`.
-- **Canonicalization/summaries fail with "Ollama unreachable"** → `ollama
-  serve` isn't running, or the model in `axiom.config.OLLAMA_MODEL` isn't
-  pulled (`ollama pull qwen2.5:7b`).
+- **Canonicalization/summaries/hypothesis pitches fail with an LLM error** →
+  with `ANTHROPIC_API_KEY` set, check it's valid and `AXIOM_OS_TRUSTSTORE=1`
+  is exported if outbound HTTPS fails with `CERTIFICATE_VERIFY_FAILED` (see
+  below); without a key, these fall back to local Ollama -- `ollama serve`
+  isn't running, or the model in `axiom.config.OLLAMA_MODEL` isn't pulled
+  (`ollama pull qwen2.5:7b`).
+- **Any outbound HTTPS call fails with `CERTIFICATE_VERIFY_FAILED`** (OpenAlex,
+  HuggingFace, Anthropic) on a network with a TLS-inspecting proxy → export
+  `AXIOM_OS_TRUSTSTORE=1` before running any script or server (`axiom/config.py`,
+  OD24/OD26) so the OS certificate store is trusted instead of `certifi`'s bundle.
 - **Slow first encode** → expected on CPU; SPECTER2 weights download once and
   are cached afterward.
 

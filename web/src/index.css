@@ -1,0 +1,70 @@
+/* Axiom web app shell. Canonical design tokens live in web/design/tokens.css
+   (DESIGN_SYSTEM.md's source of truth) -- imported, not duplicated. */
+@import "../design/tokens.css";
+@import "./components/components.css";
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px var(--space-6);
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+}
+.brand { display: flex; align-items: baseline; gap: var(--space-2); text-decoration: none; }
+.brand .wordmark { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em; color: var(--text); }
+.brand .tagline { color: var(--text-muted); font-size: var(--small); }
+
+nav.primary-nav { display: flex; gap: 2px; flex-wrap: wrap; }
+nav.primary-nav a {
+  display: inline-block;
+  padding: 8px 14px;
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+}
+nav.primary-nav a:hover { border-color: var(--border); }
+nav.primary-nav a.active {
+  background: var(--region-wash);
+  color: var(--text);
+  font-weight: 700;
+  border-color: var(--region);
+}
+
+.field-context {
+  font-size: var(--small);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.field-context strong { color: var(--text); font-weight: 700; }
+
+main.app-main { max-width: 1160px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); width: 100%; box-sizing: border-box; flex: 1; }
+
+.page-head { margin-bottom: var(--space-8); }
+.page-head .lede { color: var(--text-muted); max-width: 70ch; }
+
+@media (max-width: 760px) {
+  main.app-main { padding: var(--space-6) var(--space-4) var(--space-8); }
+  .app-header { padding: var(--space-4); }
+  nav.primary-nav { width: 100%; }
+}
+
+.app-footer {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-12);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}

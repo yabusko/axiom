@@ -907,6 +907,27 @@ straightforward additive UI change, not a backend redesign (the per-field
 SQLite+Qdrant storage plan in §4E already supports re-running a build against
 an existing field).
 
+## OD33 — React migration un-deprioritized; reverses OD15
+
+OD15 (2026-07) deprioritized the React migration: no spec existed to build against
+("the Stitch wireframes... were never part of this repo"), and Streamlit already
+covered the four tabs that existed then end-to-end, for a "polish gain that isn't
+worth that risk."
+
+**Decision: build it now, in `web/` (React + Vite + TypeScript).** Both conditions
+OD15 cited no longer hold. A real spec exists this time: `docs/product/PRODUCT.md`
+(personas/flow/IA), `web/design/wireframes/` (26 low-fi screens with real data),
+and `docs/product/DESIGN_SYSTEM.md` (tokens + 8 component specs, WCAG-verified) --
+stage-3 Phases B-D built exactly the design-to-implement OD15 said was missing.
+And this isn't a polish pass on working functionality: `AUDIT.md` found the
+current Streamlit app's actual defects are structural (no in-app corpus switcher,
+the agent pipeline's output never surfaces in the UI, `api/main.py` has zero
+real callers) -- `web/` finally uses the FastAPI seam OD12 built and OD15 left
+unconsumed, against the new `/fields/*` endpoints (`ARCHITECTURE_NOTE.md`).
+
+Streamlit is NOT deleted -- it stays as an internal "lab console" against the
+pre-existing non-field-scoped endpoints/modules, per `PRODUCT.md`.
+
 ---
 
 ## Schema change log
