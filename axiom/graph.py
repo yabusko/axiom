@@ -102,14 +102,28 @@ def _pagerank(g: nx.DiGraph | nx.Graph, alpha: float = 0.85,
     co-occurrence graph, OD19) are treated as symmetric: every edge contributes
     rank both ways via `degree`/`neighbors` instead of `out_degree`/`successors`.
     Dangling nodes (zero out-edges) redistribute their rank uniformly via teleport.
+
+    B5: WEIGHTED by the edge `weight` attribute (defaulting to 1 when absent,
+    on either endpoint of an edge or the edge itself) — `out_deg`/successor
+    shares are each node's sum of outgoing edge weights, not a plain edge
+    COUNT, and a node's rank is redistributed to each successor in proportion
+    to that edge's weight over the total. On a graph where every edge has the
+    default weight of 1 this is numerically identical to plain unweighted
+    PageRank (every weight sum degenerates to the edge count) — see
+    `tests/test_graph.py`'s regression test and `tests/test_concept_graph.py`'s
+    hand-checked weighted-graph test.
     """
     nodes = list(g.nodes())
     n = len(nodes)
     if n == 0:
         return {}
     directed = g.is_directed()
-    out_deg = dict(g.out_degree()) if directed else dict(g.degree())
-    successors = g.successors if directed else g.neighbors
+
+    def _weighted_out_degree(u: str) -> float:
+        edges = g.out_edges(u, data="weight") if directed else g.edges(u, data="weight")
+        return sum((w if w is not None else 1.0) for _, _, w in edges)
+
+    out_deg = {u: _weighted_out_degree(u) for u in nodes}
     dangling = [u for u in nodes if out_deg[u] == 0]
     x = {u: 1.0 / n for u in nodes}
     for _ in range(max_iter):
@@ -118,10 +132,12 @@ def _pagerank(g: nx.DiGraph | nx.Graph, alpha: float = 0.85,
         dangle = alpha * sum(xlast[d] for d in dangling) / n
         teleport = (1.0 - alpha) / n + dangle
         for u in nodes:
-            if out_deg[u]:
-                share = alpha * xlast[u] / out_deg[u]
-                for v in successors(u):
-                    x[v] += share
+            if not out_deg[u]:
+                continue
+            rank = alpha * xlast[u] / out_deg[u]
+            edges = g.out_edges(u, data="weight") if directed else g.edges(u, data="weight")
+            for _, v, w in edges:
+                x[v] += rank * (w if w is not None else 1.0)
         for u in nodes:
             x[u] += teleport
         if sum(abs(x[u] - xlast[u]) for u in nodes) < tol:
