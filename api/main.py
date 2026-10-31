@@ -34,13 +34,14 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, llm
+from axiom import concept_graph, config, db, llm, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
 from axiom.agents import pipeline as agents_pipeline
+from axiom.agents import synthesis as synthesis_agent
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant
 
@@ -453,8 +454,12 @@ def summarize(paper_id: str, force: bool = False):
 
 
 # --- Hypothesis pitch + HITL review queue (OD16) ------------------------------
+# D4: this calls axiom.agents.synthesis.generate_hypothesis -- the one real
+# implementation (strong tier, via llm_providers, real spend tracking) -- not the
+# older axiom.hypothesis.generate_hypothesis (Ollama-only) this replaced. Async,
+# like the other LLM-calling routes in this file (OD12), unlike the rest.
 @app.post("/graph/gaps/{gap_index}/hypothesize", response_model=HypothesisPitchOut)
-def hypothesize(gap_index: int):
+async def hypothesize(gap_index: int):
     """Generate a grounded hypothesis pitch for one OD9 gap candidate.
 
     Stores the pitch in review_queue as `pending` -- never auto-promoted.
@@ -469,18 +474,16 @@ def hypothesize(gap_index: int):
     try:
         v = velocitymod.get_top_velocity_keywords(conn, n=10)
         trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
-    finally:
-        conn.close()
 
-    try:
-        pitch = hypothesismod.generate_hypothesis(gap, get_graph(), trend_context=trend_context)
-    except llm.OllamaError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except hypothesismod.VerificationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        try:
+            pitch = await synthesis_agent.generate_hypothesis(
+                gap, get_graph(), run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
+            )
+        except llm_providers.LLMError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except hypothesismod.VerificationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
-    conn = db.connect()
-    try:
         review_id = db.add_to_review_queue(
             conn, gap_a_label=gap.a.label, gap_b_label=gap.b.label,
             title=pitch.title, claim=pitch.claim, method_sketch=pitch.method_sketch,

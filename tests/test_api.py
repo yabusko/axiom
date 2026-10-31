@@ -81,10 +81,18 @@ def test_summarize_fresh_path_writes_db(api_client, patched_db_path, fake_llm):
         conn.close()
 
 
-def test_hypothesize_creates_review_row(api_client, patched_db_path, fake_llm):
-    fake_llm.responses = [{
-        "title": "Bridge", "claim": "c", "method_sketch": "m",
-        "datasets": [], "supporting_paper_ids": ["A1", "B1"]}]
+def test_hypothesize_creates_review_row(api_client, patched_db_path, monkeypatch):
+    import api.main as main
+    from axiom.hypothesis import HypothesisPitch
+
+    async def fake_generate_hypothesis(gap, g, *, run_id, trend_context=None, **_):
+        return HypothesisPitch(
+            title="Bridge", claim="c", method_sketch="m",
+            datasets=[], supporting_paper_ids=["A1", "B1"],
+        )
+
+    monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate_hypothesis)
+
     r = api_client.post("/graph/gaps/0/hypothesize")
     assert r.status_code == 200
     body = r.json()
