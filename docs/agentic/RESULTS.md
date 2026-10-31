@@ -1,8 +1,60 @@
 # Agentic pipeline — results
 
 Every number below traces to a committed file or a script that produced it; none are estimated.
-Real run against `data/axiom.db` (30 papers) and the real eval corpus (`data/eval.db`, 1500
-papers), real Anthropic API calls (`claude-haiku-4-5`), 2026-10-30/31.
+
+## Stage-2 fixes update (2026-10-31) — supersedes the stage-1 numbers below
+
+The main corpus (`data/axiom.db`) was replaced with a **real OpenAlex corpus** (300 papers,
+topic "retrieval-augmented generation") -- the 30-paper corpus the section below measured was
+entirely synthetic test data, not real papers. Model IDs refreshed:
+`MODEL_FAST=claude-haiku-5-5` ($0.10/$0.50 per 1M in/out, <=100k-token tier),
+`MODEL_STRONG=claude-sonnet-5-5` ($2/$10) -- `axiom/config.py`, checked live against
+platform.claude.com 2026-10-31 (`docs/DECISIONS.md` OD26).
+
+- **Real 50-paper pipeline run** (real OpenAlex papers, calibrated config): 50/50 accepted,
+  `eval/agent_bench.json` (regenerated from run `0e3c0fd630b9466b89de6ac8f2a5f741`) —
+  rejection rate first_pass=10.0% final=0.0%, latency p50=2.93s p95=6.97s, $0.0004/paper,
+  $0.0217/run.
+- **B1 enrichment cascade recalibrated from real AI-labeled data** (`docs/DECISIONS.md` OD28):
+  `VERIFIER_COSINE_MIN=0.93`, `ENRICHMENT_MARGIN_DELTA=0.0` (was 0.95/0.05) — two independent
+  blind AI judges (sonnet-5-5 + opus-5-5, no human review) labeled 100 real (entity, candidate)
+  pairs, Cohen's kappa 0.7983, 92/100 usable agreed labels. Calibration
+  (`eval/enrichment_threshold_calibration.md`): precision=0.929, recall=0.867; only 6/208
+  `new_concept` entities would flip under the new threshold — **the high new_concept rate is a
+  real ontology gap, not a miscalibrated threshold**. 21 synonymous `new_concept` labels merged
+  into 11 representatives (`scripts/merge_new_concept_synonyms.py`, applied for real).
+- **E3 AI second-grader review** (`docs/DECISIONS.md` OD29): an independent strong-tier
+  re-grade of a 10-query sample of `eval/ndcg_queries_v2.json`'s pooled candidates, blind to
+  the original fast-tier grader's labels and ranks. Cohen's kappa **0.6319** over 129 judgments
+  (77.5% agreement) — `eval/ndcg_v2_second_grader_sample.json`. AI-vs-AI, not human agreement.
+- **D5 query-aware structural retrieval arm** (`docs/DECISIONS.md` OD30): ran the real pipeline
+  on 300 real eval-corpus papers (1741 `paper_concepts` rows, $0.1095). Mean nDCG@10 over the
+  51 v2 queries: hybrid alone **0.8904**, hybrid + existing pool-cohesion structural arm
+  **0.6168** (worse), hybrid + new query-aware structural arm **0.8727** (roughly neutral,
+  still a small regression) — `eval/report_hybrid_struct_query_aware.md`. **Neither structural
+  arm helps; not exposed as a search mode**, per the honest-reporting instruction this was
+  built under.
+- **Total LLM spend this stage: ~$0.72** (50-paper run $0.0217 + B3 labeling $0.5381 + E3
+  $0.1129 + D5's 300-paper run $0.1095 ≈ against the $3.00 `LLM_BUDGET_USD` cap, tracked
+  durably in `llm_spend`; `data/eval.db` has its own separate ledger from `data/axiom.db`, a
+  known gap noted in OD30, not fixed).
+- **Real bugs found and fixed running this stage for real** (full detail in `docs/DECISIONS.md`
+  OD26-OD30): a migration that broke on pre-existing duplicate rows; `reset_corpus` missing the
+  new FK-dependent tables; a `run_id` column that silently never reached an existing table;
+  every current model rejecting the `temperature` parameter outright; the budget-reservation
+  estimator undercounting real cost by ~2x; a within-paper unique-index collision when two
+  entity names resolve to the same concept; a "second grader" that was silently the same model
+  as the first; the eval corpus never having been migrated to the agentic schema; the eval
+  corpus having no ontology data at all.
+- **Deferred, not done this stage** (see "Deferred" below for the full list with reasons):
+  architecture/security review pass, fact-checker pass, `dense_general` eval mode.
+
+---
+
+## Stage-1 baseline (2026-10-30, historical — numbers below are from the synthetic 30-paper run)
+
+Real run against `data/axiom.db` (30 papers, synthetic test data) and the real eval corpus
+(`data/eval.db`, 1500 papers), real Anthropic API calls (`claude-haiku-4-5`), 2026-10-30/31.
 
 ## Model IDs, endpoints, spend
 
@@ -82,5 +134,23 @@ where `scripts/ingest_eval_corpus.py` expects it, copied into place.
 - `dense_general` eval mode not run (needs a separate heavy embedding-cache build).
 - `scripts/label_cli.py review` human pass on the v2 labels not run (needs an actual annotator).
 - `_ensure_budget`/`_record_spend` has a bounded check-then-record race under concurrency
-  (worst case ≈$0.12 over the $3 cap at `AGENT_CONCURRENCY=4`) — logged as OD25, not fixed
-  (judged not worth the complexity at this $ scale).
+  (worst case ≈$0.12 over the $3 cap at `AGENT_CONCURRENCY=4`) — logged as OD25 (stage 1);
+  stage-2's C3 fix supersedes this for the Anthropic path (atomic reserve/settle).
+
+## Deferred (stage-2 fixes, 2026-10-31)
+
+D5 (structural arm + 300-paper eval run) and E3 (second grader + kappa) were **completed**
+this stage — see the stage-2 update above, not deferred. Genuinely deferred:
+
+- **`dense_general` eval mode** — needs a separate one-time embedding-cache build
+  (`BAAI/bge-small-en-v1.5` over the full eval corpus), a heavier one-off job not run this
+  stage; optional per the original spec.
+- **Architecture/security review pass** — stage-1 had a dedicated review phase (OD25); this
+  stage's real-run-driven bug-fixing (temperature, budget estimator, migrations) covers a lot
+  of the same ground a review would have flagged, but a dedicated second pass wasn't run.
+- **Fact-checker pass** — stage-1 had a dedicated pass verifying every claim in RESULTS/README
+  against code and `eval/` files; this update was written directly against the same evidence
+  (file paths, real numbers) but wasn't independently re-verified by a fresh pass.
+- **E3's full pool / deeper review** — only a fixed 10-query sample was AI-re-graded, not the
+  full 51-query pool; a deeper pass (more queries, or a third grader) would strengthen the
+  kappa measurement's statistical weight but wasn't run this stage.
