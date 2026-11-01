@@ -23,10 +23,25 @@ def connect(db_path=None) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, add_column_ddl: str) -> None:
+    """Add `column` to `table` if it isn't already there. `CREATE TABLE IF NOT EXISTS` in
+    schema.sql is a no-op against a table that already exists -- a database created before a
+    column was added to that table's definition never gets it from the schema alone. SQLite
+    has no `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, so check first."""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {add_column_ddl}")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     """Create all tables/indexes from the shared schema (idempotent)."""
     sql = config.SCHEMA_PATH.read_text(encoding="utf-8")
     conn.executescript(sql)
+    # B4 (OD26): paper_concepts/concept_cooccurrence predate the run_id column (OD19/OD20
+    # created them without it) -- a no-op on a fresh database (executescript's CREATE TABLE
+    # already included it), a real backfill on one that predates this stage.
+    _ensure_column(conn, "paper_concepts", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
+    _ensure_column(conn, "concept_cooccurrence", "run_id", "run_id TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
@@ -40,6 +55,10 @@ def reset_corpus(conn: sqlite3.Connection) -> None:
         "concepts",
         "citation_edges",
         "paper_provenance",
+        # paper_concepts/concept_cooccurrence (OD19/OD20) FK -> papers.openalex_id; must be
+        # cleared before papers or a non-empty agent-pipeline run blocks every future reset.
+        "paper_concepts",
+        "concept_cooccurrence",
         "papers",
     )
     for table in _CORPUS_TABLES:
@@ -256,6 +275,166 @@ def papers_by_ids(
         ids,
     ).fetchall()
     return {r["openalex_id"]: r for r in rows}
+
+
+def recent_papers(conn: sqlite3.Connection, limit: int) -> dict[str, sqlite3.Row]:
+    """Fetch up to `limit` papers (no particular order beyond SQLite's default) keyed
+    by openalex_id. Used by POST /agents/run when the caller doesn't supply explicit
+    paper_ids -- was raw SQL inline in api/main.py, centralized here (D2)."""
+    rows = conn.execute("SELECT openalex_id, title, abstract FROM papers LIMIT ?", (limit,)).fetchall()
+    return {r["openalex_id"]: r for r in rows}
+
+
+# --- Agentic pipeline (OD19-OD24, lifted from axiom/agents/* per the Phase-4
+# architecture review -- those modules did raw SQL via the caller's
+# connection, which this centralizes) ------------------------------------------
+
+def create_agent_run(
+    conn: sqlite3.Connection, run_id: str, *,
+    papers_total: int, model_fast: str, model_strong: str, started_at: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO agent_runs
+            (run_id, status, papers_total, papers_done, model_fast, model_strong, started_at)
+        VALUES (?, 'running', ?, 0, ?, ?, ?)
+        """,
+        (run_id, papers_total, model_fast, model_strong, started_at),
+    )
+    conn.commit()
+
+
+def increment_agent_run_papers_done(conn: sqlite3.Connection, run_id: str) -> None:
+    """D1: called once per paper as it finishes, so a run still in flight reports real
+    progress via GET /agents/runs/{id} instead of papers_done only jumping to its final
+    value when the whole run completes."""
+    conn.execute(
+        "UPDATE agent_runs SET papers_done = papers_done + 1 WHERE run_id = ?", (run_id,)
+    )
+    conn.commit()
+
+
+def finish_agent_run(conn: sqlite3.Connection, run_id: str, *, papers_done: int, finished_at: str) -> None:
+    conn.execute(
+        "UPDATE agent_runs SET status = 'done', papers_done = ?, finished_at = ? WHERE run_id = ?",
+        (papers_done, finished_at, run_id),
+    )
+    conn.commit()
+
+
+def fail_agent_run(conn: sqlite3.Connection, run_id: str, *, error: str, finished_at: str) -> None:
+    """D1: the other terminal state finish_agent_run doesn't cover -- a background run's
+    try/finally calls this on an unhandled exception so agent_runs.status never gets stuck
+    at 'running' forever. `error` isn't a column on agent_runs; callers that want it visible
+    in GET /agents/runs/{id} store it per-paper via upsert_agent_run_item instead."""
+    conn.execute(
+        "UPDATE agent_runs SET status = 'failed', finished_at = ? WHERE run_id = ?",
+        (finished_at, run_id),
+    )
+    conn.commit()
+
+
+def get_agent_run(conn: sqlite3.Connection, run_id: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM agent_runs WHERE run_id = ?", (run_id,)).fetchone()
+
+
+def agent_run_verdict_counts(conn: sqlite3.Connection, run_id: str) -> dict[str, int]:
+    """D1: per-verdict counts for GET /agents/runs/{id} (e.g. {'accepted': 12, 'rejected': 1})."""
+    rows = conn.execute(
+        "SELECT verdict, COUNT(*) AS n FROM agent_run_items WHERE run_id = ? GROUP BY verdict",
+        (run_id,),
+    ).fetchall()
+    return {r["verdict"]: r["n"] for r in rows if r["verdict"] is not None}
+
+
+def upsert_agent_run_item(
+    conn: sqlite3.Connection, run_id: str, paper_id: str, *,
+    route: str | None, verifier_attempts: int, verdict: str, error: str | None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO agent_run_items (run_id, paper_id, route, verifier_attempts, verdict, error)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id, paper_id) DO UPDATE SET
+            route = excluded.route,
+            verifier_attempts = excluded.verifier_attempts,
+            verdict = excluded.verdict,
+            error = excluded.error
+        """,
+        (run_id, paper_id, route, verifier_attempts, verdict, error),
+    )
+    conn.commit()
+
+
+def record_llm_spend(
+    conn: sqlite3.Connection, run_id: str, *,
+    ts: str, model: str, tokens_in: int, tokens_out: int, cost: float,
+) -> None:
+    """C3: one durable row per *settled* LLM call (after the response, real token
+    counts/cost) -- the persistent half of the budget ledger. Call sites reserve the
+    worst-case cost in-process before dispatch and settle here after; this table alone
+    answers "how much has this app ever spent", survives a restart."""
+    conn.execute(
+        "INSERT INTO llm_spend (run_id, ts, model, tokens_in, tokens_out, cost) VALUES (?, ?, ?, ?, ?, ?)",
+        (run_id, ts, model, tokens_in, tokens_out, cost),
+    )
+    conn.commit()
+
+
+def total_llm_spend(conn: sqlite3.Connection) -> float:
+    """Cumulative spend across every run -- the figure LLM_BUDGET_USD actually caps."""
+    row = conn.execute("SELECT COALESCE(SUM(cost), 0) AS total FROM llm_spend").fetchone()
+    return float(row["total"])
+
+
+def run_llm_spend(conn: sqlite3.Connection, run_id: str) -> float:
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost), 0) AS total FROM llm_spend WHERE run_id = ?", (run_id,)
+    ).fetchone()
+    return float(row["total"])
+
+
+def replace_paper_concepts(
+    conn: sqlite3.Connection,
+    run_id: str,
+    paper_id: str,
+    concept_rows: Iterable[tuple],
+    cooccurrence_pairs: Iterable[tuple[str, str]],
+) -> int:
+    """B4: idempotent, atomic linking. One transaction deletes `paper_id`'s existing
+    `paper_concepts`/`concept_cooccurrence` rows (from any earlier run_id) then inserts the
+    new set tagged with this `run_id` -- safe to call repeatedly for the same paper (reruns
+    replace instead of accumulating duplicates). Replaces the old insert_paper_concepts/
+    insert_cooccurrence pair, which only ever INSERTed.
+
+    `concept_rows`: (name, kind, canonical, cosine, evidence_span, confidence, source, created_at).
+    `cooccurrence_pairs`: (concept_a, concept_b), concept_a < concept_b.
+    Returns the number of `paper_concepts` rows written.
+    """
+    concept_rows = list(concept_rows)
+    cooccurrence_pairs = list(cooccurrence_pairs)
+    try:
+        conn.execute("DELETE FROM paper_concepts WHERE paper_id = ?", (paper_id,))
+        conn.execute("DELETE FROM concept_cooccurrence WHERE paper_id = ?", (paper_id,))
+        if concept_rows:
+            conn.executemany(
+                """
+                INSERT INTO paper_concepts
+                    (run_id, paper_id, name, kind, canonical, cosine, evidence_span, confidence, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [(run_id, paper_id, *row) for row in concept_rows],
+            )
+        if cooccurrence_pairs:
+            conn.executemany(
+                "INSERT INTO concept_cooccurrence (run_id, paper_id, concept_a, concept_b) VALUES (?, ?, ?, ?)",
+                [(run_id, paper_id, a, b) for a, b in cooccurrence_pairs],
+            )
+    except Exception:
+        conn.rollback()
+        raise
+    conn.commit()
+    return len(concept_rows)
 
 
 

@@ -22,21 +22,26 @@ from __future__ import annotations
 
 import json
 import sys
+import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import config, db, llm
+from axiom import concept_graph, config, db, llm, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
+from axiom.agents import pipeline as agents_pipeline
+from axiom.agents import synthesis as synthesis_agent
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant
 
@@ -179,11 +184,59 @@ class GapAnalysisOut(BaseModel):
     gaps: list[GapCandidateOut]
 
 
+class ConceptCommunityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    cid: int
+    members: list[str]
+    size: int
+
+
+class ConceptCentralityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    concept: str
+    pagerank: float
+    degree: int
+    weighted_degree: int
+
+
+class AgentRunIn(BaseModel):
+    paper_ids: list[str] | None = Field(default=None, max_length=50)
+    limit: int | None = Field(default=None, ge=1, le=50)
+    synthesize: bool = False
+
+
+class AgentRunOut(BaseModel):
+    run_id: str
+
+
+class AgentRunStatusOut(BaseModel):
+    run_id: str
+    status: str
+    papers_total: int
+    papers_done: int
+    model_fast: str | None
+    model_strong: str | None
+    started_at: str | None
+    finished_at: str | None
+    verdict_counts: dict[str, int] = {}
+    cost_so_far: float = 0.0
+
+
 # --- App -----------------------------------------------------------------------
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # D2: load the sentence encoder once at process startup instead of inside the
+    # first request that happens to need it -- that first caller shouldn't pay a
+    # multi-second model-load latency hit just for being first.
+    get_encoder()
+    yield
+
+
 app = FastAPI(
     title="Axiom API",
     version="0.1.0",
     description="REST seam over axiom/*: search, trends (OD10), citation graph + gaps (OD9).",
+    lifespan=_lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -215,6 +268,22 @@ def get_gap_analysis():
     conn = db.connect()
     try:
         return gapsmod.analyze(get_graph(), conn, get_store().fetch_dense_vectors())
+    finally:
+        conn.close()
+
+
+@lru_cache(maxsize=1)
+def get_concept_analysis() -> concept_graph.ConceptGraphAnalysis:
+    """R7: Louvain + PageRank over the agent-extracted concept co-occurrence
+    graph (OD19/OD20) -- separate from get_graph()/get_gap_analysis() above,
+    which stay on the citation graph. Cached like the others; a fresh run's
+    new concept_cooccurrence rows need a process restart (or a future
+    explicit invalidation hook) to show up here, same tradeoff OD12 already
+    accepted for get_graph()/get_gap_analysis().
+    """
+    conn = db.connect()
+    try:
+        return concept_graph.analyze(conn)
     finally:
         conn.close()
 
@@ -385,8 +454,12 @@ def summarize(paper_id: str, force: bool = False):
 
 
 # --- Hypothesis pitch + HITL review queue (OD16) ------------------------------
+# D4: this calls axiom.agents.synthesis.generate_hypothesis -- the one real
+# implementation (strong tier, via llm_providers, real spend tracking) -- not the
+# older axiom.hypothesis.generate_hypothesis (Ollama-only) this replaced. Async,
+# like the other LLM-calling routes in this file (OD12), unlike the rest.
 @app.post("/graph/gaps/{gap_index}/hypothesize", response_model=HypothesisPitchOut)
-def hypothesize(gap_index: int):
+async def hypothesize(gap_index: int):
     """Generate a grounded hypothesis pitch for one OD9 gap candidate.
 
     Stores the pitch in review_queue as `pending` -- never auto-promoted.
@@ -401,18 +474,16 @@ def hypothesize(gap_index: int):
     try:
         v = velocitymod.get_top_velocity_keywords(conn, n=10)
         trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
-    finally:
-        conn.close()
 
-    try:
-        pitch = hypothesismod.generate_hypothesis(gap, get_graph(), trend_context=trend_context)
-    except llm.OllamaError as exc:
-        raise HTTPException(status_code=503, detail=str(exc))
-    except hypothesismod.VerificationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        try:
+            pitch = await synthesis_agent.generate_hypothesis(
+                gap, get_graph(), run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
+            )
+        except llm_providers.LLMError as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        except hypothesismod.VerificationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
-    conn = db.connect()
-    try:
         review_id = db.add_to_review_queue(
             conn, gap_a_label=gap.a.label, gap_b_label=gap.b.label,
             title=pitch.title, claim=pitch.claim, method_sketch=pitch.method_sketch,
@@ -463,3 +534,97 @@ def reject_review_item(item_id: int):
         db.set_review_status(conn, item_id, "rejected")
     finally:
         conn.close()
+
+
+# --- Agentic pipeline (R1-R6, docs/agentic/ARCHITECTURE.md) -------------------
+# Async, unlike every route above (R5) -- the pipeline awaits LLM calls;
+# everything else in this file stays CPU-bound sync `def` on purpose (OD12).
+async def _run_agents_background(
+    papers: list[agents_pipeline.PaperInput], run_id: str, *,
+    clusters: list[dict] | None, gaps: list, trend_context: list[str] | None,
+) -> None:
+    """D1: the actual pipeline run, scheduled as a background task so the request
+    handler can return 202 immediately. Mirrors run_pipeline's own try/finally shape
+    for the one failure mode it can't cover itself -- an exception raised before (or
+    after) its own agent_runs bookkeeping, which would otherwise leave the row stuck
+    at 'running' forever with no record of what happened."""
+    try:
+        await agents_pipeline.run_pipeline(
+            papers, encoder=get_encoder(), run_id=run_id,
+            clusters=clusters, gaps=gaps, trend_context=trend_context,
+        )
+        get_concept_analysis.cache_clear()
+    except Exception as exc:
+        conn = db.connect()
+        try:
+            db.fail_agent_run(conn, run_id, error=str(exc), finished_at=datetime.now(timezone.utc).isoformat())
+        finally:
+            conn.close()
+
+
+@app.post("/agents/run", response_model=AgentRunOut, status_code=202)
+def agents_run(body: AgentRunIn | None, background_tasks: BackgroundTasks):
+    body = body or AgentRunIn()
+    conn = db.connect()
+    try:
+        if body.paper_ids:
+            rows = db.papers_by_ids(conn, body.paper_ids)
+        else:
+            rows = db.recent_papers(conn, body.limit or 50)
+    finally:
+        conn.close()
+    if not rows:
+        raise HTTPException(status_code=404, detail="no matching papers")
+
+    papers = [
+        agents_pipeline.PaperInput(paper_id=pid, title=r["title"], abstract=r["abstract"])
+        for pid, r in rows.items()
+    ]
+
+    clusters: list[dict] | None = None
+    gaps: list | None = None
+    trend_context: list[str] | None = None
+    if body.synthesize:
+        concept_analysis = get_concept_analysis()
+        clusters = [
+            {"cluster_id": c.cid, "concepts": c.members} for c in concept_analysis.communities
+        ]
+        citation_graph = get_graph()
+        gaps = [(g, citation_graph) for g in get_gap_analysis().gaps[:3]]
+        conn = db.connect()
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10)
+            trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    run_id = uuid.uuid4().hex
+    background_tasks.add_task(
+        _run_agents_background, papers, run_id,
+        clusters=clusters, gaps=gaps, trend_context=trend_context,
+    )
+    return AgentRunOut(run_id=run_id)
+
+
+@app.get("/agents/runs/{run_id}", response_model=AgentRunStatusOut)
+def agents_run_status(run_id: str):
+    conn = db.connect()
+    try:
+        row = db.get_agent_run(conn, run_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="no such run")
+        verdict_counts = db.agent_run_verdict_counts(conn, run_id)
+        cost_so_far = db.run_llm_spend(conn, run_id)
+    finally:
+        conn.close()
+    return AgentRunStatusOut(**dict(row), verdict_counts=verdict_counts, cost_so_far=cost_so_far)
+
+
+@app.get("/concepts/communities", response_model=list[ConceptCommunityOut])
+def concepts_communities():
+    return get_concept_analysis().communities
+
+
+@app.get("/concepts/central", response_model=list[ConceptCentralityOut])
+def concepts_central():
+    return get_concept_analysis().central

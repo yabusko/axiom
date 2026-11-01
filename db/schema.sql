@@ -108,3 +108,94 @@ CREATE INDEX IF NOT EXISTS idx_papers_venue   ON papers(venue);
 CREATE INDEX IF NOT EXISTS idx_concepts_paper ON concepts(paper_id);
 CREATE INDEX IF NOT EXISTS idx_edges_src      ON citation_edges(src_id);
 CREATE INDEX IF NOT EXISTS idx_edges_dst      ON citation_edges(dst_id);
+
+-- Agentic extraction pipeline (OD19-OD23, docs/agentic/ARCHITECTURE.md). Distinct from the
+-- OpenAlex-sourced `concepts` table above: different provenance (LLM+embedding vs. taxonomy)
+-- and confidence semantics, so rows are never merged across the two tables (OD19).
+CREATE TABLE IF NOT EXISTS paper_concepts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- B4: which agent_run produced this row. DEFAULT '' is transitional -- Phase 1 (schema)
+    -- lands ahead of Phase 2 (the linking code threads real run_id through
+    -- db.insert_paper_concepts/linking.py); the default keeps existing call sites and tests
+    -- passing in between, same additive-migration spirit as OD19/OD20.
+    run_id        TEXT NOT NULL DEFAULT '',
+    paper_id      TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    kind          TEXT NOT NULL,            -- method | task | dataset | metric
+    canonical     TEXT NOT NULL,            -- ontology-mapped label
+    cosine        REAL NOT NULL,
+    evidence_span TEXT NOT NULL,
+    confidence    REAL NOT NULL,
+    source        TEXT NOT NULL DEFAULT 'agent',
+    created_at    DATETIME NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
+);
+
+CREATE TABLE IF NOT EXISTS concept_cooccurrence (
+    run_id    TEXT NOT NULL DEFAULT '',      -- B4: transitional default, see paper_concepts above
+    paper_id  TEXT NOT NULL,
+    concept_a TEXT NOT NULL,                -- canonical; concept_a < concept_b
+    concept_b TEXT NOT NULL,
+    FOREIGN KEY (paper_id) REFERENCES papers(openalex_id)
+);
+
+-- B4: an existing database from before this index existed can already hold rows that
+-- violate it -- the pre-cascade enrichment logic (B1) could legitimately produce more than
+-- one entity resolving to the same (paper_id, canonical, kind) for one paper. CREATE UNIQUE
+-- INDEX IF NOT EXISTS still fails on that pre-existing data even though the index itself
+-- doesn't exist yet, breaking db.init_db()'s "safe to run against an existing database"
+-- contract. Drop every duplicate but the lowest id (arbitrary but stable) before creating the
+-- index, every time this script runs -- a no-op once no duplicates remain, so it's safe to
+-- keep here permanently rather than as a one-off manual fix.
+DELETE FROM paper_concepts WHERE id NOT IN (
+    SELECT MIN(id) FROM paper_concepts GROUP BY paper_id, canonical, kind
+);
+
+-- B4: linking is idempotent per paper -- a rerun deletes that paper's prior rows (any run_id)
+-- before inserting its own, in one transaction (axiom/agents/linking.py). The unique index is
+-- the backstop: it makes a within-run duplicate insert (e.g. a retried attempt) fail loudly
+-- rather than silently double-counting a concept in the co-occurrence graph.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_paper_concepts_paper_canonical_kind
+    ON paper_concepts(paper_id, canonical, kind);
+
+-- C3: durable, cumulative LLM spend ledger -- replaces the in-memory-only, per-process
+-- counter in axiom/llm_providers.py, which reset on restart and couldn't enforce a true
+-- total-spend cap across multiple runs. One row per settled call (after the response comes
+-- back, actual tokens/cost, not the pre-call reservation estimate).
+CREATE TABLE IF NOT EXISTS llm_spend (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id     TEXT NOT NULL,
+    ts         DATETIME NOT NULL,
+    model      TEXT NOT NULL,
+    tokens_in  INTEGER NOT NULL,
+    tokens_out INTEGER NOT NULL,
+    cost       REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+    run_id       TEXT PRIMARY KEY,
+    status       TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | failed
+    papers_total INTEGER NOT NULL DEFAULT 0,
+    papers_done  INTEGER NOT NULL DEFAULT 0,
+    model_fast   TEXT,
+    model_strong TEXT,
+    started_at   DATETIME,
+    finished_at  DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS agent_run_items (
+    run_id             TEXT NOT NULL,
+    paper_id           TEXT NOT NULL,
+    route              TEXT,                -- full | title_only | skip
+    verifier_attempts  INTEGER DEFAULT 0,
+    verdict            TEXT,                -- accepted | rejected
+    error              TEXT,
+    PRIMARY KEY (run_id, paper_id),
+    FOREIGN KEY (run_id) REFERENCES agent_runs(run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_paper_concepts_paper     ON paper_concepts(paper_id);
+CREATE INDEX IF NOT EXISTS idx_paper_concepts_canonical ON paper_concepts(canonical);
+CREATE INDEX IF NOT EXISTS idx_cooc_a ON concept_cooccurrence(concept_a);
+CREATE INDEX IF NOT EXISTS idx_cooc_b ON concept_cooccurrence(concept_b);
+CREATE INDEX IF NOT EXISTS idx_llm_spend_run ON llm_spend(run_id);

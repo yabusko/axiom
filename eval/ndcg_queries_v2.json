@@ -1,0 +1,4636 @@
+{
+  "_provenance": "AI-drafted (graded by config.MODEL_FAST via scripts/build_eval_v2_queries.py); not yet reviewed by scripts/label_cli.py.",
+  "_scale": "0-2 (0=not relevant, 1=marginally relevant, 2=clearly relevant)",
+  "_scale_max": 2,
+  "queries": [
+    {
+      "query": "retrieval-augmented generation for question answering",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2022.findings-emnlp.381": 1,
+        "2023.acl-long.467": 2,
+        "2023.findings-acl.899": 1,
+        "2024.acl-long.397": 2,
+        "2024.emnlp-main.1259": 2,
+        "2024.naacl-long.389": 2,
+        "2025.acl-long.1101": 2,
+        "2025.coling-main.724": 1,
+        "2025.findings-naacl.241": 2,
+        "2025.naacl-long.271": 2,
+        "2025.naacl-long.301": 2,
+        "QtOybganmT": 2,
+        "zwqDROxClj": 2
+      },
+      "judgments_meta": {
+        "2022.findings-emnlp.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.467": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.899": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.397": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.1259": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.389": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.1101": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.724": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-naacl.241": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.271": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.301": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "QtOybganmT": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "zwqDROxClj": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "parameter-efficient fine-tuning with low-rank adapters",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-short.85": 0,
+        "2023.acl-long.182": 1,
+        "2023.acl-long.212": 1,
+        "2023.acl-long.280": 2,
+        "2024.acl-long.626": 2,
+        "2024.findings-acl.310": 2,
+        "2024.findings-acl.699": 2,
+        "2024.lrec-main.945": 1,
+        "2024.naacl-long.189": 0,
+        "2024.naacl-long.421": 0,
+        "2025.acl-long.268": 0,
+        "2025.coling-main.568": 2,
+        "2025.coling-main.731": 0,
+        "2025.findings-acl.1232": 0,
+        "2025.findings-acl.208": 2,
+        "2025.findings-acl.68": 2,
+        "tZXaHWfsXB": 0
+      },
+      "judgments_meta": {
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.acl-long.182": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.212": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.280": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.626": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.310": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.699": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.945": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.189": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.naacl-long.421": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.acl-long.268": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.coling-main.568": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.731": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.findings-acl.1232": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.findings-acl.208": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "tZXaHWfsXB": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "detecting and mitigating hallucination in large language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2024.emnlp-main.1033": 1,
+        "2024.emnlp-main.155": 2,
+        "2024.emnlp-main.740": 1,
+        "2024.emnlp-main.837": 2,
+        "2024.findings-acl.59": 2,
+        "2024.findings-acl.789": 2,
+        "2025.acl-long.1199": 2,
+        "2025.acl-long.349": 2,
+        "2025.findings-acl.1199": 2,
+        "2025.findings-acl.211": 2,
+        "2025.naacl-long.75": 2,
+        "SNB6BwY2zy": 1,
+        "u9Fvsy8Brx": 1
+      },
+      "judgments_meta": {
+        "2024.emnlp-main.1033": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.155": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.740": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.837": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.59": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.789": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.1199": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.349": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.1199": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.211": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.75": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "SNB6BwY2zy": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "u9Fvsy8Brx": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "chain-of-thought prompting for reasoning tasks",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2023.findings-acl.67": 1,
+        "2024.acl-long.720": 2,
+        "2024.emnlp-main.313": 2,
+        "2024.emnlp-main.740": 1,
+        "2024.findings-emnlp.963": 2,
+        "2024.findings-naacl.254": 1,
+        "2024.lrec-main.1306": 2,
+        "2024.lrec-main.81": 2,
+        "2025.coling-main.524": 2,
+        "2025.findings-acl.1290": 2,
+        "2025.findings-acl.956": 2,
+        "43SOcneD8W": 2,
+        "gAzBhetShk": 2,
+        "v6VbokqzvP": 2
+      },
+      "judgments_meta": {
+        "2023.findings-acl.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.720": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.313": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.740": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-emnlp.963": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-naacl.254": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.1306": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.81": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.524": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.1290": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.956": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "43SOcneD8W": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "gAzBhetShk": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "v6VbokqzvP": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "contrastive learning for sentence embeddings",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-short.52": 1,
+        "2021.findings-emnlp.59": 1,
+        "2022.findings-acl.248": 2,
+        "2022.findings-acl.70": 2,
+        "2022.findings-emnlp.223": 2,
+        "2022.naacl-main.284": 2,
+        "2022.naacl-main.340": 1,
+        "2024.emnlp-main.791": 2,
+        "2024.findings-naacl.81": 1,
+        "2024.naacl-long.45": 1,
+        "2025.acl-long.1132": 0
+      },
+      "judgments_meta": {
+        "2021.acl-short.52": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.findings-emnlp.59": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.248": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.70": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.223": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.284": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.340": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.791": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-naacl.81": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.45": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.1132": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "cross-lingual transfer for low-resource languages",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.naacl-main.283": 2,
+        "2021.naacl-main.38": 2,
+        "2022.acl-long.482": 1,
+        "2022.acl-short.29": 1,
+        "2022.coling-1.377": 2,
+        "2022.coling-1.384": 2,
+        "2022.findings-emnlp.499": 2,
+        "2023.acl-short.39": 2,
+        "2024.acl-long.174": 2,
+        "2024.naacl-long.234": 2,
+        "2024.naacl-long.24": 2,
+        "2025.coling-main.165": 2,
+        "2025.coling-main.480": 2,
+        "2025.findings-acl.240": 2,
+        "SNB6BwY2zy": 1
+      },
+      "judgments_meta": {
+        "2021.naacl-main.283": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.38": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.482": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-short.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.377": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.384": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.499": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-short.39": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.174": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.234": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.24": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.165": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.480": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.240": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "SNB6BwY2zy": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "instruction tuning for large language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2024.findings-acl.766": 2,
+        "2024.findings-emnlp.128": 2,
+        "2024.findings-naacl.270": 1,
+        "2024.lrec-main.180": 0,
+        "2024.naacl-long.260": 0,
+        "2024.naacl-long.421": 2,
+        "2025.coling-main.480": 2,
+        "2025.coling-main.731": 1,
+        "2025.findings-acl.1232": 2,
+        "2025.findings-naacl.344": 2,
+        "2025.findings-naacl.7": 2,
+        "Q4u18Ui7YS": 2
+      },
+      "judgments_meta": {
+        "2024.findings-acl.766": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.128": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-naacl.270": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.180": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.naacl-long.260": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.naacl-long.421": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.480": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.731": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-acl.1232": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-naacl.344": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-naacl.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "Q4u18Ui7YS": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "knowledge distillation for compact language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "0kseDcA5Nm": 0,
+        "2020.coling-main.302": 1,
+        "2022.emnlp-industry.60": 2,
+        "2022.naacl-main.341": 2,
+        "2023.findings-acl.67": 0,
+        "2024.findings-acl.264": 2,
+        "2024.findings-acl.464": 2,
+        "2025.coling-main.191": 0,
+        "2025.coling-main.499": 1,
+        "2025.findings-acl.1182": 0,
+        "2025.findings-acl.165": 0,
+        "2025.findings-acl.956": 0,
+        "2025.naacl-long.151": 0,
+        "43SOcneD8W": 1
+      },
+      "judgments_meta": {
+        "0kseDcA5Nm": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2020.coling-main.302": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-industry.60": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.341": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.findings-acl.264": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.464": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.191": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.coling-main.499": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-acl.1182": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.findings-acl.165": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.findings-acl.956": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.naacl-long.151": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "43SOcneD8W": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "bias and fairness evaluation in NLP models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.321": 2,
+        "2021.acl-short.85": 1,
+        "2021.naacl-main.399": 1,
+        "2022.findings-acl.184": 2,
+        "2022.findings-emnlp.202": 1,
+        "2024.emnlp-industry.16": 2,
+        "2024.findings-acl.530": 2,
+        "2024.naacl-long.332": 2,
+        "2025.coling-main.202": 2,
+        "2025.findings-naacl.199": 2,
+        "2025.naacl-long.466": 0,
+        "vpkEJM9qYR": 0
+      },
+      "judgments_meta": {
+        "2021.acl-long.321": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.399": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.184": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.202": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-industry.16": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.530": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.332": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.202": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-naacl.199": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.466": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "vpkEJM9qYR": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "dense passage retrieval for open-domain QA",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.findings-emnlp.26": 2,
+        "2021.naacl-main.46": 2,
+        "2022.acl-long.493": 2,
+        "2022.coling-1.89": 2,
+        "2023.findings-acl.263": 2,
+        "2024.acl-long.236": 2,
+        "2024.emnlp-main.1259": 1,
+        "2025.coling-main.724": 1,
+        "2025.naacl-long.300": 2,
+        "3ymHqvobHJ": 2,
+        "YO2VZBcinK": 2,
+        "gXq1cwkUZc": 1,
+        "zwqDROxClj": 1
+      },
+      "judgments_meta": {
+        "2021.findings-emnlp.26": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.46": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.493": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.89": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.263": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.236": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.1259": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.724": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-long.300": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "3ymHqvobHJ": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "YO2VZBcinK": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "gXq1cwkUZc": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "zwqDROxClj": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "named entity recognition with pretrained transformers",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.343": 1,
+        "2021.acl-long.63": 2,
+        "2021.naacl-main.271": 2,
+        "2022.emnlp-main.61": 2,
+        "2022.findings-acl.155": 2,
+        "2022.findings-acl.250": 2,
+        "2022.findings-acl.9": 2,
+        "2023.acl-long.598": 2,
+        "2024.lrec-main.959": 2,
+        "2025.coling-main.725": 2,
+        "VeBoHwiA7g": 2,
+        "tquKyw04gE": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.343": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.63": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.271": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.61": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.155": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.250": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.9": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.598": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.959": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.725": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "VeBoHwiA7g": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "tquKyw04gE": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "abstractive text summarization with pretrained models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.606": 2,
+        "2021.acl-short.135": 2,
+        "2021.emnlp-main.12": 2,
+        "2021.emnlp-main.744": 2,
+        "2021.naacl-main.381": 2,
+        "2021.naacl-main.397": 2,
+        "2021.naacl-main.56": 2,
+        "2022.acl-long.207": 2,
+        "2022.naacl-main.120": 2,
+        "2023.findings-acl.427": 1,
+        "2024.lrec-main.1298": 1,
+        "2024.naacl-long.371": 1,
+        "2024.naacl-short.1": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.606": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.135": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.12": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.744": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.397": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.56": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.207": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.120": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.427": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.1298": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.371": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-short.1": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "dialogue state tracking for task-oriented dialogue",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.naacl-main.265": 1,
+        "2021.naacl-main.266": 1,
+        "2022.acl-long.165": 2,
+        "2022.acl-short.66": 1,
+        "2022.emnlp-industry.17": 1,
+        "2022.emnlp-main.177": 1,
+        "2022.emnlp-main.56": 2,
+        "2022.findings-emnlp.533": 1,
+        "2022.findings-naacl.154": 1,
+        "2022.findings-naacl.197": 1,
+        "2022.naacl-demo.5": 0,
+        "2022.naacl-main.87": 0,
+        "2024.emnlp-main.485": 2
+      },
+      "judgments_meta": {
+        "2021.naacl-main.265": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.266": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.165": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-short.66": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-industry.17": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.177": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.56": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.533": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-naacl.154": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-naacl.197": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-demo.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.naacl-main.87": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.emnlp-main.485": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "data augmentation techniques for text classification",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-industry.18": 1,
+        "2020.coling-industry.19": 1,
+        "2020.coling-main.23": 2,
+        "2020.coling-main.343": 2,
+        "2021.acl-short.85": 0,
+        "2021.emnlp-main.408": 2,
+        "2021.naacl-industry.16": 1,
+        "2022.coling-1.586": 2,
+        "2022.naacl-main.340": 2,
+        "2023.acl-industry.30": 2,
+        "2024.emnlp-main.1240": 1,
+        "2024.findings-acl.615": 2,
+        "2025.findings-naacl.359": 2,
+        "2025.naacl-long.526": 2
+      },
+      "judgments_meta": {
+        "2020.coling-industry.18": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-industry.19": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.23": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.343": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-main.408": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-industry.16": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.586": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.340": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-industry.30": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.1240": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.615": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-naacl.359": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.526": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "few-shot learning for natural language understanding",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.495": 2,
+        "2021.findings-emnlp.389": 2,
+        "2021.naacl-main.106": 2,
+        "2021.naacl-main.88": 2,
+        "2022.coling-1.180": 2,
+        "2022.coling-1.289": 2,
+        "2022.coling-1.629": 1,
+        "2022.emnlp-main.509": 1,
+        "2022.emnlp-main.73": 1,
+        "2022.findings-acl.155": 2,
+        "2022.findings-acl.166": 0,
+        "2023.acl-long.102": 2,
+        "2023.findings-acl.64": 1,
+        "2024.naacl-long.58": 2,
+        "jp80nsryCF": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.495": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.389": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.106": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.88": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.180": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.289": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.629": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.509": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.73": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.155": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.166": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.acl-long.102": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.64": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.58": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "jp80nsryCF": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "prompt engineering for zero-shot classification",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-short.99": 2,
+        "2021.emnlp-main.399": 1,
+        "2021.naacl-main.106": 1,
+        "2022.coling-1.289": 2,
+        "2022.emnlp-main.509": 2,
+        "2022.emnlp-main.73": 2,
+        "2022.findings-acl.5": 1,
+        "2022.naacl-main.167": 2,
+        "2023.acl-industry.71": 2,
+        "2023.findings-acl.64": 2,
+        "2024.acl-demos.5": 1,
+        "2024.lrec-main.1537": 0,
+        "2025.findings-naacl.359": 1
+      },
+      "judgments_meta": {
+        "2021.acl-short.99": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.399": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.106": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.289": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.509": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.73": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.167": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-industry.71": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.64": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-demos.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.1537": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.findings-naacl.359": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "speech recognition with self-supervised pretraining",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.68": 2,
+        "2021.emnlp-main.232": 1,
+        "2022.naacl-main.280": 1,
+        "2022.naacl-main.432": 1,
+        "2023.acl-long.639": 2,
+        "2023.findings-acl.424": 1,
+        "2024.acl-long.392": 1,
+        "2024.findings-acl.416": 1,
+        "2024.findings-emnlp.63": 0,
+        "2024.lrec-main.1246": 1,
+        "2024.lrec-main.1509": 1,
+        "2024.lrec-main.827": 1,
+        "2024.naacl-industry.12": 0,
+        "2025.naacl-long.153": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.232": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.280": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.432": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.639": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.424": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.392": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.416": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-emnlp.63": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.lrec-main.1246": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.1509": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.827": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-industry.12": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.naacl-long.153": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "machine translation for low-resource language pairs",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.302": 2,
+        "2020.coling-main.349": 2,
+        "2020.coling-main.533": 2,
+        "2021.acl-long.101": 1,
+        "2021.acl-long.225": 2,
+        "2022.acl-short.68": 2,
+        "2022.coling-1.395": 2,
+        "2022.findings-emnlp.166": 0,
+        "2023.acl-short.90": 0,
+        "2023.findings-acl.512": 1,
+        "2024.findings-acl.781": 2,
+        "2024.lrec-main.1033": 2,
+        "2024.lrec-main.1290": 1,
+        "2025.coling-main.124": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.302": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.349": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.533": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-long.101": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.225": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-short.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.395": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.166": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.acl-short.90": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.findings-acl.512": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.781": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.1033": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.1290": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.124": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "sentiment analysis on social media text",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.157": 1,
+        "2020.coling-main.23": 2,
+        "2020.coling-main.590": 2,
+        "2021.acl-long.29": 2,
+        "2021.findings-emnlp.390": 2,
+        "2022.coling-1.607": 2,
+        "2022.findings-naacl.132": 1,
+        "2022.naacl-main.115": 2,
+        "2022.naacl-main.50": 2,
+        "2023.findings-acl.612": 2,
+        "2024.findings-acl.289": 2,
+        "2024.lrec-main.56": 2,
+        "2024.lrec-main.902": 2,
+        "2025.coling-main.291": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.157": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.23": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.590": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-long.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.390": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.607": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-naacl.132": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.115": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.50": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.612": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.289": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.56": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.902": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.291": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "coreference resolution in long documents",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.508": 2,
+        "2020.coling-main.78": 1,
+        "2021.acl-long.166": 0,
+        "2021.acl-long.364": 2,
+        "2021.emnlp-main.103": 1,
+        "2021.naacl-main.265": 1,
+        "2022.naacl-industry.33": 1,
+        "2024.lrec-main.23": 2,
+        "2024.naacl-long.63": 2,
+        "2025.acl-long.1162": 1,
+        "2025.acl-long.1341": 1,
+        "2025.coling-main.566": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.508": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.78": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.166": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-long.364": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.103": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.265": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-industry.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.23": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.63": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.1162": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.1341": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.566": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "graph neural networks for knowledge base completion",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.143": 1,
+        "2021.acl-long.513": 1,
+        "2021.acl-long.64": 1,
+        "2021.emnlp-demo.2": 1,
+        "2021.naacl-main.45": 2,
+        "2022.coling-1.398": 2,
+        "2022.coling-1.416": 2,
+        "2022.findings-naacl.95": 1,
+        "2024.emnlp-main.548": 1,
+        "2024.findings-acl.289": 0,
+        "2024.lrec-main.707": 1,
+        "2025.coling-main.191": 0,
+        "2025.coling-main.595": 2,
+        "lKi1myznJe": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.143": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.513": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.64": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-demo.2": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.45": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.398": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.416": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-naacl.95": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.548": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.289": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.lrec-main.707": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.191": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.coling-main.595": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "lKi1myznJe": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "adversarial robustness of text classifiers",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.585": 2,
+        "2021.emnlp-main.464": 2,
+        "2022.emnlp-main.771": 2,
+        "2022.findings-acl.134": 2,
+        "2022.findings-acl.18": 1,
+        "2022.findings-naacl.8": 2,
+        "2022.naacl-industry.30": 2,
+        "2024.emnlp-main.481": 2,
+        "2024.findings-emnlp.369": 1,
+        "2024.findings-emnlp.753": 1,
+        "2025.coling-main.457": 1,
+        "2025.naacl-long.27": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.585": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.464": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.771": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.134": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.18": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-naacl.8": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-industry.30": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.481": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.369": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-emnlp.753": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.457": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-long.27": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "multi-hop reasoning over knowledge graphs",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.64": 0,
+        "2021.naacl-main.45": 2,
+        "2022.acl-long.35": 1,
+        "2022.acl-long.422": 2,
+        "2022.coling-1.125": 2,
+        "2022.findings-acl.33": 1,
+        "2022.findings-naacl.207": 2,
+        "2023.acl-long.231": 2,
+        "2023.acl-long.338": 1,
+        "2023.findings-acl.67": 1,
+        "2024.findings-acl.696": 2,
+        "2024.lrec-main.1367": 2,
+        "2025.coling-main.191": 1,
+        "2025.coling-main.595": 1,
+        "2025.coling-main.88": 2,
+        "lKi1myznJe": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.64": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.naacl-main.45": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.35": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.422": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.125": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-naacl.207": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.231": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.338": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.findings-acl.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.696": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.1367": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.191": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.595": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.88": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "lKi1myznJe": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "topic modeling for large text corpora",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.428": 0,
+        "2020.coling-main.458": 2,
+        "2021.naacl-main.243": 2,
+        "2022.acl-long.413": 2,
+        "2022.coling-1.81": 2,
+        "2023.acl-short.136": 1,
+        "2023.findings-acl.271": 2,
+        "2024.acl-long.390": 1,
+        "2024.emnlp-main.2": 0,
+        "2024.lrec-main.1064": 2,
+        "2025.acl-long.1250": 0,
+        "RbE83Pmtfk": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.428": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2020.coling-main.458": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.243": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.413": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.81": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-short.136": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.findings-acl.271": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.390": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.2": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.lrec-main.1064": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.1250": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "RbE83Pmtfk": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "aspect-based sentiment analysis",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.29": 2,
+        "2021.findings-emnlp.390": 2,
+        "2022.coling-1.581": 2,
+        "2022.coling-1.586": 2,
+        "2022.coling-1.599": 2,
+        "2022.naacl-main.115": 2,
+        "2023.findings-acl.612": 2,
+        "2023.findings-acl.777": 2,
+        "2024.findings-acl.289": 1,
+        "2024.lrec-main.56": 2,
+        "2024.lrec-main.902": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.390": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.581": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.586": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.599": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.115": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.612": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.777": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.289": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.56": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.902": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "neural machine translation with transformer architectures",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.349": 1,
+        "2021.acl-long.101": 2,
+        "2021.acl-long.368": 2,
+        "2021.emnlp-main.5": 1,
+        "2021.emnlp-main.579": 2,
+        "2021.findings-emnlp.323": 2,
+        "2021.naacl-main.7": 2,
+        "2022.acl-short.68": 1,
+        "2022.coling-1.395": 1,
+        "2022.coling-1.466": 2,
+        "2023.acl-short.112": 2,
+        "2023.findings-acl.512": 1,
+        "2024.acl-long.336": 1,
+        "2024.lrec-main.337": 2,
+        "NHeAUKlTO8": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.349": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.101": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-long.368": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.579": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.323": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-short.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.395": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.466": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-short.112": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.512": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.336": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.337": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "NHeAUKlTO8": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "text-to-SQL semantic parsing",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.115": 1,
+        "2021.naacl-main.103": 2,
+        "2021.naacl-main.220": 2,
+        "2022.acl-long.35": 1,
+        "2022.acl-long.422": 0,
+        "2022.coling-1.148": 1,
+        "2022.emnlp-main.394": 1,
+        "2023.acl-industry.31": 1,
+        "2023.findings-acl.774": 1,
+        "2024.lrec-main.539": 2,
+        "2025.coling-main.36": 2,
+        "gAzBhetShk": 2,
+        "rBfVlElyVW": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.115": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.103": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.220": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.35": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.422": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.coling-1.148": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.394": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-industry.31": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.findings-acl.774": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.539": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.36": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "gAzBhetShk": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "rBfVlElyVW": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "event extraction from news text",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.9": 2,
+        "2021.acl-long.18": 2,
+        "2021.naacl-main.6": 2,
+        "2022.coling-1.201": 2,
+        "2022.naacl-demo.7": 2,
+        "2023.findings-acl.637": 1,
+        "2024.acl-long.390": 1,
+        "2024.naacl-long.457": 2,
+        "2025.acl-long.414": 2,
+        "2025.acl-long.801": 1,
+        "2025.coling-main.274": 2,
+        "2025.coling-main.500": 2,
+        "CluDBdRhUp": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.9": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-long.18": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.6": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.201": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-demo.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.637": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.390": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.457": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.414": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.801": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.274": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.500": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "CluDBdRhUp": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "relation extraction with distant supervision",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.148": 2,
+        "2020.coling-main.564": 2,
+        "2021.emnlp-main.228": 1,
+        "2021.emnlp-main.366": 1,
+        "2021.naacl-main.5": 1,
+        "2022.coling-1.197": 2,
+        "2022.emnlp-main.568": 1,
+        "2022.emnlp-main.704": 1,
+        "2022.findings-acl.5": 1,
+        "2022.findings-emnlp.3": 0,
+        "2022.findings-naacl.24": 2,
+        "2022.naacl-industry.33": 1,
+        "2024.lrec-main.255": 1,
+        "2025.coling-main.447": 1,
+        "2025.naacl-long.70": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.148": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.564": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.228": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.366": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.197": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.568": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.emnlp-main.704": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-emnlp.3": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-naacl.24": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-industry.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.255": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.447": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-long.70": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "question generation from text passages",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.509": 1,
+        "2021.acl-short.33": 1,
+        "2021.emnlp-main.108": 2,
+        "2021.naacl-main.340": 2,
+        "2022.acl-long.479": 0,
+        "2022.findings-acl.151": 2,
+        "2022.findings-emnlp.381": 0,
+        "2023.findings-acl.899": 2,
+        "2024.lrec-main.49": 2,
+        "2025.acl-long.746": 0,
+        "2025.coling-main.647": 0,
+        "2025.naacl-long.301": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.509": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.108": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.340": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.479": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-acl.151": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.findings-acl.899": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.49": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.acl-long.746": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.coling-main.647": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.naacl-long.301": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "evaluation metrics for text generation quality",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.420": 2,
+        "2021.acl-short.135": 2,
+        "2021.emnlp-main.701": 2,
+        "2022.emnlp-main.131": 2,
+        "2022.naacl-main.133": 1,
+        "2022.naacl-main.259": 2,
+        "2023.acl-long.511": 1,
+        "2024.findings-acl.80": 2,
+        "2024.findings-emnlp.276": 1,
+        "2024.lrec-main.919": 1,
+        "2025.acl-long.258": 1,
+        "2025.acl-long.746": 1,
+        "2025.coling-main.668": 1,
+        "IFNbElsnCi": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.420": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.135": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.701": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.131": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.133": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.259": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.511": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.80": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.276": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.919": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.258": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.746": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.668": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "IFNbElsnCi": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "self-supervised pretraining objectives for language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.239": 1,
+        "2021.acl-short.85": 0,
+        "2021.emnlp-main.12": 2,
+        "2021.findings-emnlp.389": 0,
+        "2021.naacl-main.219": 0,
+        "2022.acl-short.16": 2,
+        "2022.emnlp-main.100": 0,
+        "2022.emnlp-main.382": 1,
+        "2023.acl-long.182": 1,
+        "2023.acl-long.212": 1,
+        "2023.acl-long.280": 1,
+        "2023.acl-long.739": 1,
+        "2024.emnlp-main.566": 0,
+        "2024.emnlp-main.68": 0,
+        "2024.lrec-main.827": 1
+      },
+      "judgments_meta": {
+        "2021.acl-long.239": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-main.12": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.389": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.naacl-main.219": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.acl-short.16": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.100": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.emnlp-main.382": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.182": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.212": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.280": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.739": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.566": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.emnlp-main.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.lrec-main.827": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "code generation with large language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2023.acl-long.511": 1,
+        "2024.acl-long.269": 2,
+        "2024.acl-long.737": 2,
+        "2024.findings-acl.679": 1,
+        "2024.findings-emnlp.996": 2,
+        "2024.lrec-main.548": 2,
+        "2025.coling-main.733": 2,
+        "2025.findings-acl.476": 1,
+        "2025.findings-naacl.139": 1,
+        "2025.findings-naacl.230": 2,
+        "MyTyc69kKK": 2
+      },
+      "judgments_meta": {
+        "2023.acl-long.511": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.269": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.737": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.679": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-emnlp.996": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.548": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.733": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.476": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-naacl.139": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-naacl.230": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "MyTyc69kKK": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "commonsense reasoning benchmarks for language models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-short.85": 1,
+        "2021.emnlp-main.307": 2,
+        "2021.emnlp-main.456": 1,
+        "2022.coling-1.128": 2,
+        "2022.emnlp-main.154": 1,
+        "2022.findings-acl.149": 2,
+        "2023.findings-acl.67": 1,
+        "2024.acl-long.406": 1,
+        "2024.acl-long.720": 1,
+        "2024.findings-naacl.254": 1,
+        "2024.naacl-long.125": 1,
+        "2025.coling-main.608": 1,
+        "2025.findings-naacl.7": 0,
+        "OwWIl6gb1z": 2
+      },
+      "judgments_meta": {
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.307": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.456": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.128": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.154": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.149": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.406": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.720": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-naacl.254": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.125": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.608": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-naacl.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "OwWIl6gb1z": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "long-document summarization with hierarchical attention",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.606": 1,
+        "2021.acl-long.31": 1,
+        "2021.acl-short.135": 1,
+        "2021.emnlp-main.13": 2,
+        "2021.emnlp-main.744": 2,
+        "2021.naacl-main.381": 2,
+        "2021.naacl-main.382": 1,
+        "2021.naacl-main.397": 1,
+        "2022.acl-long.207": 1,
+        "2022.coling-1.526": 0,
+        "2022.naacl-main.120": 2,
+        "2022.naacl-main.25": 1,
+        "2023.findings-acl.427": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.606": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.31": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.135": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.13": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-main.744": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.382": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.397": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.207": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.526": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.naacl-main.120": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.25": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.findings-acl.427": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "entity linking to knowledge bases",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.84": 1,
+        "2021.acl-long.139": 1,
+        "2021.acl-long.364": 1,
+        "2021.acl-long.64": 2,
+        "2021.emnlp-demo.2": 1,
+        "2021.emnlp-main.366": 1,
+        "2021.naacl-main.5": 1,
+        "2022.coling-1.148": 1,
+        "2022.findings-acl.183": 1,
+        "2022.naacl-industry.33": 2,
+        "2023.acl-long.607": 1,
+        "2024.lrec-main.255": 1,
+        "o7SWorg8EM": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.84": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.139": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.364": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.64": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.emnlp-demo.2": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.emnlp-main.366": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.5": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.148": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.183": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-industry.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.607": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.255": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "o7SWorg8EM": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "paraphrase detection and generation",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.148": 1,
+        "2020.coling-main.420": 0,
+        "2021.acl-long.531": 2,
+        "2021.acl-short.135": 0,
+        "2021.acl-short.85": 0,
+        "2021.emnlp-main.65": 0,
+        "2021.findings-emnlp.72": 2,
+        "2022.coling-1.345": 1,
+        "2022.findings-naacl.160": 2,
+        "2024.findings-emnlp.369": 1,
+        "2025.acl-long.746": 0,
+        "2025.naacl-long.506": 0,
+        "OwWIl6gb1z": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.148": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.420": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-long.531": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.135": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-main.65": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.findings-emnlp.72": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.345": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-naacl.160": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.369": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.746": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.naacl-long.506": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "OwWIl6gb1z": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "hate speech and toxic language detection",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.560": 2,
+        "2022.emnlp-main.383": 2,
+        "2022.findings-acl.87": 2,
+        "2024.acl-long.684": 2,
+        "2024.naacl-long.236": 2,
+        "2024.naacl-long.248": 2,
+        "2024.naacl-long.400": 2,
+        "2025.coling-main.373": 2,
+        "2025.coling-main.535": 2,
+        "2025.naacl-long.490": 2,
+        "2025.naacl-long.92": 2,
+        "ZB66oX17CQ": 2,
+        "gQUDsNE3Lh": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.560": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.383": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-acl.87": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.684": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.236": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.248": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.400": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.373": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.535": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.490": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.92": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "ZB66oX17CQ": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "gQUDsNE3Lh": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "active learning for text annotation",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.430": 2,
+        "2021.acl-short.85": 0,
+        "2021.emnlp-main.408": 0,
+        "2021.naacl-demos.12": 2,
+        "2021.naacl-industry.2": 1,
+        "2021.naacl-main.106": 1,
+        "2024.emnlp-main.1240": 2,
+        "2024.findings-acl.264": 0,
+        "2024.lrec-main.1553": 1,
+        "2024.lrec-main.413": 2,
+        "2025.coling-main.130": 1,
+        "2025.coling-main.227": 1,
+        "vpkEJM9qYR": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.430": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-main.408": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.naacl-demos.12": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-industry.2": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.106": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.1240": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.264": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.lrec-main.1553": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.413": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.130": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.227": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "vpkEJM9qYR": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "multimodal learning combining vision and language",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2022.emnlp-main.100": 2,
+        "2022.naacl-main.280": 2,
+        "2024.acl-long.498": 2,
+        "2024.acl-long.521": 2,
+        "2024.findings-acl.700": 2,
+        "2024.findings-emnlp.921": 2,
+        "2024.findings-emnlp.975": 2,
+        "2024.findings-naacl.105": 2,
+        "2024.lrec-main.1": 2,
+        "2024.lrec-main.1417": 2,
+        "2024.lrec-main.180": 2,
+        "2025.coling-main.647": 2,
+        "2025.findings-acl.178": 2,
+        "2025.findings-acl.389": 2
+      },
+      "judgments_meta": {
+        "2022.emnlp-main.100": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.280": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.498": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.521": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.700": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.921": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.975": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-naacl.105": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.1": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.1417": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.180": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.647": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.178": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.389": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "constituency and dependency parsing with neural models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.339": 2,
+        "2020.coling-main.78": 0,
+        "2021.acl-long.557": 2,
+        "2021.findings-emnlp.307": 1,
+        "2021.naacl-demos.1": 2,
+        "2021.naacl-main.128": 0,
+        "2021.naacl-main.271": 1,
+        "2022.acl-long.283": 1,
+        "2022.coling-1.384": 2,
+        "2022.coling-1.483": 2,
+        "2023.findings-acl.726": 0,
+        "2024.acl-short.22": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.339": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2020.coling-main.78": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-long.557": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.findings-emnlp.307": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-demos.1": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.128": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.naacl-main.271": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.283": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.384": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.483": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.726": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.acl-short.22": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "word sense disambiguation with contextual embeddings",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-demos.7": 1,
+        "2021.acl-long.542": 2,
+        "2021.acl-short.102": 1,
+        "2021.acl-short.52": 0,
+        "2021.emnlp-demo.19": 0,
+        "2021.findings-emnlp.78": 2,
+        "2022.acl-long.87": 1,
+        "2022.coling-1.362": 1,
+        "2022.coling-1.368": 2,
+        "2024.acl-long.575": 2,
+        "2024.findings-acl.451": 1,
+        "2025.coling-main.419": 2
+      },
+      "judgments_meta": {
+        "2020.coling-demos.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.542": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.102": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.52": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-demo.19": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.findings-emnlp.78": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.87": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.362": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.368": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.575": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-acl.451": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.419": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "stance detection in argumentative text",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.35": 1,
+        "2020.coling-main.470": 1,
+        "2020.coling-main.540": 1,
+        "2022.acl-long.162": 1,
+        "2023.acl-long.425": 1,
+        "2024.acl-long.49": 2,
+        "2024.emnlp-main.1174": 1,
+        "2024.findings-naacl.128": 2,
+        "2024.naacl-long.457": 0,
+        "2025.coling-main.145": 1,
+        "jMwvnqKTBG": 1,
+        "yB8cQIICqe": 2
+      },
+      "judgments_meta": {
+        "2020.coling-main.35": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.470": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.540": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.162": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.425": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.49": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.1174": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-naacl.128": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.457": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.coling-main.145": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "jMwvnqKTBG": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "yB8cQIICqe": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "numerical and temporal reasoning in text",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.241": 1,
+        "2021.acl-long.455": 2,
+        "2022.acl-long.454": 2,
+        "2023.findings-acl.67": 1,
+        "2024.acl-long.720": 1,
+        "2024.findings-acl.696": 2,
+        "2024.findings-emnlp.963": 2,
+        "2024.naacl-long.125": 1,
+        "2025.acl-long.820": 1,
+        "2025.coling-main.655": 1,
+        "2025.naacl-long.383": 2,
+        "2025.naacl-short.47": 2,
+        "HR90GXVHUn": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.241": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-long.455": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-long.454": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.findings-acl.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.acl-long.720": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-acl.696": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.963": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.125": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.acl-long.820": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.655": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-long.383": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-short.47": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "HR90GXVHUn": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "model compression and quantization for deployment",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "01wSNY5T60": 2,
+        "2022.findings-emnlp.361": 2,
+        "2023.acl-long.511": 0,
+        "2024.acl-long.685": 1,
+        "2024.emnlp-main.68": 2,
+        "2024.findings-emnlp.787": 2,
+        "2024.lrec-main.945": 2,
+        "2024.naacl-long.8": 0,
+        "2025.acl-long.241": 1,
+        "2025.coling-main.158": 2,
+        "2025.findings-acl.208": 2,
+        "2025.naacl-long.368": 1
+      },
+      "judgments_meta": {
+        "01wSNY5T60": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.361": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2023.acl-long.511": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.acl-long.685": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.emnlp-main.68": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.787": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.945": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.8": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2025.acl-long.241": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.158": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-acl.208": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.368": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "calibration and uncertainty estimation in NLP models",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-short.85": 0,
+        "2021.naacl-main.325": 0,
+        "2022.coling-1.67": 2,
+        "2022.emnlp-main.812": 0,
+        "2022.findings-emnlp.202": 0,
+        "2022.findings-emnlp.204": 2,
+        "2022.findings-emnlp.544": 0,
+        "2022.naacl-main.435": 0,
+        "2023.acl-long.75": 2,
+        "2024.acl-long.276": 2,
+        "2024.naacl-long.189": 1,
+        "2024.naacl-long.340": 2,
+        "2025.naacl-long.29": 1,
+        "2025.naacl-long.466": 0,
+        "fsGowIsscZ": 2
+      },
+      "judgments_meta": {
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.naacl-main.325": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.coling-1.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.emnlp-main.812": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-emnlp.202": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-emnlp.204": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.findings-emnlp.544": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.naacl-main.435": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2023.acl-long.75": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.acl-long.276": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.naacl-long.189": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-long.340": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-long.466": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "fsGowIsscZ": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "span-based extractive question answering",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2021.acl-long.239": 2,
+        "2021.acl-long.241": 0,
+        "2021.acl-long.519": 1,
+        "2021.acl-short.33": 0,
+        "2021.findings-emnlp.385": 2,
+        "2021.naacl-main.99": 0,
+        "2022.acl-long.466": 1,
+        "2022.coling-1.148": 0,
+        "2022.findings-emnlp.381": 1,
+        "2023.acl-long.467": 2,
+        "2024.emnlp-main.1259": 1,
+        "2025.coling-main.469": 2,
+        "2025.coling-main.724": 2,
+        "OxoP1qFotz": 2
+      },
+      "judgments_meta": {
+        "2021.acl-long.239": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-long.241": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-long.519": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.findings-emnlp.385": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.99": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.acl-long.466": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.148": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-emnlp.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2023.acl-long.467": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.emnlp-main.1259": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.469": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.724": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "OxoP1qFotz": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        }
+      }
+    },
+    {
+      "query": "text style transfer and controllable generation",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.420": 0,
+        "2021.acl-long.522": 2,
+        "2021.acl-short.7": 2,
+        "2021.naacl-main.256": 2,
+        "2022.acl-short.29": 2,
+        "2022.coling-1.454": 1,
+        "2022.coling-1.559": 1,
+        "2022.naacl-main.133": 2,
+        "2022.naacl-main.220": 2,
+        "2024.lrec-main.919": 0,
+        "2024.naacl-short.12": 2,
+        "VGb2RhMFAI": 2,
+        "hInB4JIQ5P": 2,
+        "kuYRp78Qnp": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.420": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.acl-long.522": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.256": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.acl-short.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.454": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.559": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.naacl-main.133": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.naacl-main.220": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.lrec-main.919": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.naacl-short.12": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "VGb2RhMFAI": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "hInB4JIQ5P": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "kuYRp78Qnp": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "legal and biomedical domain adaptation for NLP",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.79": 1,
+        "2021.acl-short.129": 1,
+        "2021.naacl-main.325": 1,
+        "2022.acl-long.482": 0,
+        "2022.findings-emnlp.202": 0,
+        "2024.emnlp-main.1120": 1,
+        "2024.findings-emnlp.375": 2,
+        "2024.findings-emnlp.578": 1,
+        "2024.lrec-main.324": 2,
+        "2025.findings-naacl.444": 1,
+        "2025.findings-naacl.7": 2,
+        "OxoP1qFotz": 1,
+        "kqm0SOisFq": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.79": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.acl-short.129": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.325": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.482": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.findings-emnlp.202": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.emnlp-main.1120": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.findings-emnlp.375": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.578": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.lrec-main.324": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.findings-naacl.444": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.findings-naacl.7": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "OxoP1qFotz": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "kqm0SOisFq": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    },
+    {
+      "query": "benchmark dataset construction for NLP evaluation",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.339": 1,
+        "2020.coling-main.66": 2,
+        "2021.acl-short.85": 2,
+        "2021.naacl-main.325": 1,
+        "2022.acl-long.239": 1,
+        "2022.acl-long.482": 1,
+        "2022.coling-1.325": 2,
+        "2022.coling-1.344": 1,
+        "2022.findings-acl.184": 1,
+        "2022.findings-emnlp.202": 2,
+        "2024.findings-emnlp.147": 1,
+        "2024.naacl-demo.21": 1,
+        "2025.coling-main.227": 1,
+        "2025.coling-main.27": 1,
+        "2025.naacl-industry.67": 0
+      },
+      "judgments_meta": {
+        "2020.coling-main.339": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.66": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.naacl-main.325": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.239": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.482": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.coling-1.325": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2022.coling-1.344": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.184": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-emnlp.202": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2024.findings-emnlp.147": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2024.naacl-demo.21": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.227": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.coling-main.27": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2025.naacl-industry.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        }
+      }
+    },
+    {
+      "query": "interpretability and attention analysis in transformers",
+      "pooled_from": [
+        "dense",
+        "hybrid"
+      ],
+      "judgments": {
+        "2020.coling-main.241": 1,
+        "2020.coling-main.67": 2,
+        "2021.acl-short.85": 0,
+        "2021.emnlp-main.90": 1,
+        "2021.naacl-main.381": 1,
+        "2022.acl-long.251": 1,
+        "2022.findings-acl.33": 0,
+        "2022.naacl-main.119": 0,
+        "2024.emnlp-main.965": 2,
+        "2025.coling-main.632": 2,
+        "2025.naacl-long.29": 2,
+        "43SOcneD8W": 1
+      },
+      "judgments_meta": {
+        "2020.coling-main.241": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2020.coling-main.67": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2021.acl-short.85": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2021.emnlp-main.90": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2021.naacl-main.381": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.acl-long.251": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        },
+        "2022.findings-acl.33": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2022.naacl-main.119": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "off_topic"
+        },
+        "2024.emnlp-main.965": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.coling-main.632": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "2025.naacl-long.29": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "on_topic"
+        },
+        "43SOcneD8W": {
+          "provenance": "AI-drafted",
+          "annotator": null,
+          "note": "tangential"
+        }
+      }
+    }
+  ]
+}

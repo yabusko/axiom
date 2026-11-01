@@ -32,8 +32,15 @@ product itself.
 | React frontend | ❌ not started |
 | Composite gap G-score (OD17) | ✅ (uncalibrated defaults) |
 | Threshold (τ) calibration scaffold (PBI 8) | ⚠️ scaffold built (OD17); τ/weights still need human labels |
+| Agentic extraction pipeline (router→extraction→enrichment→linking, R1-R6) | ✅ real 30-paper run, $0.09 — synthesis (strong tier) built but not yet wired into a run, see `docs/agentic/RESULTS.md` |
+| Concept co-occurrence graph (Louvain + PageRank, R7) | ✅ real run: 5 communities, 109 concept rows |
+| Eval v2: ~50-query pooled retrieval judging (R9) | ✅ AI-drafted (51 real queries); not yet human-reviewed |
+| Agent tracing + benchmark (R10) | ✅ real numbers: $0.003/paper, p50 6.8s, see `eval/agent_bench.json` |
 
-See `docs/demo_examples.md` for real, reproducible output of every ✅ row.
+See `docs/demo_examples.md` for real, reproducible output of every ✅ row, and
+`docs/agentic/RESULTS.md` for the agentic pipeline's real numbers and known gaps. **Note:**
+`POST /agents/run` makes real, billed calls to the Anthropic API — never expose this app's API
+port beyond localhost.
 
 ---
 
@@ -148,13 +155,18 @@ scripts/ingest_openalex.py ──────────────►  SQLite
         ▼
 ┌─────────────────────────────┐        ┌──────────────────────────────┐
 │ app/streamlit_app.py         │        │ api/main.py (FastAPI, OD12)   │
-│ Trending · Research gaps ·   │        │ 17 REST routes over the same  │
+│ Trending · Research gaps ·   │        │ 21 REST routes over the same  │
 │ Search · Reading list ·      │        │ axiom/* modules — no React    │
 │ Review queue · Advanced:     │        │ consumer yet                  │
 │ vector geometry              │        │                               │
 │ (imports axiom/* + vector_tools)│      │                               │
 └─────────────────────────────┘        └──────────────────────────────┘
 ```
+
+**Agentic extraction pipeline** (router-worker: coordinator → extraction → enrichment → linking
+→ synthesis; R1-R11): additive on top of the above, async, calling the real Anthropic API with a
+local-Ollama fallback. Full module map, contracts, and schema delta in
+`docs/agentic/ARCHITECTURE.md`; real results in `docs/agentic/RESULTS.md`.
 
 ---
 

@@ -7,12 +7,50 @@ strings scattered across the codebase.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+
+import truststore
+
+# OD24/OD26: make every httpx/requests call in the app trust the OS certificate
+# store instead of certifi's bundled list. On a network with a TLS-inspecting
+# proxy (the dev laptop this was found on), certifi lacks that proxy's root
+# CA while Windows already trusts it -- without this, every outbound HTTPS
+# call (Anthropic API, HuggingFace Hub) fails with CERTIFICATE_VERIFY_FAILED
+# even though a plain OS-level TLS handshake succeeds. Must run before any
+# module constructs an SSLContext, so it lives at the top of config.py, which
+# everything else imports first. Opt-in only (OD26): this rewires trust for
+# the whole process, which is the right call on this inspected-TLS laptop but
+# would be a silent, surprising security-posture change on a network that
+# doesn't need it -- so it's gated behind an explicit env var rather than
+# unconditional, and documented in the README troubleshooting section.
+if os.environ.get("AXIOM_OS_TRUSTSTORE") == "1":
+    truststore.inject_into_ssl()
 
 # --- Paths -------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_ROOT / "data" / "axiom.db"
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
+
+
+def _load_dotenv(path: Path) -> None:
+    """Minimal `.env` loader -- no new dependency (repo keeps the stack pinned
+    and minimal, see requirements.txt). Only fills in vars not already set in
+    the real environment, so an exported ANTHROPIC_API_KEY always wins.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv(PROJECT_ROOT / ".env")
 
 # --- Qdrant ------------------------------------------------------------------
 QDRANT_HOST = "localhost"
@@ -179,3 +217,81 @@ CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
 OLLAMA_HOST = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b"        # good instruction-following/JSON at 7B, fast locally
 OLLAMA_TIMEOUT = 120.0
+
+# --- Agentic pipeline (OD19-OD23, docs/agentic/ARCHITECTURE.md) --------------
+# Provider priority: anthropic iff ANTHROPIC_API_KEY is set, else ollama (mirrors OD14's
+# no-key philosophy -- the pipeline always runs, quality/latency differ by provider).
+LLM_PROVIDER_PRIORITY = ("anthropic", "ollama")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+ANTHROPIC_TIMEOUT = 60.0
+ANTHROPIC_MAX_RETRIES = 5
+ANTHROPIC_BACKOFF_CAP = 30.0
+
+# Model tiers (R6). IDs and prices re-verified live against platform.claude.com/docs
+# (models/overview + pricing pages) on 2026-10-31 (OD26) -- re-verify before relying on
+# these if this drifts far from that date. claude-haiku-5-5 is ~10x cheaper than the
+# claude-haiku-4-5 this superseded for prompts <=100k tokens (the only case this app hits);
+# claude-sonnet-5-5 is the same price as the claude-sonnet-5 it superseded ($2/$10), so this
+# is a quality upgrade at equal cost, not a cost tradeoff.
+MODEL_PRICE_CHECKED_DATE = "2026-10-31"
+MODEL_FAST = "claude-haiku-5-5"
+MODEL_FAST_PRICE_IN = 0.10          # $ / 1M input tokens (prompts <=100k tokens tier)
+MODEL_FAST_PRICE_OUT = 0.50         # $ / 1M output tokens (prompts <=100k tokens tier)
+MODEL_STRONG = "claude-sonnet-5-5"
+MODEL_STRONG_PRICE_IN = 2.00        # $ / 1M input tokens
+MODEL_STRONG_PRICE_OUT = 10.00      # $ / 1M output tokens
+# Third tier, not part of the pipeline's normal fast/strong split -- a second, stronger
+# independent labeler for AI-vs-AI calibration review (B3/E3, stage-2 fixes), same
+# verification date as the two above.
+MODEL_OPUS = "claude-opus-5-5"
+MODEL_OPUS_PRICE_IN = 4.00           # $ / 1M input tokens
+MODEL_OPUS_PRICE_OUT = 20.00         # $ / 1M output tokens
+
+LLM_BUDGET_USD = 3.00               # hard cap on total agentic-pipeline spend (laptop rule)
+
+# C4: per-agent-type max_tokens instead of one constant for every call. Routing only ever
+# returns a one-field RouteDecision; extraction returns a handful of entities. Synthesis
+# (cluster labels + hypothesis pitch, strong tier) is prose, so it keeps the old default.
+AGENT_MAX_TOKENS = {
+    "route": 200,
+    "extraction": 1500,
+    "synthesis": 4096,
+    "pair_judgment": 80,             # B3/E3: a short structured {label, reason} judgment
+}
+_DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed above
+
+AGENT_MAX_RETRIES = 3               # R4: self-correction attempts per agent call
+AGENT_CONCURRENCY = 4               # R5: asyncio.Semaphore limit for worker fan-out
+
+ENTITY_KINDS = ("method", "task", "dataset", "metric")
+ROUTE_ACTIONS = ("full", "title_only", "skip")
+ROUTE_TITLE_ONLY_MIN_WORDS = 40     # A5: abstract shorter than this (or missing) -> title_only
+
+# Calibrated 2026-10-31 (OD28, superseding OD23's 0.95) from 92 real (entity, candidate,
+# cos, margin) pairs with a usable AI-labeled ground truth (two independent blind judges,
+# agreement only -- see scripts/ai_label_enrichment_pairs.py), picked by "highest recall at
+# precision >= 0.9" (scripts/calibrate_enrichment_threshold.py): precision=0.929,
+# recall=0.867 at this point. OD23's original calibration was against a different encoder
+# (SPECTER2, document-level) and a much smaller ontology (~40 labels); B1 moved entity
+# matching onto ENRICHMENT_PHRASE_MODEL below against a 572-label real ontology, so that
+# calibration no longer applied even before this one replaced it. Loosening tau/delta to
+# this point only flips 6/208 new_concept entities to a real match in the reference run --
+# most of the new_concept rate is a real ontology gap, not a threshold problem (OD28).
+VERIFIER_COSINE_MIN = 0.93
+
+# B1: short-phrase embedding model for the entity-name matching cascade (lexical match first,
+# then this, else new_concept) -- SPECTER2 above is a document-level encoder (title+abstract
+# concat) and is the wrong tool for embedding a bare entity name like "Chain-of-Thought
+# Prompting". ~130MB, CPU-fine. Loaded via the same plain transformers AutoModel/AutoTokenizer
+# pattern as axiom/embed.py (no new heavy dependency).
+ENRICHMENT_PHRASE_MODEL = "BAAI/bge-small-en-v1.5"
+# Calibrated alongside VERIFIER_COSINE_MIN above (OD28) -- the labeled data supported no
+# margin requirement at all at this operating point. top1-top2 margin, not a cosine floor.
+ENRICHMENT_MARGIN_DELTA = 0.0
+
+TRACE_DIR = PROJECT_ROOT / "eval" / "runs"
+EVAL_V2_QUERIES_PATH = PROJECT_ROOT / "eval" / "ndcg_queries_v2.json"
+EVAL_V2_SCALE_MAX = 2
+AGENT_BENCH_PATH = PROJECT_ROOT / "eval" / "agent_bench.json"
+STRUCT_RETRIEVAL_CANDIDATES = 200   # R8: candidate pool size for the eval-only concept-overlap arm

@@ -9,10 +9,12 @@ Run from the repo root:
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import re
 import sys
+import uuid
 from pathlib import Path
 
 # Make the repo root importable when Streamlit runs this file directly.
@@ -26,7 +28,8 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from axiom import config, db, gaps, graph, hypothesis, llm, summarize, velocity
+from axiom import config, db, gaps, graph, hypothesis, llm, llm_providers, summarize, velocity
+from axiom.agents import synthesis as synthesis_agent
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant, SearchHit
 from vector_tools import render_proximity_analyzer, render_vector_gap_discovery
@@ -1000,11 +1003,15 @@ def render_graph_view() -> None:
         if st.button("💡 Generate hypothesis pitch", key=f"hyp_{sel_gap_idx}"):
             v = get_velocity_analysis(None, None)
             trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
-            with st.spinner("Generating + verifying pitch locally…"):
+            with st.spinner("Generating + verifying pitch…"):
                 try:
-                    pitch = hypothesis.generate_hypothesis(
-                        sel_gap, g, trend_context=trend_context
-                    )
+                    # D4: the one real hypothesis implementation (strong tier, via
+                    # llm_providers) -- not the older Ollama-only axiom.hypothesis
+                    # path this replaced. generate_hypothesis is async; Streamlit's
+                    # script execution isn't, so run it to completion here.
+                    pitch = asyncio.run(synthesis_agent.generate_hypothesis(
+                        sel_gap, g, run_id=uuid.uuid4().hex, trend_context=trend_context,
+                    ))
                     conn = db.connect()
                     try:
                         db.add_to_review_queue(
@@ -1016,8 +1023,8 @@ def render_graph_view() -> None:
                     finally:
                         conn.close()
                     st.session_state["last_pitch"] = (sel_gap_idx, pitch)
-                except llm.OllamaError as exc:
-                    st.error(f"Ollama error: {exc}")
+                except llm_providers.LLMError as exc:
+                    st.error(f"LLM provider error: {exc}")
                 except hypothesis.VerificationError as exc:
                     st.error(f"Verifier rejected every attempt: {exc}")
 
