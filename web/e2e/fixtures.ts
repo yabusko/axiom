@@ -28,12 +28,12 @@ const GAPS_LIST = { node2c: {}, communities: {}, gaps: [GAP] };
 const GAP_DETAIL = {
   index: 0,
   a: {
-    labels: GAP.a.labels, size: GAP.a.size,
+    cid: GAP.a.cid, labels: GAP.a.labels, size: GAP.a.size,
     top_papers: [{ paper_id: "W_SQUAD", title: "SQuAD: 100,000+ Questions for Machine Comprehension of Text", year: 2016, venue: "EMNLP", cited_by_count: 6208, local_in_degree: 10, pagerank: 0.0829 }],
     methods: ["semantic parser"], datasets: ["freebase"],
   },
   b: {
-    labels: GAP.b.labels, size: GAP.b.size,
+    cid: GAP.b.cid, labels: GAP.b.labels, size: GAP.b.size,
     top_papers: [{ paper_id: "W_FREEBASE", title: "Semantic Parsing on Freebase from Question-Answer Pairs", year: 2013, venue: "EMNLP", cited_by_count: 1583, local_in_degree: 5, pagerank: 0.0431 }],
     methods: [], datasets: [],
   },
@@ -55,6 +55,29 @@ const OVERVIEW = {
   key_papers: [
     { paper_id: "W_SQUAD", title: "SQuAD: 100,000+ Questions for Machine Comprehension of Text", year: 2016, venue: "EMNLP", cited_by_count: 6208, local_in_degree: 10, pagerank: 0.0829 },
   ],
+};
+
+const MAP = {
+  nodes: [
+    { paper_id: "W1", title: GAP.a.labels[0] + " paper", cid: 0, x: -20, y: 0, z: 0 },
+    { paper_id: "W2", title: GAP.b.labels[0] + " paper", cid: 1, x: 20, y: 0, z: 0 },
+    { paper_id: "W_SQUAD", title: "SQuAD: 100,000+ Questions for Machine Comprehension of Text", cid: 0, x: -15, y: 5, z: 0 },
+    { paper_id: "W_FREEBASE", title: "Semantic Parsing on Freebase from Question-Answer Pairs", cid: 1, x: 15, y: -5, z: 0 },
+  ],
+  edges: [["W1", "W2"]],
+  topics: [
+    { cid: 0, label: GAP.a.labels.join(" · "), size: 2 },
+    { cid: 1, label: GAP.b.labels.join(" · "), size: 2 },
+  ],
+  total_papers: 300,
+  capped: false,
+};
+
+const MAP_SIMILARITY = {
+  a_label: GAP.a.labels.join(" · "),
+  b_label: GAP.b.labels.join(" · "),
+  cosine: 0.988,
+  explanation: "99% cosine similarity — near-identical in topic — expect heavy vocabulary and method overlap.",
 };
 
 let shortlistItems: Array<Record<string, unknown>> = [];
@@ -109,6 +132,10 @@ export async function mockApi(page: Page) {
     shortlistItems = shortlistItems.map((i) => (i.id === 1 ? { ...i, ...body } : i));
     return route.fulfill({ json: shortlistItems[0] });
   });
+  await page.route(`http://localhost:8000/fields/${FIELD_ID}/map`, (route) => route.fulfill({ json: MAP }));
+  await page.route(`http://localhost:8000/fields/${FIELD_ID}/map/similarity**`, (route) =>
+    route.fulfill({ json: MAP_SIMILARITY }),
+  );
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/shortlist/export.md`, (route) =>
     route.fulfill({
       contentType: "text/markdown",

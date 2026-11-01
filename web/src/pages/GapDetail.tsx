@@ -93,6 +93,10 @@ export default function GapDetail() {
         label="Uncalibrated score"
         note={`G-score ${data.g_score.toFixed(3)} blends similarity, disconnection, concept velocity and authority with default weights not yet calibrated against labeled gap data — read it as a ranking signal, not a verified measurement.`}
       />
+      {" "}
+      <a className="btn-quiet" href={`/fields/${fieldId}/map?a=${data.a.cid}&b=${data.b.cid}`}>
+        Show on map →
+      </a>
 
       <div style={{ margin: "var(--space-6) 0" }}>
         <BridgeDiagram

@@ -31,12 +31,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import numpy as np
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, fields as fieldsmod, llm_providers
+from axiom import concept_graph, config, db, embedding_map as mapmod, fields as fieldsmod, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
@@ -275,6 +276,7 @@ class OverviewOut(BaseModel):
 
 
 class SideDetailOut(BaseModel):
+    cid: int                     # community id -- lets the frontend link to Map's ?a=/?b=
     labels: list[str]
     size: int
     top_papers: list[PaperRankOut]
@@ -312,6 +314,37 @@ class FieldPaperOut(BaseModel):
     cited_by_count: int
     doi: str | None
     entities: list[EntityOut]
+
+
+# --- Map screen (stage-3 product redesign) ------------------------------------
+class MapNodeOut(BaseModel):
+    paper_id: str
+    title: str | None
+    cid: int                     # community id, for topic coloring
+    x: float
+    y: float
+    z: float
+
+
+class MapTopicOut(BaseModel):
+    cid: int
+    label: str
+    size: int                    # papers from this topic present in the map (post-cap)
+
+
+class MapOut(BaseModel):
+    nodes: list[MapNodeOut]
+    edges: list[tuple[str, str]]
+    topics: list[MapTopicOut]
+    total_papers: int            # papers in the field, before the node cap
+    capped: bool                 # True if total_papers > len(nodes)
+
+
+class MapSimilarityOut(BaseModel):
+    a_label: str
+    b_label: str
+    cosine: float
+    explanation: str
 
 
 # draft/kept/discarded is the product-facing vocabulary (PRODUCT.md); the
@@ -808,6 +841,49 @@ def _field_gap_analysis(row: sqlite3.Row, g=None):
         conn.close()
 
 
+@lru_cache(maxsize=8)
+def _field_map_data(field_id: str) -> MapOut:
+    """Nodes/edges/topics for the Map screen, capped at `config.MAP_NODE_CAP`
+    by PageRank (same ranking `graphmod.influence`/`top_influential_subgraph`
+    already use elsewhere) so a laptop GPU can render the 3D view. PCA is
+    computed once over just the capped set and cached here per field_id --
+    deterministic given the same vectors (`embedding_map.project`), so this is
+    safe to cache indefinitely for a field that isn't being rebuilt.
+    """
+    row = _resolve_field(field_id)
+    g = _field_graph(row)
+    analysis = _field_gap_analysis(row, g)
+    total_papers = graphmod.stats(g)["papers"]
+
+    capped = graphmod.top_influential_subgraph(g, n=config.MAP_NODE_CAP)
+    node_ids = list(capped.nodes())
+
+    vectors = _field_store(row).fetch_dense_vectors()
+    coords = mapmod.project({pid: vectors[pid] for pid in node_ids if pid in vectors})
+
+    nodes = [
+        MapNodeOut(
+            paper_id=pid, title=g.nodes[pid].get("title"),
+            cid=analysis.node2c.get(pid, -1),
+            x=coords.get(pid, [0.0, 0.0, 0.0])[0],
+            y=coords.get(pid, [0.0, 0.0, 0.0])[1],
+            z=coords.get(pid, [0.0, 0.0, 0.0])[2],
+        )
+        for pid in node_ids
+    ]
+    edges = [(u, v) for u, v in capped.edges()]
+
+    sizes: dict[int, int] = {}
+    for n in nodes:
+        sizes[n.cid] = sizes.get(n.cid, 0) + 1
+    topics = [
+        MapTopicOut(cid=cid, label=analysis.communities[cid].label if cid in analysis.communities else f"cluster {cid}", size=size)
+        for cid, size in sorted(sizes.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
+    return MapOut(nodes=nodes, edges=edges, topics=topics, total_papers=total_papers, capped=total_papers > len(nodes))
+
+
 def _entities_for_papers(conn, paper_ids: list[str], kinds: tuple[str, ...]) -> list[str]:
     if not paper_ids:
         return []
@@ -919,7 +995,7 @@ def field_gap_detail(field_id: str, gap_index: int):
         for community in (gap.a, gap.b):
             top_papers = _top_papers(g, community.members)
             sides.append(SideDetailOut(
-                labels=community.labels, size=community.size, top_papers=[
+                cid=community.cid, labels=community.labels, size=community.size, top_papers=[
                     PaperRankOut.model_validate(p) for p in top_papers
                 ],
                 methods=_entities_for_papers(conn, community.members, ("method",)),
@@ -935,6 +1011,46 @@ def field_gap_detail(field_id: str, gap_index: int):
         gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
         meets_threshold=gap.meets_threshold,
     )
+
+
+@app.get("/fields/{field_id}/map", response_model=MapOut)
+def field_map(field_id: str):
+    _resolve_field(field_id)  # 404s before touching the cache
+    return _field_map_data(field_id)
+
+
+@app.get("/fields/{field_id}/map/similarity", response_model=MapSimilarityOut)
+def field_map_similarity(
+    field_id: str,
+    a_kind: str = Query(pattern="^(paper|topic)$"),
+    a_id: str = Query(min_length=1),
+    b_kind: str = Query(pattern="^(paper|topic)$"),
+    b_id: str = Query(min_length=1),
+):
+    row = _resolve_field(field_id)
+    g = _field_graph(row)
+    analysis = _field_gap_analysis(row, g)
+    vectors = _field_store(row).fetch_dense_vectors()
+
+    def resolve(kind: str, ident: str) -> tuple[list[float], str]:
+        if kind == "paper":
+            if ident not in vectors:
+                raise HTTPException(status_code=404, detail=f"no vector for paper {ident!r}")
+            return vectors[ident], g.nodes.get(ident, {}).get("title") or ident
+        cid = int(ident)
+        community = analysis.communities.get(cid)
+        if community is None:
+            raise HTTPException(status_code=404, detail=f"no topic community {cid}")
+        member_vectors = [vectors[pid] for pid in community.members if pid in vectors]
+        if not member_vectors:
+            raise HTTPException(status_code=422, detail=f"topic {cid} has no embedded papers")
+        centroid = np.asarray(member_vectors, dtype=float).mean(axis=0).tolist()
+        return centroid, community.label
+
+    vec_a, label_a = resolve(a_kind, a_id)
+    vec_b, label_b = resolve(b_kind, b_id)
+    cos = mapmod.cosine(vec_a, vec_b)
+    return MapSimilarityOut(a_label=label_a, b_label=label_b, cosine=cos, explanation=mapmod.explain(cos))
 
 
 @app.get("/fields/{field_id}/papers/{paper_id}", response_model=FieldPaperOut)

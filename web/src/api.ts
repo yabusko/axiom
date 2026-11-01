@@ -118,6 +118,7 @@ export interface GapAnalysisOut {
 }
 
 export interface SideDetailOut {
+  cid: number;
   labels: string[];
   size: number;
   top_papers: PaperRankOut[];
@@ -174,6 +175,38 @@ export interface ShortlistItemOut {
   created_at: string;
 }
 
+export interface MapNodeOut {
+  paper_id: string;
+  title: string | null;
+  cid: number;
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface MapTopicOut {
+  cid: number;
+  label: string;
+  size: number;
+}
+
+export interface MapOut {
+  nodes: MapNodeOut[];
+  edges: [string, string][];
+  topics: MapTopicOut[];
+  total_papers: number;
+  capped: boolean;
+}
+
+export type MapEntityKind = "paper" | "topic";
+
+export interface MapSimilarityOut {
+  a_label: string;
+  b_label: string;
+  cosine: number;
+  explanation: string;
+}
+
 // --- Calls -----------------------------------------------------------------------
 
 export const api = {
@@ -207,4 +240,14 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   exportMarkdown: (fieldId: string) => req<string>(`/fields/${fieldId}/shortlist/export.md`),
+  map: (fieldId: string) => req<MapOut>(`/fields/${fieldId}/map`),
+  mapSimilarity: (
+    fieldId: string,
+    a: { kind: MapEntityKind; id: string },
+    b: { kind: MapEntityKind; id: string },
+  ) =>
+    req<MapSimilarityOut>(
+      `/fields/${fieldId}/map/similarity?a_kind=${a.kind}&a_id=${encodeURIComponent(a.id)}` +
+        `&b_kind=${b.kind}&b_id=${encodeURIComponent(b.id)}`,
+    ),
 };

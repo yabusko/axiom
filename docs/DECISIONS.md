@@ -959,6 +959,34 @@ same gaps read "Language model cluster", "chatgpt cluster", "bridging operation 
 enough agent coverage. No schema change (`paper_concepts` already existed, OD20); no API
 contract change (`GapAnalysisOut`/`TopicOut.labels` unchanged shape, just better content).
 
+## OD35 — Map screen: PCA (not UMAP) for the embedding projection, PageRank cap at 500 nodes
+
+**Context.** The Map screen (stage-3 product redesign) needs a 2D/3D layout for paper
+embeddings, computed server-side and cached, plus a citation-graph 3D view capped for laptop
+GPUs. The task allowed UMAP "if it installs without new heavy deps."
+
+**Decision.** PCA via `sklearn.decomposition.PCA` (`axiom/embedding_map.py`) -- `scikit-learn`
+is already pinned in `requirements.txt` and unused elsewhere, so this is zero new backend
+dependencies. UMAP (`umap-learn`) needs `numba` + `pynndescent`, breaking the repo's
+established "no new heavy deps" bar (`gaps.py`: "Pure-Python: networkx + numpy only").
+Deferred, not decided against -- revisit if a real need for UMAP's better global structure
+shows up once fields grow past a few hundred papers. PCA is deterministic (fixed
+`random_state=0`), which is what makes caching the projection per field_id correct.
+
+Both Map views (citation graph, embedding map) cap at `config.MAP_NODE_CAP` (500) nodes via
+the same `graphmod.top_influential_subgraph` (PageRank) already used for `/graph/subgraph` --
+no new ranking logic, same notion of "most important papers" everywhere in the app. At the
+real 300-paper corpus this never triggers (300 < 500); verified the capping path itself
+(`top_influential_subgraph` + `embedding_map.project` together) against the real corpus with
+a smaller n=50 cap, confirming it returns exactly 50 ranked nodes with projected coordinates
+-- the same two calls `_field_map_data` chains, just with a cap small enough to actually bite.
+
+`/fields/{field_id}/map` is the first field-scoped endpoint to actually use the
+per-field-`lru_cache` pattern the stage-3 backend-additions note flagged as a reasonable
+future follow-up (PROGRESS.md Session 2) -- `_field_map_data` is `@lru_cache(maxsize=8)`
+keyed by `field_id`, safe because the PCA projection is deterministic and a field's corpus
+doesn't change shape between builds.
+
 ---
 
 ## Schema change log
