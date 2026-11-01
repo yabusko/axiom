@@ -13,6 +13,7 @@ from axiom import config, db, fields as fieldsmod
 def fields_conn(tmp_path, monkeypatch):
     path = tmp_path / "fields.db"
     monkeypatch.setattr(config, "FIELDS_DB_PATH", path)
+    monkeypatch.setattr(config, "FIELDS_DIR", tmp_path / "fields")
     conn = fieldsmod.connect_fields()
     fieldsmod.init_fields_db(conn)
     yield conn
@@ -99,6 +100,68 @@ def test_live_status_reads_agent_run_during_extraction(fields_conn, seeded_db):
 
 def test_live_status_unknown_field_returns_none(fields_conn):
     assert fieldsmod.live_status(fields_conn, "nope") is None
+
+
+class _FakeOpenAlexClient:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_build_field_reindex_step_does_not_cross_threads(fields_conn, monkeypatch):
+    """Regression test for a real bug hit live (2026-11-01): reindex_qdrant
+    was called via asyncio.to_thread with a sqlite3.Connection created on the
+    event-loop thread, which crashes with "SQLite objects created in a
+    thread can only be used in that same thread." Also covers the papers
+    count: ingest.snowball's 2-hop expansion can overshoot the requested
+    target, and papers_total must end up reflecting the real count, not the
+    original request, once it's known."""
+    import asyncio
+
+    field = fieldsmod.create_field(fields_conn, topic="contrastive learning", target=5)
+    field_id = field["id"]
+
+    def fake_snowball(client, *, seed_query, target, keep=None, **kwargs):
+        # Overshoots the requested target, like the real OpenAlex snowball does.
+        return {
+            f"W{i}": {"id": f"W{i}", "title": f"paper {i}", "abstract": "abstract text"}
+            for i in range(target + 3)
+        }
+
+    def fake_ingest_to_sqlite(conn, works, **kwargs):
+        for i, w in enumerate(works):
+            db.insert_paper(
+                conn, openalex_id=w["id"], title=w["title"], abstract=w["abstract"],
+                publication_year=2024, venue_id=None, venue="ACL", cited_by_count=0,
+            )
+        conn.commit()
+        return len(works)
+
+    def fake_reindex_qdrant(conn, *, collection=None, log=print):
+        # The actual regression check: this runs inside asyncio.to_thread
+        # (see axiom/fields.py's `_reindex` closure) -- using `conn` here
+        # must not raise the cross-thread sqlite3 error.
+        conn.execute("SELECT COUNT(*) FROM papers").fetchone()
+        return 0
+
+    async def fake_run_pipeline(papers, *, encoder, db_path=None, conn_factory=None, run_id=None, **kwargs):
+        return {}
+
+    monkeypatch.setattr(fieldsmod.ingest, "OpenAlexClient", lambda *a, **k: _FakeOpenAlexClient())
+    monkeypatch.setattr(fieldsmod.ingest, "snowball", fake_snowball)
+    monkeypatch.setattr(fieldsmod.ingest, "ingest_to_sqlite", fake_ingest_to_sqlite)
+    monkeypatch.setattr(fieldsmod.ingest, "make_venue_filter", lambda *a, **k: None)
+    monkeypatch.setattr("axiom.indexer.reindex_qdrant", fake_reindex_qdrant)
+    monkeypatch.setattr(fieldsmod.agents_pipeline, "run_pipeline", fake_run_pipeline)
+
+    asyncio.run(fieldsmod.build_field(field_id, "contrastive learning", 5))
+
+    updated = fieldsmod.get_field(fields_conn, field_id)
+    assert updated["status"] == "ready", updated["error"]
+    assert updated["papers_done"] == 8          # 5 requested + 3 overshoot, the real count
+    assert updated["papers_total"] == 8         # corrected to the real count, not the original 5
 
 
 def test_estimate_extraction_scales_with_papers_and_concurrency(monkeypatch):

@@ -238,17 +238,30 @@ async def build_field(field_id: str, topic: str, target: int) -> None:
 
         fconn = connect_fields()
         try:
-            set_papers(fconn, field_id, done=n_papers, total=target)
+            # ingest.snowball's 2-hop expansion can overshoot `target` by a
+            # real amount -- once the actual count is known, it replaces the
+            # requested target as papers_total so the UI never shows
+            # papers_done > papers_total (looks broken, not just imprecise).
+            set_papers(fconn, field_id, done=n_papers, total=n_papers)
             set_step(fconn, field_id, "embedding")
         finally:
             fconn.close()
 
-        conn = db.connect(db_path)
-        try:
+        def _reindex():
+            # sqlite3 connections are thread-affine -- must be opened INSIDE
+            # the worker thread asyncio.to_thread runs this in, not before
+            # (same caveat axiom/agents/pipeline.py's _build_ontology
+            # documents; passing in a connection created on the event-loop
+            # thread crashes with "SQLite objects created in a thread can
+            # only be used in that same thread").
             from axiom.indexer import reindex_qdrant
-            await asyncio.to_thread(reindex_qdrant, conn, collection=collection)
-        finally:
-            conn.close()
+            conn = db.connect(db_path)
+            try:
+                reindex_qdrant(conn, collection=collection)
+            finally:
+                conn.close()
+
+        await asyncio.to_thread(_reindex)
 
         fconn = connect_fields()
         try:
@@ -285,7 +298,7 @@ async def build_field(field_id: str, topic: str, target: int) -> None:
 
         fconn = connect_fields()
         try:
-            set_papers(fconn, field_id, done=n_papers, total=target)
+            set_papers(fconn, field_id, done=n_papers, total=n_papers)
             set_cost(fconn, field_id, final_cost)
             set_step(fconn, field_id, None)
             set_status(fconn, field_id, "ready")

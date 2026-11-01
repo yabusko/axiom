@@ -23,7 +23,13 @@ export function BuildProgress({
         const state = i < currentIndex ? "done" : i === currentIndex ? "active" : "pending";
         let detail: string;
         if (step === "fetching") {
-          detail = state === "pending" ? "not started" : `${status.papers_done} of ${status.papers_total ?? "?"} fetched`;
+          // No incremental signal during the fetch itself (the backend only
+          // knows the real count once ingest finishes) -- showing a static
+          // "0 of N" the whole time it's active looks stalled, not honest
+          // about being indeterminate. Only show the real count once done.
+          if (state === "pending") detail = "not started";
+          else if (state === "active") detail = "fetching from OpenAlex…";
+          else detail = `${status.papers_done} of ${status.papers_total ?? "?"} fetched`;
         } else if (step === "embedding") {
           detail = state === "pending" ? "not started" : state === "active" ? "in progress" : "done";
         } else {
