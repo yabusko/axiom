@@ -9,6 +9,7 @@
 # Versions float on purpose: the prod pins (torch==2.2.2, numpy==1.26.4, ...)
 # can't install on 3.14, and the tests only need import-compatible builds.
 pytest>=8
+pytest-timeout>=2.3
 httpx>=0.27
 fastapi>=0.111
 networkx>=3.2

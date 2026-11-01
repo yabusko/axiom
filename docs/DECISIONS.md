@@ -1194,6 +1194,86 @@ citation subgraph). 50 sits cleanly in the gap between those two real clusters; 
 "accepted, not fully solved" spirit as OD37's relevance floor -- revisit once more real
 gaps exist to calibrate against.
 
+## OD43 — Distributed agent workers: Redis Streams, single-writer scope, and what didn't move
+
+**Context (AXIOM_DISTRIBUTED_TASK.md).** Make each agent role (coordinator/extraction/
+enrichment/linking) an independent process so the pipeline scales horizontally
+(`docker compose up --scale worker-extraction=3`), keeping today's in-process
+`asyncio.gather` path (`axiom/agents/pipeline.py`) as the default.
+
+**Decision: plain Redis Streams + consumer groups, not a framework (Celery, etc.).**
+The task's own acceptance bar -- acks, consumer groups, `XAUTOCLAIM` reclaim after a
+visibility timeout, a dead-letter stream after N failed deliveries -- is exactly
+Streams' native primitive set, not something a task-queue framework adds on top. A
+framework would add a dependency, its own retry/serialization conventions (fighting
+the existing Pydantic contracts, which the task explicitly says to reuse verbatim),
+and a second thing to learn, for zero capability this corpus's scale needs. Redis is
+already the one new service added (`docker-compose.yml`); Streams is a few commands
+on it, not a new system.
+
+**Retry/dead-letter design: `attempt` lives in the message, not Redis's internal PEL
+delivery count.** On a *handled* failure (the agent call raised), the worker
+re-`XADD`s the SAME message onto its own input stream with `attempt+1`, then `XACK`s
+the original -- simple, portable across redis-py versions, and exactly what the task's
+own message schema implies by listing `attempt` as a field. `XAUTOCLAIM` is for the
+other failure mode entirely: a worker that goes dark *mid-message* (SIGKILLed, not a
+handled exception) leaves its message stuck in the consumer group's PEL, un-acked,
+un-retried by the logic above. A periodic `XAUTOCLAIM` pass (`STREAM_CLAIM_IDLE_MS`,
+default 30s) reclaims anything idle that long onto a live consumer, which then runs
+it through the exact same handler/retry/dead-letter path as a fresh message. Verified
+for real (`tests/test_workers_integration.py` + `scripts/bench_distributed.py`'s
+fault-injection scenario): kill an extraction worker mid-run, every paper still
+finishes.
+
+**Single-writer SQLite -- scoped to the corpus-write tables, not literally "linking
+touches a connection and nothing else does."** `coordinator` and `enrichment` never
+call an LLM at all (`coordinator.route()` is rule-based; B1 already moved entity
+matching off an LLM onto a local phrase-model cascade) and never open a DB connection
+-- fully stateless, matching the task's "can run anywhere" framing exactly. `linking`
+is the only role that writes `agent_runs`/`agent_run_items`/`paper_concepts`/
+`concept_cooccurrence` -- every terminal outcome from every stage (skip, rejected,
+error, accepted) is forwarded to it as a message, not written locally by whichever
+stage produced it, so those tables really do have exactly one writer.
+
+`extraction` is the one deviation: it's the sole LLM-calling role, and
+`llm_providers.complete_json`'s existing durable budget check needs a live sqlite
+connection to `llm_spend` to enforce the cap *before* spending, not after. Funneling
+that through linking (the task's "which the linking side records" phrasing) would mean
+extraction could spend unboundedly before any check ever ran -- defeating the budget
+system's entire purpose. Extraction keeps its own connection, scoped only to
+`llm_spend` (an append-only ledger table, not touched by the single-writer concern the
+task is actually protecting against -- concurrent *upserts* to `paper_concepts`).
+Documented here as a deliberate, narrow divergence rather than silently reinterpreted.
+
+**What didn't move: synthesis.** Cluster labeling and hypothesis pitches
+(`axiom/agents/synthesis.py`) need every paper in a run to have finished linking
+first -- data that doesn't exist yet at the moment distributed mode's `run_pipeline()`
+call returns (it only enqueues). Out of this task's explicit scope (coordinator/
+extraction/enrichment/linking only); distributed mode silently skips `clusters`/`gaps`
+rather than pretending to support them. A follow-up would need either a 5th
+"synthesis" role triggered once `agent_runs.papers_done == papers_total`, or a
+separate polling script -- not attempted here.
+
+**Real measurement:** `eval/distributed_bench.json` (`scripts/bench_distributed.py`),
+real Redis, real subprocesses (not Docker -- same code path, no image-build time
+spent to measure it), real LLM calls on 40 real papers from `data/axiom.db` (scaled
+down from the task's suggested 200 after this environment's background-process
+supervision proved unreliable for one long multi-scenario run -- see
+`docs/distributed/RESULTS.md`'s own note), cost capped and estimated before
+spending. Real 3-worker run ~2.07x the throughput of 1 worker, not 3x (enrichment/
+linking stay single-instance and become the shared bottleneck); fault injection
+(kill an extraction worker mid-run) -- every paper still finished.
+
+**`STREAM_CLAIM_IDLE_MS` real bug.** The first real 3-worker run (not the numbers
+kept) came back with `papers_done` exceeding `papers_total` -- a message still
+being legitimately processed got `XAUTOCLAIM`'d by a second consumer and double-
+processed, because the original 30s guess was shorter than real per-paper
+processing latency under contention (p95 84-164s, real LLM calls). Raised to 180s
+with the real data in `axiom/config.py`'s comment; re-run came back clean
+(`reclaim_count=0` for the non-fault-injected runs, `1` for the one that
+deliberately killed a worker). A reminder that this value has to be tuned against
+real observed processing latency, not guessed.
+
 ---
 
 ## Schema change log

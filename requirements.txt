@@ -20,3 +20,6 @@ altair==5.3.0
 # Agentic pipeline (OD24) — makes httpx/requests trust the OS cert store
 # instead of certifi's bundled list; see docs/DECISIONS.md.
 truststore==0.10.5
+
+# Distributed workers (axiom/workers.py) — Redis Streams client, async.
+redis==5.0.8

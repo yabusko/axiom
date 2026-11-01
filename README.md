@@ -95,6 +95,23 @@ pytest tests/ -q      # bare-Python safe -- conftest.py stubs torch/transformers
 cd web && npm run lint && npm run build && npx playwright test   # mocked API, no backend needed
 ```
 
+### Distributed execution (optional)
+
+The agent pipeline (coordinator → extraction → enrichment → linking) runs in-process
+by default. To run each role as an independent, horizontally-scalable process talking
+through Redis Streams instead (`axiom/workers.py`, OD43):
+
+```bash
+docker compose up -d redis worker-coordinator worker-enrichment worker-linking
+docker compose up -d --scale worker-extraction=3 worker-extraction   # the one LLM-calling role
+AXIOM_EXECUTION=distributed uvicorn api.main:app --reload            # POST /agents/run now only enqueues
+```
+
+Run status still comes from `GET /agents/runs/{id}` exactly as in local mode. Real
+throughput (1 vs 3 extraction workers), p95 latency, and a fault-injection check
+(`docker kill` one extraction worker mid-run, confirm every paper still finishes via
+`XAUTOCLAIM` reclaim) are in `docs/distributed/RESULTS.md`.
+
 ## Architecture
 
 ```
@@ -126,7 +143,12 @@ web/ — React + Vite + TypeScript SPA (primary interface)
 **Agentic extraction pipeline** (coordinator → extraction → enrichment → linking →
 synthesis, `axiom/agents/*`): async, calls the Anthropic API with a local-Ollama fallback.
 Full module map and contracts in `docs/agentic/ARCHITECTURE.md`; real run numbers in
-`docs/agentic/RESULTS.md`.
+`docs/agentic/RESULTS.md`. Runs in-process by default (`AXIOM_EXECUTION=local`); set
+`AXIOM_EXECUTION=distributed` to run coordinator/extraction/enrichment/linking as
+independent processes talking through Redis Streams instead (`axiom/workers.py`,
+`docker compose up --scale worker-extraction=3` to scale the one LLM-calling role) --
+see `docs/DECISIONS.md` OD43 and `docs/distributed/RESULTS.md` for the design and
+real throughput/fault-injection numbers.
 
 ## Layout
 
@@ -148,6 +170,8 @@ axiom/fields.py                  fields registry -- instant slice fields + legac
 axiom/llm_providers.py           shared LLM client (Anthropic / local Ollama fallback), per-run
                                   budget ledger, tracing
 axiom/agents/                    coordinator → extraction → enrichment → linking → synthesis
+axiom/workers.py                 distributed workers (AXIOM_EXECUTION=distributed, OD43) --
+                                  the same 4 agent roles as independent Redis Streams consumers
 
 app/streamlit_app.py             internal lab console (secondary to web/)
 api/main.py                      FastAPI service layer -- /fields/* is the React app's real surface

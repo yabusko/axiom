@@ -322,6 +322,23 @@ _DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed abo
 AGENT_MAX_RETRIES = 3               # R4: self-correction attempts per agent call
 AGENT_CONCURRENCY = 4               # R5: asyncio.Semaphore limit for worker fan-out
 
+# Distributed workers (axiom/workers.py) -- each agent role as an independent
+# process talking only through Redis Streams. "local" (default) is the
+# existing in-process asyncio.gather path, unchanged.
+AXIOM_EXECUTION = os.environ.get("AXIOM_EXECUTION", "local")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+STREAM_MAX_DELIVERIES = 5           # after this many attempts, a message moves to axiom:dead
+# Real bug found running scripts/bench_distributed.py's 3-extraction-worker
+# scenario for real (OD43): 30s (the original guess) is SHORTER than real
+# per-paper processing latency under contention -- p95 84-164s, real LLM
+# calls, 40 papers -- so a message still being legitimately processed got
+# XAUTOCLAIM'd by a second consumer and double-processed (papers_done=44 for
+# papers_total=40, reclaim_count=2). This must stay safely above the
+# slowest realistic single-paper processing time, not a short "fast
+# failover" window -- 180s gives real extraction calls (retries included)
+# comfortable headroom before a still-working consumer looks abandoned.
+STREAM_CLAIM_IDLE_MS = 180_000      # a pending message idle this long is reclaimed (XAUTOCLAIM)
+
 ENTITY_KINDS = ("method", "task", "dataset", "metric")
 ROUTE_ACTIONS = ("full", "title_only", "skip")
 ROUTE_TITLE_ONLY_MIN_WORDS = 40     # A5: abstract shorter than this (or missing) -> title_only
