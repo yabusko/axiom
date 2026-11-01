@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Research gap detail, paper panel</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Wireframe state:</strong>
+  <a href="gap-detail.html">Populated</a><span class="sep">·</span>
+  <a class="current" href="gap-detail-paper-panel.html">Paper panel open</a><span class="sep">·</span>
+  <a href="gap-detail-empty.html">Empty</a><span class="sep">·</span>
+  <a href="gap-detail-loading.html">Loading</a><span class="sep">·</span>
+  <a href="gap-detail-error.html">Error</a>
+  <span class="sep">|</span>
+  <a href="index.html">All screens</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="start.html">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="gaps.html" class="active">Research gaps</a>
+    <a href="shortlist.html">Shortlist</a>
+  </nav>
+  <div class="field-context"><strong>Retrieval-augmented generation</strong> · 300 papers · built 31 Oct 2026</div>
+</header>
+
+<main>
+  <div class="page-head">
+    <p class="faint" style="margin-bottom:4px;"><a href="gaps.html" class="btn-quiet" style="text-decoration:none; padding:2px 0;">← Back to research gaps</a></p>
+    <h1>Gap 1 of 15: an NLP/ML-methods cluster barely cites the question-answering cluster right next to it</h1>
+  </div>
+
+  <div class="section">
+    <div class="side-by-side">
+      <div class="side-panel">
+        <h3>Side A</h3>
+        <div class="side-count">43 papers</div>
+      </div>
+      <div class="side-panel">
+        <h3>Side B</h3>
+        <div class="side-count">20 papers</div>
+        <h3 style="font-size:0.95rem; margin-top:14px;">Evidence papers</h3>
+        <div class="paper-list">
+          <div class="paper-row"><div><div class="paper-title">WikiQA: A Challenge Dataset for Open-Domain Question Answering</div><div class="paper-meta">2015 · 830 citations</div></div></div>
+          <a class="paper-row" href="gap-detail-paper-panel.html" aria-current="true" style="border-color:#8a8a8a;">
+            <div><div class="paper-title">Semantic Parsing on Freebase from Question-Answer Pairs</div><div class="paper-meta">EMNLP 2013 · 1,583 citations</div></div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="panel-backdrop">
+  <aside class="paper-panel">
+    <a class="btn btn-quiet panel-close" href="gap-detail.html">Close</a>
+    <h2>Semantic Parsing on <span class="ev ev-dataset" title="dataset: freebase · confidence 0.8">Freebase</span> from Question-Answer Pairs</h2>
+    <p class="muted" style="margin-top:-6px;">EMNLP 2013 · 1,583 citations</p>
+
+    <div class="badge-row">
+      <span class="badge">Unverified</span>
+      <span class="badge-note">Entities below are extracted by an LLM pipeline from this abstract, not confirmed by a human.</span>
+    </div>
+
+    <h3 style="margin-top:18px;">Abstract</h3>
+    <div class="panel-abstract">In this paper, <span class="ev ev-method" title="method: semantic parser · confidence 0.7">we train a semantic parser that scales up to Freebase.</span> Instead of relying on annotated logical forms, which is especially expensive to obtain at large scale, we learn from question-answer pairs. The main challenge in this setting is narrowing down the huge number of possible logical predicates for a given question. We tackle this problem in two ways: First, we build a coarse mapping from phrases to predicates using a knowledge base and a large text corpus. Second, <span class="ev ev-method" title="method: bridging operation · confidence 0.6">we use a bridging operation to generate additional predicates based on neighboring predicates.</span> <span class="ev ev-dataset" title="dataset: cai and yates (2013) dataset · confidence 0.7">On the dataset of Cai and Yates (2013)</span>, despite not having annotated logical forms, our system outperforms their state-of-the-art parser. Additionally, we collected a more realistic and challenging dataset of question-answer pairs and improves over a natural baseline.</div>
+    <p class="faint" style="margin-top:8px;">Highlight styles mark kind: solid underline = method, dashed = dataset, dotted = task.</p>
+
+    <h3 style="margin-top:18px;">Extracted entities</h3>
+    <div class="entity-list">
+      <div class="entity-row">
+        <span><span class="entity-kind">task</span>semantic parsing</span>
+        <span class="entity-conf">evidence: title · confidence 0.9</span>
+      </div>
+      <div class="entity-row">
+        <span><span class="entity-kind">dataset</span>freebase</span>
+        <span class="entity-conf">evidence: title · confidence 0.8</span>
+      </div>
+      <div class="entity-row">
+        <span><span class="entity-kind">method</span>semantic parser</span>
+        <span class="entity-conf">confidence 0.7</span>
+      </div>
+      <div class="entity-row">
+        <span><span class="entity-kind">dataset</span>cai and yates (2013) dataset</span>
+        <span class="entity-conf">confidence 0.7</span>
+      </div>
+      <div class="entity-row">
+        <span><span class="entity-kind">method</span>bridging operation</span>
+        <span class="entity-conf">confidence 0.6</span>
+      </div>
+    </div>
+
+    <h3 style="margin-top:18px;">Cites / cited by</h3>
+    <p class="muted">1,583 papers cite this one within the broader literature; within this 300-paper corpus specifically, citation links are reflected in the bridge diagram on the gap-detail screen rather than listed individually here.</p>
+
+    <h3 style="margin-top:18px;">Similar papers</h3>
+    <div class="paper-list">
+      <div class="paper-row"><div><div class="paper-title">WikiQA: A Challenge Dataset for Open-Domain Question Answering</div><div class="paper-meta">2015 · same cluster (Side B)</div></div></div>
+    </div>
+
+    <div class="btn-row" style="margin-top:16px;">
+      <a class="btn" href="shortlist.html">Save to reading list</a>
+    </div>
+  </aside>
+</div>
+
+</body>
+</html>

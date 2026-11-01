@@ -28,7 +28,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from axiom import config, db, gaps, graph, hypothesis, llm, llm_providers, summarize, velocity
+from axiom import config, db, gaps, graph, hypothesis, llm_providers, summarize, velocity
 from axiom.agents import synthesis as synthesis_agent
 from axiom.embed import Specter2Encoder
 from axiom.qdrant_client import AxiomQdrant, SearchHit
@@ -1285,13 +1285,13 @@ def render_reading_list() -> None:
                                     )
                                     conn2 = db.connect()
                                     try:
-                                        db.save_summary(conn2, r["paper_id"],
-                                                         result.bullets, config.OLLAMA_MODEL)
+                                        db.save_summary(conn2, r["paper_id"], result.bullets,
+                                                         llm_providers.model_for_tier("fast"))
                                     finally:
                                         conn2.close()
                                     st.rerun()
-                                except llm.OllamaError as exc:
-                                    st.error(f"Ollama error: {exc}")
+                                except llm_providers.LLMError as exc:
+                                    st.error(f"Summarization failed: {exc}")
 
 
 # --- Review queue tab (OD16) ---------------------------------------------------

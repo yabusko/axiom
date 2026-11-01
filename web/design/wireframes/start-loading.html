@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Start (building)</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Wireframe state:</strong>
+  <a href="start.html">Populated</a><span class="sep">·</span>
+  <a href="start-empty.html">Empty</a><span class="sep">·</span>
+  <a class="current" href="start-loading.html">Loading</a><span class="sep">·</span>
+  <a href="start-error.html">Error</a>
+  <span class="sep">|</span>
+  <a href="index.html">All screens</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="start.html" class="active">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="gaps.html">Research gaps</a>
+    <a href="shortlist.html">Shortlist</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Building "retrieval-augmented generation"</h1>
+    <p class="lede">This runs in the background — you can leave this screen and come back. Estimated time remaining: about 3 minutes. Estimated extraction cost: $0.42.</p>
+  </div>
+
+  <div class="section" style="max-width:640px;">
+    <div class="step-list">
+      <div class="step done">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Fetch papers</div>
+          <div class="step-detail">300 papers fetched from OpenAlex for "retrieval-augmented generation".</div>
+        </div>
+      </div>
+      <div class="step done">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Embed abstracts</div>
+          <div class="step-detail">300 of 300 embedded.</div>
+        </div>
+      </div>
+      <div class="step active">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Map topics</div>
+          <div class="step-detail"><span class="spinner" aria-hidden="true"></span>Clustering the citation graph into topic communities — 188 of 300 papers placed.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Extract methods &amp; datasets</div>
+          <div class="step-detail">Waiting — this is the paid step (~$0.42 estimated for 300 papers).</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Find research gaps</div>
+          <div class="step-detail">Waiting — scores topic pairs by semantic closeness vs. how rarely they cite each other.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="faint">This is a static wireframe, so the progress above is fixed rather than live. Once built, a field opens straight to its Landscape.</p>
+</main>
+
+<footer class="page-footer">Low-fi wireframe — Phase C, product redesign. Not final visual design.</footer>
+
+</body>
+</html>

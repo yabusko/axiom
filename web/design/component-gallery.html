@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Component gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .review-strip {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: var(--space-2) var(--space-6); font-size: var(--small); color: var(--text-muted);
+    display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between;
+  }
+  .review-strip strong { color: var(--text); }
+  .theme-toggle {
+    font-family: var(--font-sans); font-size: var(--small); font-weight: 700;
+    border: 1px solid var(--text); background: var(--surface); color: var(--text);
+    padding: 5px 12px; cursor: pointer;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-12); }
+  .component { margin-bottom: var(--space-12); }
+  .component h2 { border-bottom: 1px solid var(--border); padding-bottom: var(--space-2); margin-bottom: var(--space-4); }
+  .component .spec { color: var(--text-muted); font-size: var(--small); margin-bottom: var(--space-4); max-width: 70ch; }
+  .stage { background: var(--surface); border: 1px solid var(--border); padding: var(--space-6); }
+
+  /* 1. Gap card */
+  .gap-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--region); padding: var(--space-4) var(--space-6); }
+  .gap-card h3 { margin-bottom: 6px; }
+  .gap-stats { display: flex; gap: var(--space-6); font-feature-settings: "tnum" 1; font-weight: 500; color: var(--text-muted); font-size: var(--small); flex-wrap: wrap; }
+  .gap-stats b { color: var(--text); }
+
+  /* 2. Bridge view */
+  .bridge-label { text-anchor: middle; font-family: var(--font-sans); }
+
+  /* 3. Trend row */
+  .trend-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+  .trend-row:last-child { border-bottom: none; }
+  .trend-name { font-weight: 700; }
+  .trend-ratio { font-feature-settings: "tnum" 1; font-weight: 500; color: var(--text-muted); font-size: var(--small); white-space: nowrap; }
+
+  /* 4. Paper row */
+  .paper-list { border: 1px solid var(--border); background: var(--surface); }
+  .paper-row { padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--border); }
+  .paper-row:last-child { border-bottom: none; }
+  .paper-row a { font-weight: 700; text-decoration: none; }
+  .paper-row a:hover { text-decoration: underline; }
+  .paper-meta { color: var(--text-muted); font-size: var(--small); font-feature-settings: "tnum" 1; margin-top: 2px; }
+
+  /* 5. Evidence highlight */
+  .abstract { line-height: 1.7; }
+  .ev-method { text-decoration: underline; text-decoration-style: solid; text-decoration-thickness: 2px; }
+  .ev-dataset { text-decoration: underline; text-decoration-style: dashed; }
+  .ev-task { text-decoration: underline; text-decoration-style: dotted; }
+  .legend { display: flex; gap: var(--space-6); font-size: var(--small); color: var(--text-muted); margin-top: var(--space-4); flex-wrap: wrap; }
+
+  /* 6. Badge */
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border: 1px solid var(--text); color: var(--text); background: var(--surface); }
+  .badge-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-bottom: 6px; }
+  .badge-note { color: var(--text-muted); font-size: var(--small); }
+
+  /* 7. Build progress */
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .step { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-2) 0; }
+  .step .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; flex: none; }
+  .step.done .dot { background: var(--region); border: 2px solid var(--region); }
+  .step.active .dot { background: var(--surface); border: 2px solid var(--mark); outline: 2px solid var(--mark); outline-offset: 2px; }
+  .step.pending .dot { background: var(--surface); border: 2px solid var(--border-strong); }
+  .step .label { font-weight: 700; }
+  .step .detail { color: var(--text-muted); font-size: var(--small); font-feature-settings: "tnum" 1; }
+
+  /* 8. Empty / error */
+  .state-block { border: 1px solid var(--border); background: var(--surface); padding: var(--space-8) var(--space-6); text-align: left; }
+  .state-block p { color: var(--text-muted); }
+  .state-block.error { border-left: 3px solid var(--action); }
+
+  /* Buttons (used across components) */
+  .btn { display: inline-block; padding: 11px 20px; border-radius: var(--radius); border: 1px solid var(--text); background: var(--surface); color: var(--text); text-decoration: none; font-size: 0.92rem; font-weight: 700; cursor: pointer; font-family: var(--font-sans); }
+  .btn-primary { background: var(--action); color: #fff; border-color: var(--action); }
+  .btn-primary:hover { background: var(--action-hover); border-color: var(--action-hover); }
+  .wrong { opacity: .55; }
+  .wrong-label { font-size: var(--small); color: var(--text-muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="review-strip">
+  <span><strong>Axiom component gallery</strong> — Phase D design system, Direction B ("Field Map"). Demonstrates docs/product/DESIGN_SYSTEM.md's 8 required components in both themes.</span>
+  <button class="theme-toggle" id="themeToggle" type="button">Switch to dark</button>
+</div>
+
+<main>
+  <div class="component">
+    <h1 style="font-size:2rem;">Component gallery</h1>
+    <p class="spec">Every pairing below meets WCAG AA (4.5:1 text / 3:1 non-text) — see DESIGN_SYSTEM.md for the exact ratios. Toggle the theme button above to check both.</p>
+  </div>
+
+  <div class="component">
+    <h2>1. Gap card</h2>
+    <p class="spec">Ranked-list row. Surface fill, hairline border, <code>--region</code> border-left accent. Headline is a sentence, not a label.</p>
+    <div class="stage">
+      <div class="gap-card">
+        <h3>An NLP/ML-methods cluster barely cites the question-answering cluster right next to it</h3>
+        <div class="gap-stats">
+          <span><b>98.8%</b> semantic similarity</span>
+          <span><b>32</b> citations cross</span>
+          <span><b>43</b> vs <b>20</b> papers</span>
+          <span>G-score <b>0.618</b> (uncalibrated)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>2. Bridge view</h2>
+    <p class="spec">The signature element — the one place <code>--mark</code> (bright coral) appears as a line. Graph-paper backdrop via a repeating hairline pattern.</p>
+    <div class="stage">
+      <svg viewBox="0 0 640 260" width="100%" role="img" aria-label="Bridge diagram: Side A, 43 papers, and Side B, 20 papers, enclosed in a dashed boundary marking 98.8% semantic similarity, connected by a thin line marked as the gap, labeled 32 citations.">
+        <defs>
+          <pattern id="gridpat" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" style="stroke:var(--border);stroke-width:1"/>
+          </pattern>
+        </defs>
+        <rect x="6" y="6" width="628" height="248" fill="url(#gridpat)"/>
+        <rect x="6" y="6" width="628" height="248" fill="none" style="stroke:var(--text-muted);stroke-width:1.25" stroke-dasharray="5 6"/>
+        <text x="320" y="34" class="bridge-label" style="fill:var(--text-muted);font-size:14px">98.8% semantic similarity (embedding centroids)</text>
+        <rect x="50" y="85" width="210" height="110" style="fill:var(--region-wash);stroke:var(--region);stroke-width:2"/>
+        <text x="155" y="130" class="bridge-label" style="fill:var(--text);font-size:16px;font-weight:700">Side A</text>
+        <text x="155" y="152" class="bridge-label" style="fill:var(--text);font-size:14px">43 papers</text>
+        <rect x="380" y="85" width="210" height="110" style="fill:var(--region-wash);stroke:var(--region);stroke-width:2"/>
+        <text x="485" y="130" class="bridge-label" style="fill:var(--text);font-size:16px;font-weight:700">Side B</text>
+        <text x="485" y="152" class="bridge-label" style="fill:var(--text);font-size:14px">20 papers</text>
+        <line x1="260" y1="140" x2="380" y2="140" style="stroke:var(--mark);stroke-width:2.5"/>
+        <circle cx="320" cy="140" r="4" style="fill:var(--mark)"/>
+        <text x="320" y="118" class="bridge-label" style="fill:var(--mark);font-size:13px;font-weight:700">32 citations — the gap</text>
+        <text x="320" y="238" class="bridge-label" style="fill:var(--text-muted);font-size:13px">out of 1,699 in-corpus citations total</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>3. Trend row + sparkline</h2>
+    <p class="spec">Two real data points only (this corpus's real window granularity) — no fabricated intermediate points, no color-by-direction.</p>
+    <div class="stage">
+      <div class="trend-row">
+        <div>
+          <div class="trend-name">Machine translation</div>
+          <svg width="110" height="30" viewBox="0 0 110 30" aria-hidden="true">
+            <polyline points="4,26 106,6" fill="none" style="stroke:var(--text-muted);stroke-width:1.5"/>
+            <circle cx="4" cy="26" r="2.5" style="fill:var(--text-muted)"/>
+            <circle cx="106" cy="6" r="2.5" style="fill:var(--text-muted)"/>
+          </svg>
+        </div>
+        <div class="trend-ratio">11 recent vs. 0 prior mentions</div>
+      </div>
+      <div class="trend-row">
+        <div>
+          <div class="trend-name">Human–computer interaction</div>
+          <svg width="110" height="30" viewBox="0 0 110 30" aria-hidden="true">
+            <polyline points="4,26 106,9" fill="none" style="stroke:var(--text-muted);stroke-width:1.5"/>
+            <circle cx="4" cy="26" r="2.5" style="fill:var(--text-muted)"/>
+            <circle cx="106" cy="9" r="2.5" style="fill:var(--text-muted)"/>
+          </svg>
+        </div>
+        <div class="trend-ratio">10 recent vs. 0 prior mentions</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>4. Paper row</h2>
+    <p class="spec">One container border, not a row-per-card border — flatter than the ledger direction, matching the map-tile identity.</p>
+    <div class="stage">
+      <div class="paper-list">
+        <div class="paper-row">
+          <a href="#">SQuAD: 100,000+ Questions for Machine Comprehension of Text</a>
+          <div class="paper-meta">2016 · 6,208 citations · PageRank 0.0829</div>
+        </div>
+        <div class="paper-row">
+          <a href="#">BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding</a>
+          <div class="paper-meta">2019 · 48,487 citations · PageRank 0.0585</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>5. Evidence highlight</h2>
+    <p class="spec">Underline style codes entity kind — never a text-color highlight (fails contrast at small sizes, competes with the reserved accent colors).</p>
+    <div class="stage">
+      <p class="abstract">In this paper, we train a <span class="ev-method">semantic parser</span> that scales up to <span class="ev-dataset">Freebase</span>. We tackle <span class="ev-task">semantic parsing</span> by using a <span class="ev-method">bridging operation</span> to generate additional predicates based on neighboring predicates.</p>
+      <div class="legend">
+        <span><span class="ev-method">solid underline</span> = method</span>
+        <span><span class="ev-dataset">dashed</span> = dataset</span>
+        <span><span class="ev-task">dotted</span> = task</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>6. Badge</h2>
+    <p class="spec">No color-coding — a badge is not a severity signal here. Always paired with a one-line explanation, visible by default at this fidelity.</p>
+    <div class="stage">
+      <div class="badge-row">
+        <span class="badge">Uncalibrated score</span>
+        <span class="badge-note">G-score blends 4 signals with default weights not yet calibrated against labeled gap data.</span>
+      </div>
+      <div class="badge-row">
+        <span class="badge">Unverified</span>
+        <span class="badge-note">Entities below are extracted by an LLM pipeline from this abstract, not confirmed by a human.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>7. Build-progress steps</h2>
+    <p class="spec">Three real steps (see ARCHITECTURE_NOTE.md §3) — numbering is legitimate here, a real sequence.</p>
+    <div class="stage">
+      <ol class="steps">
+        <li class="step done"><span class="dot"></span><div><div class="label">1. Finding papers</div><div class="detail">300 of 300 fetched</div></div></li>
+        <li class="step active"><span class="dot"></span><div><div class="label">2. Embedding papers</div><div class="detail">in progress</div></div></li>
+        <li class="step pending"><span class="dot"></span><div><div class="label">3. Extracting methods &amp; datasets</div><div class="detail">est. ~$0.12 · ~4 min, starts after step 2</div></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>8. Empty / error states</h2>
+    <p class="spec">Same layout shell as the populated screen. Empty states name the next action; error states say what happened and what to do.</p>
+    <div class="stage" style="display:flex;flex-direction:column;gap:var(--space-6);">
+      <div class="state-block">
+        <h3 style="margin-top:0;">No fields yet</h3>
+        <p>Type a topic above to start a field — Axiom builds its corpus and finds research gaps in a few minutes.</p>
+      </div>
+      <div class="state-block error">
+        <h3 style="margin-top:0;">The build stalled fetching papers</h3>
+        <p>OpenAlex didn't respond after several retries. Try again, or start a narrower topic.</p>
+        <a class="btn btn-primary" href="#">Retry build</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="component">
+    <h2>Buttons — correct vs. incorrect accent use</h2>
+    <p class="spec">The one real contrast bug this gate caught: Direction B's own exploration HTML used <code>--mark</code> as a button fill (3.73:1 with white text — fails AA). Fixed token: <code>--action</code> (4.74:1).</p>
+    <div class="stage" style="display:flex; gap: var(--space-8); align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <button class="btn btn-primary">Draft direction</button>
+        <div class="wrong-label">Correct — uses <code>--action</code>, 4.74:1</div>
+      </div>
+      <div>
+        <button class="btn" style="background:var(--mark);color:#fff;border-color:var(--mark);" class="wrong">Draft direction</button>
+        <div class="wrong-label">Wrong — <code>--mark</code> as a fill, 3.73:1, fails AA</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer style="max-width:1040px;margin:0 auto;padding:0 var(--space-6) var(--space-12);color:var(--text-muted);font-size:0.82rem;">
+  Component gallery — Phase D design system. Toggle persists via localStorage for this viewer only.
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  function apply(theme) {
+    if (theme === 'dark') { root.setAttribute('data-theme', 'dark'); btn.textContent = 'Switch to light'; }
+    else { root.setAttribute('data-theme', 'light'); btn.textContent = 'Switch to dark'; }
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('axiom-gallery-theme'); } catch (e) {}
+  apply(saved === 'dark' ? 'dark' : 'light');
+  btn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    apply(next);
+    try { localStorage.setItem('axiom-gallery-theme', next); } catch (e) {}
+  });
+})();
+</script>
+
+</body>
+</html>

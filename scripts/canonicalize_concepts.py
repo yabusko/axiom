@@ -2,9 +2,12 @@
 data/axiom.db, persisting concept -> canonical mappings so the OD10 velocity
 engine merges synonyms (e.g. "LoRA" / "Low-Rank Adaptation") into one trend.
 
-Usage (from repo root, needs `ollama serve` running locally):
+Routed through axiom/llm_providers.py (Anthropic if ANTHROPIC_API_KEY is set,
+else local Ollama -- no separate --model flag any more; see axiom/config.py's
+MODEL_FAST / OLLAMA_MODEL to change which model that resolves to).
+
+Usage (from repo root):
     python scripts/canonicalize_concepts.py
-    python scripts/canonicalize_concepts.py --model llama3.1:latest
 """
 from __future__ import annotations
 
@@ -14,18 +17,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from axiom import canonicalize, config, db
+from axiom import canonicalize, db
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=config.OLLAMA_MODEL)
     ap.add_argument("--batch-size", type=int, default=50)
     args = ap.parse_args()
 
     conn = db.connect()
     try:
-        canonicalize.run(conn, batch_size=args.batch_size, model=args.model)
+        canonicalize.run(conn, batch_size=args.batch_size)
     finally:
         conn.close()
 

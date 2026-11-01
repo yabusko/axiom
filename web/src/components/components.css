@@ -1,0 +1,82 @@
+/* Component styles -- mirrors web/design/component-gallery.html's rules
+   (DESIGN_SYSTEM.md's live spec), adapted for the real app. */
+
+.gap-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--region); padding: var(--space-4) var(--space-6); text-decoration: none; display: block; color: inherit; }
+.gap-card:hover { border-left-color: var(--mark); }
+.gap-card h3 { margin-bottom: 6px; }
+.gap-stats { display: flex; gap: var(--space-6); font-feature-settings: "tnum" 1; font-weight: 500; color: var(--text-muted); font-size: var(--small); flex-wrap: wrap; }
+.gap-stats b { color: var(--text); }
+.gap-list { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.bridge-label { text-anchor: middle; font-family: var(--font-sans); }
+
+.trend-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+.trend-row:last-child { border-bottom: none; }
+.trend-name { font-weight: 700; }
+.trend-ratio { font-feature-settings: "tnum" 1; font-weight: 500; color: var(--text-muted); font-size: var(--small); white-space: nowrap; }
+
+.paper-list { border: 1px solid var(--border); background: var(--surface); }
+.paper-row { padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+.paper-row:last-child { border-bottom: none; }
+.paper-row-main a { font-weight: 700; text-decoration: none; background: none; border: none; color: var(--text); cursor: pointer; font: inherit; text-align: left; padding: 0; }
+.paper-row-main button { font-weight: 700; text-decoration: none; background: none; border: none; color: var(--text); cursor: pointer; font: inherit; text-align: left; padding: 0; }
+.paper-row-main a:hover, .paper-row-main button:hover { text-decoration: underline; }
+.paper-meta { color: var(--text-muted); font-size: var(--small); font-feature-settings: "tnum" 1; margin-top: 2px; }
+
+.abstract { line-height: 1.7; }
+.ev-method { text-decoration: underline; text-decoration-style: solid; text-decoration-thickness: 2px; }
+.ev-dataset { text-decoration: underline; text-decoration-style: dashed; }
+.ev-task { text-decoration: underline; text-decoration-style: dotted; }
+.ev-metric { text-decoration: underline; text-decoration-style: double; }
+.legend { display: flex; gap: var(--space-6); font-size: var(--small); color: var(--text-muted); margin-top: var(--space-4); flex-wrap: wrap; }
+
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border: 1px solid var(--text); color: var(--text); background: var(--surface); }
+.badge-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-bottom: 6px; }
+.badge-note { color: var(--text-muted); font-size: var(--small); }
+
+.steps { list-style: none; margin: 0; padding: 0; }
+.step { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-2) 0; }
+.step .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; flex: none; }
+.step.done .dot { background: var(--region); border: 2px solid var(--region); }
+.step.active .dot { background: var(--surface); border: 2px solid var(--mark); outline: 2px solid var(--mark); outline-offset: 2px; }
+.step.pending .dot { background: var(--surface); border: 2px solid var(--border-strong); }
+.step .label { font-weight: 700; }
+.step .detail { color: var(--text-muted); font-size: var(--small); font-feature-settings: "tnum" 1; }
+
+.state-block { border: 1px solid var(--border); background: var(--surface); padding: var(--space-8) var(--space-6); text-align: left; }
+.state-block p { color: var(--text-muted); }
+.state-block.error { border-left: 3px solid var(--action); }
+
+.btn { display: inline-block; padding: 11px 20px; border-radius: var(--radius); border: 1px solid var(--text); background: var(--surface); color: var(--text); text-decoration: none; font-size: 0.92rem; font-weight: 700; cursor: pointer; font-family: var(--font-sans); }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--action); color: #fff; border-color: var(--action); }
+.btn-primary:hover { background: var(--action-hover); border-color: var(--action-hover); }
+.btn-primary:disabled { opacity: 0.6; cursor: default; }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--text-muted); font-weight: 500; }
+.btn-quiet:hover { color: var(--text); background: none; }
+
+.topic-grid { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: stretch; }
+.topic-tile {
+  background: var(--region-wash); border: 1px solid var(--border); border-left: 3px solid var(--region);
+  padding: var(--space-4); min-width: 160px; flex: 1 1 200px;
+}
+.topic-tile .count { font-size: 1.5rem; font-weight: 800; font-feature-settings: "tnum" 1; }
+.topic-tile .label { font-weight: 700; margin-top: 4px; }
+.topic-tile .tags { color: var(--text-muted); font-size: var(--small); margin-top: 4px; }
+
+.stat-row { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-8); }
+.stat-tile { border: 1px solid var(--border); background: var(--surface); padding: var(--space-4) var(--space-6); flex: 1 1 140px; }
+.stat-tile .num { font-size: 1.75rem; font-weight: 800; font-feature-settings: "tnum" 1; }
+.stat-tile .label { color: var(--text-muted); font-size: var(--small); }
+
+/* Paper panel (global overlay) */
+.panel-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 10; }
+.paper-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100vw);
+  background: var(--surface); border-left: 1px solid var(--border); z-index: 11;
+  overflow-y: auto; padding: var(--space-6);
+}
+.paper-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); }
+.paper-panel-head h2 { font-size: 1.3rem; }
+.panel-close { background: none; border: none; color: var(--text-muted); font: inherit; cursor: pointer; font-weight: 700; }
+.panel-close:hover { color: var(--text); }

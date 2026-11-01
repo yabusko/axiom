@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axiom — Shortlist</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div class="review-strip">
+  <strong>Wireframe state:</strong>
+  <a class="current" href="shortlist.html">Populated</a><span class="sep">·</span>
+  <a href="shortlist-empty.html">Empty</a><span class="sep">·</span>
+  <a href="shortlist-loading.html">Loading</a><span class="sep">·</span>
+  <a href="shortlist-error.html">Error</a><span class="sep">·</span>
+  <a href="shortlist-export.html">Markdown export</a>
+  <span class="sep">|</span>
+  <a href="index.html">All screens</a>
+</div>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="wordmark">Axiom</span>
+    <span class="tagline">Find under-explored directions, with evidence.</span>
+  </div>
+  <nav class="primary-nav">
+    <a href="start.html">Start</a>
+    <a href="landscape.html">Landscape</a>
+    <a href="gaps.html">Research gaps</a>
+    <a href="shortlist.html" class="active">Shortlist</a>
+  </nav>
+  <div class="field-context"><strong>Retrieval-augmented generation</strong> · 300 papers · built 31 Oct 2026</div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>Shortlist</h1>
+    <p class="lede">Directions you've drafted from research gaps, kept, or discarded. When you're ready to bring this to a supervisor meeting, export it to Markdown.</p>
+    <div class="btn-row" style="margin-top:14px;">
+      <a class="btn btn-primary" href="shortlist-export.html">Export to Markdown</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Draft <span class="muted" style="font-weight:400;">(1)</span></h2>
+    </div>
+    <div class="direction-col">
+      <div class="direction-card">
+        <div class="direction-head">
+          <div>
+            <span class="status-pill draft">Draft</span>
+            <h3 style="display:inline; margin-left:8px;">Bridge the NLP/ML-methods cluster with the QA-focused cluster</h3>
+          </div>
+          <div class="btn-row">
+            <a class="btn btn-quiet" href="#" onclick="return false;">Keep</a>
+            <a class="btn btn-quiet" href="#" onclick="return false;">Discard</a>
+          </div>
+        </div>
+        <p class="muted">Bridge NLP/ML methods work (Side A) with the QA-focused cluster (Side B) — 32 citations is thin for how semantically close these clusters are (98.8% similarity). From <a href="gap-detail.html">Gap 1 of 15</a>.</p>
+
+        <div class="badge-row">
+          <span class="badge">AI-generated</span>
+          <span class="badge-note">Drafted by Axiom from the gap's evidence papers — edit the notes below before citing this in a meeting.</span>
+        </div>
+
+        <label for="notes-1" style="margin-top:10px;">Your notes</label>
+        <textarea class="notes" id="notes-1" name="notes-1">Worth checking whether Side A's methods actually transfer to Side B's QA setting, or whether the thin citation count just reflects two communities that started from different venues. Ask my supervisor if 32 citations across 63 papers is normal for this field.</textarea>
+
+        <h3 style="font-size:0.95rem; margin-top:16px;">Papers to read</h3>
+        <div class="paper-list">
+          <a class="paper-row" href="gap-detail-paper-panel.html">
+            <div>
+              <div class="paper-title">Semantic Parsing on Freebase from Question-Answer Pairs</div>
+              <div class="paper-meta">EMNLP 2013 · 1,583 citations</div>
+            </div>
+            <span class="paper-side">Side B evidence</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Kept <span class="muted" style="font-weight:400;">(0)</span></h2>
+    </div>
+    <p class="muted">Nothing kept yet. Use "Keep" on a draft once you've decided it's worth pursuing.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title-row">
+      <h2>Discarded <span class="muted" style="font-weight:400;">(0)</span></h2>
+    </div>
+    <p class="muted">Nothing discarded yet.</p>
+  </div>
+</main>
+
+<footer class="page-footer">Low-fi wireframe — Phase C, product redesign. Not final visual design.</footer>
+
+</body>
+</html>

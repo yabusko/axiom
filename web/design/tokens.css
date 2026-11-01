@@ -1,0 +1,66 @@
+/* Axiom design tokens — "Field Map" (Gate 2, 2026-10-31).
+   Canonical source for both the React build (Phase E) and this file's own
+   component gallery (component-gallery.html). Light is the default theme;
+   dark activates via [data-theme="dark"] on the root element, same pattern
+   as the existing Streamlit app's persisted toggle (see AUDIT.md). */
+
+:root {
+  /* ---- Light theme (default) ---- */
+  --bg: #F3F6F7;
+  --surface: #FFFFFF;
+  --text: #20262B;
+  --text-muted: #5C6B73;
+  --border: #CBD5D8;           /* decorative dividers only, no AA requirement */
+  --border-strong: #7E8D93;    /* interactive-element outlines, 3.16:1 on --bg */
+  --mark: #E2572B;             /* graphical-only: connector lines, dots, focus rings. NEVER text, NEVER a fill with text on it. 3.43:1 on --bg (passes the 3:1 non-text threshold; would fail 4.5:1 text) */
+  --action: #C74A24;           /* button fills with text on them. 4.74:1 with white text — self-contained, same value in both themes */
+  --action-hover: #AE4020;
+  --region: #3E7C74;           /* topic/region wash + border-left accent, non-text only */
+  --region-wash: rgba(62, 124, 116, 0.10);
+  --region-wash-strong: rgba(62, 124, 116, 0.16);
+
+  --space-1: 4px; --space-2: 8px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px;
+  --radius: 0px;
+  --font-sans: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+  --h1: 2.75rem; --h2: 1.75rem; --h3: 1.25rem; --body: 1rem; --small: 0.875rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1B2226;
+    --surface: #20272B;
+    --text: #E7ECEE;
+    --text-muted: #9BA8AE;
+    --border: #3A444A;
+    --border-strong: #636D73;   /* 3.04:1 on --bg */
+    --mark: #E2572B;            /* same hue; 4.32:1 on dark --bg, stronger than on light */
+    --action: #C74A24;          /* unchanged — self-contained fill */
+    --action-hover: #AE4020;
+    --region: #5FA096;          /* brightened for dark-bg legibility, 5.34:1 on --bg */
+    --region-wash: rgba(95, 160, 150, 0.14);
+    --region-wash-strong: rgba(95, 160, 150, 0.22);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1B2226; --surface: #20272B; --text: #E7ECEE; --text-muted: #9BA8AE;
+  --border: #3A444A; --border-strong: #636D73; --mark: #E2572B;
+  --action: #C74A24; --action-hover: #AE4020; --region: #5FA096;
+  --region-wash: rgba(95, 160, 150, 0.14); --region-wash-strong: rgba(95, 160, 150, 0.22);
+}
+
+/* ---- Base ---- */
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: var(--font-sans); font-size: var(--body);
+  color: var(--text); background: var(--bg); line-height: 1.5;
+  font-feature-settings: "tnum" 1;
+}
+h1, h2, h3, h4 { font-weight: 800; margin: 0 0 0.4em; line-height: 1.15; color: var(--text); letter-spacing: -0.01em; }
+h1 { font-size: var(--h1); } h2 { font-size: var(--h2); font-weight: 700; } h3 { font-size: var(--h3); font-weight: 700; }
+p { margin: 0 0 0.9em; max-width: 70ch; }
+.muted { color: var(--text-muted); }
+a { color: var(--text); text-decoration-color: var(--border); }
+a:hover { text-decoration-color: var(--text); }
+:focus-visible { outline: 2px solid var(--mark); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }

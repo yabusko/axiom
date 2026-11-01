@@ -619,6 +619,14 @@ def _get_provider():
     return AnthropicProvider() if select_provider_name() == "anthropic" else OllamaProvider()
 
 
+def model_for_tier(tier: str) -> str:
+    """The concrete model id `complete_json(tier, ...)` would call right now
+    -- for callers that need to record which model produced a result (e.g.
+    `paper_summaries.model`) without threading that back through `complete_json`
+    itself."""
+    return _get_provider()._tier_models[tier]
+
+
 async def complete_json(
     tier: str,
     system: str,
