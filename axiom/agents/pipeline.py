@@ -288,7 +288,7 @@ async def run_pipeline(
 
 
 def get_run_status(conn: sqlite3.Connection, run_id: str) -> RunStatusOut | None:
-    """For `GET /agents/runs/{id}` -- see the patch note."""
+    """Status + spend for one agent run, for `GET /agents/runs/{id}`."""
     row = db.get_agent_run(conn, run_id)
     if row is None:
         return None
