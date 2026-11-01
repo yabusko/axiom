@@ -1053,7 +1053,7 @@ def field_overview(field_id: str):
     stats = graphmod.stats(g)
     conn = db.connect(row["db_path"])
     try:
-        velocity_analysis = velocitymod.get_top_velocity_keywords(conn, n=8)
+        velocity_analysis = velocitymod.get_top_velocity_keywords(conn, n=8, paper_ids=_slice_paper_ids(row))
     finally:
         conn.close()
     rising = [k for k in velocity_analysis.keywords if k.velocity > 0][:6]
@@ -1212,7 +1212,7 @@ async def field_shortlist_create(field_id: str, body: ShortlistCreateIn):
 
     conn = db.connect(row["db_path"])
     try:
-        v = velocitymod.get_top_velocity_keywords(conn, n=10)
+        v = velocitymod.get_top_velocity_keywords(conn, n=10, paper_ids=_slice_paper_ids(row))
         trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
         try:
             pitch = await synthesis_agent.generate_hypothesis(

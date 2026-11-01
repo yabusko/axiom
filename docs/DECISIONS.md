@@ -1085,6 +1085,30 @@ toward `--size`. Real effect on the actual 1000-paper build: fetched exactly 100
 `OPENALEX_BATCH_SIZE` 50 -> 100 (OpenAlex's own OR-filter cap) for `works_by_ids` (snowball/`--extend`
 path) -- fewer requests for the same referenced-works lookups.
 
+## OD39 — A4 slice fields: "rising concepts" wasn't scoped to the slice at all
+
+**Context.** Found running a post-build sanity check on the real corpus (per-user request, three
+topics' fields): `GET /fields/{id}/overview`'s `rising` concepts were IDENTICAL across three
+completely different topic slices. Root cause: `axiom.velocity.compute_velocity` has no paper-id
+filter, and `field_overview`/`field_shortlist_create` both call it with `conn = db.connect(row
+["db_path"])` -- for a slice field that `db_path` is the SHARED base corpus (OD37's whole point:
+no copy), so velocity always scanned the entire 1000-paper corpus regardless of which field asked.
+`key_papers`/`topics`/gaps were all correctly scoped already (they go through `_field_graph`'s
+sliced subgraph); velocity was the one path that read straight off `db_path` with no slice
+awareness at all.
+
+**Decision.** `compute_velocity`/`get_top_velocity_keywords` gained an optional `paper_ids`
+filter (restricts `paper_year` construction; downstream concept-counting already skips any
+paper not in that dict, so no second filter point needed). `field_overview` and
+`field_shortlist_create` (the "Draft direction" trend-context grounding) both now pass
+`_slice_paper_ids(row)` -- `None` for a legacy/download field, same behavior as before. Verified
+against the real corpus: the three probe topics now return genuinely different rising-concept
+lists. **Known, separate, pre-existing issue -- not fixed here:** the lists are still mostly noisy
+raw OpenAlex concept labels ("Feature (linguistics)", "Field (mathematics)") rather than the
+agent-extracted canonical concepts OD34 already prefers for gap labels specifically -- `velocity.py`
+still reads only the raw `concepts` table. Flagged for Part B, not expanded into here (this OD is
+about the scoping bug, not a second pass at label quality).
+
 ---
 
 ## Schema change log

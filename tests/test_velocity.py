@@ -100,6 +100,27 @@ def test_venue_and_year_filters(empty_conn):
     assert only_acl.insufficient_year_spread is True
 
 
+def test_paper_ids_restricts_to_a_slice(empty_conn):
+    """Stage 4, OD39: a field 'slice' shares the base corpus's db_path, so
+    without this filter every field's trends would see the WHOLE corpus
+    regardless of its own topic -- a real bug found running the real corpus
+    for real (every field showed identical, unscoped rising concepts)."""
+    conn = empty_conn
+    _add(conn, "p1", 2020, [("X", 1)])
+    _add(conn, "p2", 2023, [("X", 1)])
+    _add(conn, "p3", 2020, [("Y", 1)])
+    _add(conn, "p4", 2023, [("Y", 1)])
+    conn.commit()
+
+    sliced = velocity.compute_velocity(conn, min_freq=1, paper_ids={"p1", "p2"})
+    concepts = {k.concept for k in sliced.keywords}
+    assert concepts == {"X"}
+    assert sliced.total_prior == 1 and sliced.total_recent == 1
+
+    unsliced = velocity.compute_velocity(conn, min_freq=1)
+    assert {k.concept for k in unsliced.keywords} == {"X", "Y"}
+
+
 def test_empty_corpus_returns_empty(empty_conn):
     analysis = velocity.compute_velocity(empty_conn)
     assert analysis.keywords == []
