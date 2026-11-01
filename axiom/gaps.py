@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
@@ -28,6 +29,49 @@ import numpy as np
 
 from axiom import config, db
 from axiom import graph as graphmod
+
+# Review fix: a lightweight, explicitly-scoped filter -- not a general
+# content-quality classifier (that's judge_gaps.py's job, at the gap level,
+# not per-label). Two low-risk, narrowly-targeted patterns plus a small
+# denylist for specific junk the review named, which doesn't reliably
+# reproduce in a fresh corpus build (canonicalize.py calls an LLM per batch,
+# so re-running it can legitimately group/name things differently run to
+# run) -- seeded here so the SAME failure shape is caught if/when it recurs,
+# not just patched once for one build's output.
+_JUNK_LABEL_DENYLIST = {"bridging operation"}
+_JUNK_LARGE_NUMBER = re.compile(r"\d{1,3}(,\d{3})+")           # "98,734 theorems..." (a dataset
+                                                                  # size statement, not a concept)
+_JUNK_CITATION_LIKE = re.compile(r"\(\d{4}\)\s*\w*(dataset|benchmark|corpus)\b", re.IGNORECASE)
+                                                                  # "cai and yates (2013) dataset"
+
+# Review fix: "chatgpt" -> "ChatGPT". Agent-coined canonical labels
+# (`paper_concepts.source='agent'`) are lowercase by the extraction prompt's
+# own convention -- fine for ordinary phrases ("retrieve-and-read"), wrong
+# for well-known proper nouns/product names. A small, explicit map of known
+# terms, matched whole-token (case-insensitive) so it never touches the rest
+# of a multi-word label's casing -- not a general title-caser, which would
+# incorrectly rewrite the deliberate lowercase house style of normal phrases.
+_KNOWN_CASING = {
+    "chatgpt": "ChatGPT", "gpt": "GPT", "gpt-2": "GPT-2", "gpt-3": "GPT-3", "gpt-4": "GPT-4",
+    "bert": "BERT", "roberta": "RoBERTa", "lora": "LoRA", "rag": "RAG", "llm": "LLM",
+    "llms": "LLMs", "nlp": "NLP", "qa": "QA", "bm25": "BM25", "ai": "AI", "nli": "NLI",
+}
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[^A-Za-z0-9]+")
+
+
+def _is_junk_label(label: str) -> bool:
+    low = label.lower()
+    return (low in _JUNK_LABEL_DENYLIST
+            or bool(_JUNK_LARGE_NUMBER.search(label))
+            or bool(_JUNK_CITATION_LIKE.search(label)))
+
+
+def _normalize_casing(label: str) -> str:
+    """Fix known proper-noun tokens (see `_KNOWN_CASING`) inside `label`,
+    token-by-token, leaving everything else (including deliberate lowercase
+    phrasing) untouched."""
+    parts = _TOKEN_RE.findall(label)
+    return "".join(_KNOWN_CASING.get(p.lower(), p) for p in parts)
 from axiom import velocity as velocitymod
 
 
@@ -123,7 +167,7 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4,
     agent_tf: dict[int, Counter] = defaultdict(Counter)
     for r in agent_rows:
         cid = node2c.get(r["paper_id"])
-        if cid is not None:
+        if cid is not None and not _is_junk_label(r["canonical"]):
             agent_tf[cid][r["canonical"]] += 1
 
     openalex_rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
@@ -133,7 +177,8 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4,
         cid = node2c.get(r["paper_id"])
         if cid is not None:
             concept = canon.get(r["concept"], r["concept"])
-            openalex_tf[cid][concept] += 1
+            if not _is_junk_label(concept):
+                openalex_tf[cid][concept] += 1
 
     tf: dict[int, Counter] = {}
     for cid in set(agent_tf) | set(openalex_tf):
@@ -156,8 +201,8 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4,
         }
         if not scored:                       # fallback if everything was generic
             scored = {c: count for c, count in cnt.items()}
-        labels[cid] = [c for c, _ in sorted(scored.items(),
-                                            key=lambda kv: kv[1], reverse=True)[:top]]
+        labels[cid] = [_normalize_casing(c) for c, _ in sorted(
+            scored.items(), key=lambda kv: kv[1], reverse=True)[:top]]
     return labels
 
 

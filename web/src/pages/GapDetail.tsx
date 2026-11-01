@@ -7,8 +7,15 @@ import { PaperList } from "../components/PaperRow";
 import { Badge } from "../components/Badge";
 import { ErrorState, LoadingState } from "../components/States";
 
-function headline(a: SideDetailOut, b: SideDetailOut): string {
-  return `${a.size}-paper ${a.labels[0] ?? "cluster"} cluster barely cites the ${b.size}-paper ${b.labels[0] ?? "cluster"} cluster right next to it`;
+// Review fix / OD41 (docs/DECISIONS.md): "barely cites" only when the
+// cross-citation share is actually low -- see GapCard.tsx for the threshold
+// and the real-data reasoning behind it (the same rule, applied here too).
+const LOW_SHARE_THRESHOLD = 0.05;
+
+function headline(a: SideDetailOut, b: SideDetailOut, interCitations: number, totalInCorpusCitations: number): string {
+  const share = interCitations / Math.max(totalInCorpusCitations, 1);
+  const verb = share < LOW_SHARE_THRESHOLD ? "barely cites" : `shares ${interCitations} citations with`;
+  return `${a.size}-paper ${a.labels[0] ?? "cluster"} cluster ${verb} the ${b.size}-paper ${b.labels[0] ?? "cluster"} cluster right next to it`;
 }
 
 function SideCard({ side, label }: { side: SideDetailOut; label: string }) {
@@ -81,7 +88,7 @@ export default function GapDetail() {
       <p>
         <a href={`/fields/${fieldId}/gaps`}>← Back to research gaps</a>
       </p>
-      <h1>{headline(data.a, data.b)}</h1>
+      <h1>{headline(data.a, data.b, data.inter_citations, data.total_in_corpus_citations)}</h1>
       <p className="lede" style={{ color: "var(--text-muted)", maxWidth: "70ch" }}>
         {data.a.size} papers centered on {data.a.labels[0] ?? "this cluster"} sit closer than{" "}
         {data.similarity_percentile.toFixed(0)}% of this field's topic pairs to a {data.b.size}-paper{" "}

@@ -99,6 +99,24 @@ def test_analyze_gap_score_formula(seeded_conn):
     assert math.isclose(cand.gap_score, cand.semantic_similarity / (1 + 1), abs_tol=1e-6)
 
 
+# --- Review fix: junk-label filter + known-proper-noun casing ------------------
+def test_is_junk_label_denylist_and_patterns():
+    assert gaps._is_junk_label("bridging operation") is True
+    assert gaps._is_junk_label("Bridging Operation") is True  # case-insensitive
+    assert gaps._is_junk_label("98,734 theorems and proofs extracted from lean") is True
+    assert gaps._is_junk_label("cai and yates (2013) dataset") is True
+    assert gaps._is_junk_label("retrieval augmented generation") is False
+    assert gaps._is_junk_label("gpt-4-turbo-2024-0409") is False  # a real model name, not junk
+
+
+def test_normalize_casing_fixes_known_terms_only():
+    assert gaps._normalize_casing("chatgpt") == "ChatGPT"
+    assert gaps._normalize_casing("chatgpt-4o-latest") == "ChatGPT-4o-latest"
+    assert gaps._normalize_casing("rag for question answering") == "RAG for question answering"
+    # Ordinary lowercase phrases, the deliberate house style, stay untouched.
+    assert gaps._normalize_casing("retrieve-and-read") == "retrieve-and-read"
+
+
 # --- B1: similarity percentile --------------------------------------------------
 def test_similarity_percentile_ranks_among_all_pairs():
     all_sims = [0.80, 0.90, 0.95, 0.98, 0.99]

@@ -30,8 +30,8 @@ export default function Gaps() {
       <div className="page-head">
         <h1>Research gaps</h1>
         <p className="lede">
-          The product's citation-backed gap view. Sub-topics (communities) come from the citation graph; a candidate
-          research gap is a pair of communities close in meaning yet barely citing each other.
+          Candidate research gaps, grounded in citations. Sub-topics (communities) come from the citation graph;
+          a candidate gap is a pair of communities close in meaning yet weakly connected by citation.
         </p>
       </div>
       {ranked.length === 0 ? (
@@ -42,7 +42,12 @@ export default function Gaps() {
       ) : (
         <div className="gap-list">
           {ranked.map((gap) => (
-            <GapCard gap={gap} fieldId={fieldId!} key={gap.gap_id} />
+            <GapCard
+              gap={gap}
+              fieldId={fieldId!}
+              totalInCorpusCitations={data.total_in_corpus_citations}
+              key={gap.gap_id}
+            />
           ))}
         </div>
       )}

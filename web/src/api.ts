@@ -139,6 +139,7 @@ export interface GapAnalysisOut {
   node2c: Record<string, number>;
   communities: Record<string, CommunityOut>;
   gaps: GapCandidateOut[];
+  total_in_corpus_citations: number;
 }
 
 export interface SideDetailOut {

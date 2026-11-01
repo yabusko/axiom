@@ -188,6 +188,7 @@ class GapAnalysisOut(BaseModel):
     node2c: dict[str, int]
     communities: dict[int, CommunityOut]
     gaps: list[GapCandidateOut]
+    total_in_corpus_citations: int = 0   # review fix: lets the UI compute a real cross-citation share
 
 
 class ConceptCommunityOut(BaseModel):
@@ -1146,7 +1147,9 @@ def field_overview(field_id: str):
 @app.get("/fields/{field_id}/gaps", response_model=GapAnalysisOut)
 def field_gaps(field_id: str):
     _resolve_field(field_id)  # 404s before touching the cache
-    return GapAnalysisOut.model_validate(_cached_field_gap_analysis(field_id))
+    out = GapAnalysisOut.model_validate(_cached_field_gap_analysis(field_id))
+    out.total_in_corpus_citations = graphmod.stats(_cached_field_graph(field_id))["edges_in_corpus"]
+    return out
 
 
 @app.get("/fields/{field_id}/gaps/{gap_id}", response_model=GapDetailOut)

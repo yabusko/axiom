@@ -26,7 +26,7 @@ const GAP = {
   meets_threshold: true,
 };
 
-const GAPS_LIST = { node2c: {}, communities: {}, gaps: [GAP] };
+const GAPS_LIST = { node2c: {}, communities: {}, gaps: [GAP], total_in_corpus_citations: 1699 };
 
 const GAP_DETAIL = {
   gap_id: GAP_ID,

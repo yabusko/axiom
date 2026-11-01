@@ -1148,6 +1148,27 @@ pre-flight confirmation (A2) for the one genuinely expensive, deliberately-trigg
 operation; the live API's own per-request calls (a single hypothesis draft, ~$0.01) are
 cheap enough that per-run $3 ceilings on each are not a meaningful aggregate risk.
 
+## OD41 — Review fix: "barely cites" only when the cross-citation share is actually low
+
+**Context.** The gap headline ("X cluster barely cites the Y cluster") used that phrase for
+EVERY candidate gap unconditionally. Real field data (measured against an actual field built
+this stage, 86 in-corpus citations total): the 6 candidate gaps' `inter_citations` were
+1/2/3/7/8/14, i.e. cross-citation shares of 1.2%/2.3%/3.5%/8.1%/9.3%/16.3%. Calling a pair
+that shares 14 of a field's 86 total in-corpus citations (16.3%) "barely" connected is not
+accurate -- it's a real, substantial citation link, just not a DENSE one; "barely" only
+describes the low end of that real spread.
+
+**Decision.** `share = inter_citations / total_in_corpus_citations`; `share < 0.05` keeps
+"barely cites" (covers 1.2%/2.3%/3.5% from the real measurement above -- genuinely sparse),
+`share >= 0.05` switches to neutral, still-specific phrasing: "shares N citations with"
+(covers 8.1%/9.3%/16.3% -- a real connection, honestly stated as one). 5% isn't swept
+against a labeled target (same spirit as OD23's `VERIFIER_COSINE_MIN`, OD37's relevance
+floor) -- it's picked to cleanly separate the one real field's measured spread into two
+groups that read right in plain English, and is cheap to revisit once more fields exist to
+check it against. `GapAnalysisOut` gained `total_in_corpus_citations` (computed once per
+field, not per gap) so `GapCard`'s list view can apply the same rule as `GapDetail`'s single-
+gap view, which already had the figure.
+
 ---
 
 ## Schema change log
