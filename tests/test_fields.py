@@ -378,19 +378,25 @@ def test_field_gaps_list(field_client):
     assert len(r.json()["gaps"]) == 1
 
 
+def _first_gap_id(client, field_id: str) -> str:
+    return client.get(f"/fields/{field_id}/gaps").json()["gaps"][0]["gap_id"]
+
+
 def test_field_gap_detail_has_per_side_methods_and_datasets(field_client):
     client, field_id = field_client
-    r = client.get(f"/fields/{field_id}/gaps/0")
+    gap_id = _first_gap_id(client, field_id)
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}")
     assert r.status_code == 200
     body = r.json()
+    assert body["gap_id"] == gap_id
     assert body["a"]["size"] == 4 and body["b"]["size"] == 4
     assert "methods" in body["a"] and "datasets" in body["a"]
     assert body["inter_citations"] == 1
 
 
-def test_field_gap_detail_404_out_of_range(field_client):
+def test_field_gap_detail_404_unknown_id(field_client):
     client, field_id = field_client
-    assert client.get(f"/fields/{field_id}/gaps/99").status_code == 404
+    assert client.get(f"/fields/{field_id}/gaps/not-a-real-gap-id").status_code == 404
 
 
 def test_field_paper_detail_with_entities(field_client, patched_db_path):
@@ -435,7 +441,7 @@ def test_shortlist_create_and_list(field_client, monkeypatch):
 
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    r = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0})
+    r = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)})
     assert r.status_code == 200
     item = r.json()
     assert item["status"] == "draft"             # not "pending" -- product-facing label
@@ -446,9 +452,9 @@ def test_shortlist_create_and_list(field_client, monkeypatch):
     assert client.get(f"/fields/{field_id}/shortlist", params={"status": "kept"}).json() == []
 
 
-def test_shortlist_create_404_bad_gap_index(field_client):
+def test_shortlist_create_404_bad_gap_id(field_client):
     client, field_id = field_client
-    assert client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 99}).status_code == 404
+    assert client.post(f"/fields/{field_id}/shortlist", json={"gap_id": "not-a-real-gap-id"}).status_code == 404
 
 
 def test_shortlist_patch_status_notes_papers(field_client, monkeypatch):
@@ -461,7 +467,7 @@ def test_shortlist_patch_status_notes_papers(field_client, monkeypatch):
                                 datasets=[], supporting_paper_ids=["A1"])
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0}).json()
+    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)}).json()
 
     r = client.patch(
         f"/fields/{field_id}/shortlist/{item['id']}",
@@ -490,7 +496,7 @@ def test_shortlist_export_markdown(field_client, monkeypatch):
                                 datasets=["D1"], supporting_paper_ids=["A1"])
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0}).json()
+    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)}).json()
     client.patch(f"/fields/{field_id}/shortlist/{item['id']}", json={"status": "kept"})
 
     r = client.get(f"/fields/{field_id}/shortlist/export.md")

@@ -18,6 +18,7 @@ Pure-Python: networkx + numpy only (no torch, no scipy).
 """
 from __future__ import annotations
 
+import hashlib
 import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -54,6 +55,21 @@ class GapCandidate:
     g_score: float = 0.0                     # weighted blend of `components`, ~[0,1]
     components: dict = field(default_factory=dict)  # {similarity, disconnection, velocity, authority}
     meets_threshold: bool = False            # g_score >= calibrated τ
+
+    @property
+    def gap_id(self) -> str:
+        """Stable id for this candidate: a hash of both sides' member paper-id
+        sets. Stage 4 B4: replaces `gaps.analyze()`'s list position (the old
+        `gap_index`) as the thing a URL/shortlist record references -- a
+        list-position id silently points at a DIFFERENT gap if a later
+        `analyze()` run (new papers, a recalibrated weight) reorders
+        candidates; this doesn't, because it depends only on which two
+        communities a candidate pairs, not where it lands in the ranking.
+        Order-independent (sorts both the paper ids within each side and the
+        two sides against each other) so swapping a/b never changes the id.
+        """
+        sides = sorted([tuple(sorted(self.a.members)), tuple(sorted(self.b.members))])
+        return hashlib.sha256(repr(sides).encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass

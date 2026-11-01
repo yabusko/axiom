@@ -82,7 +82,7 @@ export default function App() {
                 <Routes>
                   <Route path="landscape" element={<Landscape />} />
                   <Route path="gaps" element={<Gaps />} />
-                  <Route path="gaps/:gapIndex" element={<GapDetail />} />
+                  <Route path="gaps/:gapId" element={<GapDetail />} />
                   <Route path="shortlist" element={<Shortlist />} />
                   <Route
                     path="map"

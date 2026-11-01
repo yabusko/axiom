@@ -121,6 +121,7 @@ export interface CommunityOut {
 }
 
 export interface GapCandidateOut {
+  gap_id: string;
   a: CommunityOut;
   b: CommunityOut;
   semantic_similarity: number;
@@ -147,7 +148,7 @@ export interface SideDetailOut {
 }
 
 export interface GapDetailOut {
-  index: number;
+  gap_id: string;
   a: SideDetailOut;
   b: SideDetailOut;
   semantic_similarity: number;
@@ -242,16 +243,16 @@ export const api = {
   deleteField: (fieldId: string) => req<void>(`/fields/${fieldId}`, { method: "DELETE" }),
   overview: (fieldId: string) => req<OverviewOut>(`/fields/${fieldId}/overview`),
   gaps: (fieldId: string) => req<GapAnalysisOut>(`/fields/${fieldId}/gaps`),
-  gapDetail: (fieldId: string, gapIndex: number) =>
-    req<GapDetailOut>(`/fields/${fieldId}/gaps/${gapIndex}`),
+  gapDetail: (fieldId: string, gapId: string) =>
+    req<GapDetailOut>(`/fields/${fieldId}/gaps/${encodeURIComponent(gapId)}`),
   paper: (fieldId: string, paperId: string) =>
     req<FieldPaperOut>(`/fields/${fieldId}/papers/${encodeURIComponent(paperId)}`),
   shortlist: (fieldId: string, status?: ShortlistStatus) =>
     req<ShortlistItemOut[]>(`/fields/${fieldId}/shortlist${status ? `?status=${status}` : ""}`),
-  draftDirection: (fieldId: string, gapIndex: number) =>
+  draftDirection: (fieldId: string, gapId: string) =>
     req<ShortlistItemOut>(`/fields/${fieldId}/shortlist`, {
       method: "POST",
-      body: JSON.stringify({ gap_index: gapIndex }),
+      body: JSON.stringify({ gap_id: gapId }),
     }),
   patchShortlist: (
     fieldId: string,

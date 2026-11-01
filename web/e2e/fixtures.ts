@@ -15,7 +15,10 @@ const FIELD_STATUS = {
   papers_total: 300, papers_done: 300, cost_so_far: 0.11, error: null, created_at: "2026-10-31T19:00:00Z",
 };
 
+export const GAP_ID = "fixture-gap-0123456789ab";
+
 const GAP = {
+  gap_id: GAP_ID,
   a: { cid: 0, members: ["W1"], labels: ["Natural language processing", "Philosophy", "Machine learning"], size: 43 },
   b: { cid: 1, members: ["W2"], labels: ["Natural language processing", "Question answering"], size: 20 },
   semantic_similarity: 0.988, inter_citations: 32, gap_score: 0.03, g_score: 0.618,
@@ -26,7 +29,7 @@ const GAP = {
 const GAPS_LIST = { node2c: {}, communities: {}, gaps: [GAP] };
 
 const GAP_DETAIL = {
-  index: 0,
+  gap_id: GAP_ID,
   a: {
     cid: GAP.a.cid, labels: GAP.a.labels, size: GAP.a.size,
     top_papers: [{ paper_id: "W_SQUAD", title: "SQuAD: 100,000+ Questions for Machine Comprehension of Text", year: 2016, venue: "EMNLP", cited_by_count: 6208, local_in_degree: 10, pagerank: 0.0829 }],
@@ -120,7 +123,7 @@ export async function mockApi(page: Page) {
     }
     return route.continue();
   });
-  await page.route(`http://localhost:8000/fields/${FIELD_ID}/gaps/0`, (route) => route.fulfill({ json: GAP_DETAIL }));
+  await page.route(`http://localhost:8000/fields/${FIELD_ID}/gaps/${GAP_ID}`, (route) => route.fulfill({ json: GAP_DETAIL }));
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/papers/*`, (route) =>
     route.fulfill({
       json: {

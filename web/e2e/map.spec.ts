@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockApi } from "./fixtures";
+import { mockApi, GAP_ID } from "./fixtures";
 
 // "Show on map" from a gap's detail screen -> the Map screen loads with both
 // sides of that gap highlighted, then the embedding view + the
@@ -7,7 +7,7 @@ import { mockApi } from "./fixtures";
 test("show on map from a gap, then compare two topics' similarity", async ({ page }) => {
   await mockApi(page);
 
-  await page.goto("/fields/default/gaps/0");
+  await page.goto(`/fields/default/gaps/${GAP_ID}`);
   await expect(page.getByRole("heading", { name: /barely cites/ })).toBeVisible();
 
   await page.getByRole("link", { name: "Show on map →" }).click();

@@ -147,6 +147,7 @@ class CommunityOut(BaseModel):
 
 class GapCandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    gap_id: str                          # B4: stable id, replaces list-position gap_index
     a: CommunityOut
     b: CommunityOut
     semantic_similarity: float
@@ -300,7 +301,7 @@ class SideDetailOut(BaseModel):
 
 
 class GapDetailOut(BaseModel):
-    index: int
+    gap_id: str                          # B4: stable id, replaces list-position gap_index
     a: SideDetailOut
     b: SideDetailOut
     semantic_similarity: float
@@ -386,7 +387,7 @@ class ShortlistItemOut(BaseModel):
 
 
 class ShortlistCreateIn(BaseModel):
-    gap_index: int = Field(ge=0)
+    gap_id: str = Field(min_length=1)   # B4: stable id, replaces list-position gap_index
 
 
 class ShortlistPatchIn(BaseModel):
@@ -865,6 +866,17 @@ def _resolve_field(field_id: str) -> sqlite3.Row:
     return row
 
 
+def _find_gap(analysis, gap_id: str):
+    """B4: look up a gap candidate by its stable gap_id (a hash of both sides'
+    member sets -- see GapCandidate.gap_id), replacing the old list-position
+    gap_index lookup everywhere a gap is addressed from outside analyze()'s
+    own ranked list (a URL, a shortlist request body)."""
+    for candidate in analysis.gaps:
+        if candidate.gap_id == gap_id:
+            return candidate
+    raise HTTPException(status_code=404, detail=f"no gap candidate with id {gap_id!r}")
+
+
 def _slice_paper_ids(row: sqlite3.Row) -> set[str] | None:
     """A4: a 'slice' field is a (topic, paper_ids) pair over the SHARED base
     corpus, not its own download -- None for a legacy/'download' field (no
@@ -1134,14 +1146,12 @@ def field_gaps(field_id: str):
     return GapAnalysisOut.model_validate(_cached_field_gap_analysis(field_id))
 
 
-@app.get("/fields/{field_id}/gaps/{gap_index}", response_model=GapDetailOut)
-def field_gap_detail(field_id: str, gap_index: int):
+@app.get("/fields/{field_id}/gaps/{gap_id}", response_model=GapDetailOut)
+def field_gap_detail(field_id: str, gap_id: str):
     row = _resolve_field(field_id)
     g = _cached_field_graph(field_id)
     analysis = _cached_field_gap_analysis(field_id)
-    if gap_index < 0 or gap_index >= len(analysis.gaps):
-        raise HTTPException(status_code=404, detail="no gap candidate at that index")
-    gap = analysis.gaps[gap_index]
+    gap = _find_gap(analysis, gap_id)
     stats = graphmod.stats(g)
 
     conn = db.connect(row["db_path"])
@@ -1160,7 +1170,7 @@ def field_gap_detail(field_id: str, gap_index: int):
         conn.close()
 
     return GapDetailOut(
-        index=gap_index, a=sides[0], b=sides[1],
+        gap_id=gap.gap_id, a=sides[0], b=sides[1],
         semantic_similarity=gap.semantic_similarity, inter_citations=gap.inter_citations,
         total_in_corpus_citations=stats["edges_in_corpus"],
         gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
@@ -1273,9 +1283,7 @@ async def field_shortlist_create(field_id: str, body: ShortlistCreateIn):
     g, analysis = await run_in_threadpool(
         lambda: (_cached_field_graph(field_id), _cached_field_gap_analysis(field_id))
     )
-    if body.gap_index < 0 or body.gap_index >= len(analysis.gaps):
-        raise HTTPException(status_code=404, detail="no gap candidate at that index")
-    gap = analysis.gaps[body.gap_index]
+    gap = _find_gap(analysis, body.gap_id)
 
     def _trend_context() -> list[str]:
         conn = db.connect(row["db_path"])

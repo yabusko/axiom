@@ -48,20 +48,19 @@ function SideCard({ side, label }: { side: SideDetailOut; label: string }) {
 }
 
 export default function GapDetail() {
-  const { fieldId, gapIndex } = useParams<{ fieldId: string; gapIndex: string }>();
+  const { fieldId, gapId } = useParams<{ fieldId: string; gapId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [crossCheckOpen, setCrossCheckOpen] = useState(false);
-  const index = Number(gapIndex);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["gap-detail", fieldId, index],
-    queryFn: () => api.gapDetail(fieldId!, index),
-    enabled: !!fieldId && Number.isFinite(index),
+    queryKey: ["gap-detail", fieldId, gapId],
+    queryFn: () => api.gapDetail(fieldId!, gapId!),
+    enabled: !!fieldId && !!gapId,
   });
 
   const draftMutation = useMutation({
-    mutationFn: () => api.draftDirection(fieldId!, index),
+    mutationFn: () => api.draftDirection(fieldId!, gapId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shortlist", fieldId] });
       navigate(`/fields/${fieldId}/shortlist`);

@@ -7,9 +7,9 @@ function gapHeadline(gap: GapCandidateOut): string {
   return `${gap.a.size}-paper ${a} cluster barely cites the ${gap.b.size}-paper ${b} cluster`;
 }
 
-export function GapCard({ gap, index, fieldId }: { gap: GapCandidateOut; index: number; fieldId: string }) {
+export function GapCard({ gap, fieldId }: { gap: GapCandidateOut; fieldId: string }) {
   return (
-    <Link className="gap-card" to={`/fields/${fieldId}/gaps/${index}`}>
+    <Link className="gap-card" to={`/fields/${fieldId}/gaps/${encodeURIComponent(gap.gap_id)}`}>
       <h3>{gapHeadline(gap)}</h3>
       <div className="gap-stats">
         <span>

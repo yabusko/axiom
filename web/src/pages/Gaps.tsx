@@ -22,7 +22,7 @@ export default function Gaps() {
   }
 
   // gaps.analyze() already ranks by g_score server-side (docs/agentic/ARCHITECTURE.md) --
-  // not re-sorted here, since GapCard's index must match GET /gaps/{index}'s position.
+  // not re-sorted here.
   const ranked = data.gaps;
 
   return (
@@ -41,8 +41,8 @@ export default function Gaps() {
         </EmptyState>
       ) : (
         <div className="gap-list">
-          {ranked.map((gap, i) => (
-            <GapCard gap={gap} index={i} fieldId={fieldId!} key={i} />
+          {ranked.map((gap) => (
+            <GapCard gap={gap} fieldId={fieldId!} key={gap.gap_id} />
           ))}
         </div>
       )}

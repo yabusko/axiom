@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockApi } from "./fixtures";
+import { mockApi, GAP_ID } from "./fixtures";
 
 // The task's own happy-path scenario: start -> open a gap -> draft a
 // direction -> keep it -> export. API responses are mocked (see fixtures.ts)
@@ -21,7 +21,7 @@ test("start -> open a gap -> draft a direction -> keep it -> export", async ({ p
   await expect(page).toHaveURL(/\/fields\/default\/gaps$/);
   await page.getByText(/barely cites/).click();
 
-  await expect(page).toHaveURL(/\/fields\/default\/gaps\/0/);
+  await expect(page).toHaveURL(new RegExp(`/fields/default/gaps/${GAP_ID}`));
   await expect(page.getByRole("heading", { name: /barely cites/ })).toBeVisible();
   await page.getByRole("button", { name: "Draft direction" }).click();
 
@@ -52,7 +52,7 @@ test("instant field creation redirects straight to landscape, no polling", async
 
 test("paper panel opens with evidence-span highlighting", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/fields/default/gaps/0");
+  await page.goto(`/fields/default/gaps/${GAP_ID}`);
   await page.getByRole("button", { name: "Semantic Parsing on Freebase from Question-Answer Pairs" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText("Unverified")).toBeVisible();

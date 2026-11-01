@@ -99,6 +99,40 @@ def test_analyze_gap_score_formula(seeded_conn):
     assert math.isclose(cand.gap_score, cand.semantic_similarity / (1 + 1), abs_tol=1e-6)
 
 
+# --- B4: stable gap_id ---------------------------------------------------------
+def test_gap_id_is_stable_and_order_independent():
+    a = gaps.Community(cid=0, members=["P1", "P2"], labels=["X"], size=2)
+    b = gaps.Community(cid=1, members=["P3", "P4"], labels=["Y"], size=2)
+    cand_ab = gaps.GapCandidate(a=a, b=b, semantic_similarity=0.5, inter_citations=1, gap_score=0.25)
+    cand_ba = gaps.GapCandidate(a=b, b=a, semantic_similarity=0.5, inter_citations=1, gap_score=0.25)
+    assert cand_ab.gap_id == cand_ba.gap_id        # swapping a/b doesn't change the id
+    assert len(cand_ab.gap_id) == 16
+
+
+def test_gap_id_differs_for_different_member_sets():
+    a = gaps.Community(cid=0, members=["P1", "P2"], labels=["X"], size=2)
+    b = gaps.Community(cid=1, members=["P3", "P4"], labels=["Y"], size=2)
+    c = gaps.Community(cid=2, members=["P5", "P6"], labels=["Z"], size=2)
+    cand1 = gaps.GapCandidate(a=a, b=b, semantic_similarity=0.5, inter_citations=1, gap_score=0.25)
+    cand2 = gaps.GapCandidate(a=a, b=c, semantic_similarity=0.5, inter_citations=1, gap_score=0.25)
+    assert cand1.gap_id != cand2.gap_id
+
+
+def test_gap_id_survives_reordering(seeded_conn):
+    """The real regression this stage's B4 fixes: analyze() with a different
+    resolution can reorder `gaps`, which used to silently repoint the old
+    list-position gap_index at a different candidate. gap_id doesn't care
+    about position."""
+    g = graphmod.load_graph(seeded_conn)
+    gaps_list = gaps.analyze(g, seeded_conn, SEED_VECTORS, min_community_size=4).gaps
+    by_id = {c.gap_id: (frozenset(c.a.members), frozenset(c.b.members)) for c in gaps_list}
+    # Re-running analyze() (even with identical inputs) must map the same
+    # gap_id back to the same pair of member sets.
+    gaps_list_again = gaps.analyze(g, seeded_conn, SEED_VECTORS, min_community_size=4).gaps
+    for c in gaps_list_again:
+        assert by_id[c.gap_id] == (frozenset(c.a.members), frozenset(c.b.members))
+
+
 def test_analyze_respects_min_community_size(seeded_conn):
     g = graphmod.load_graph(seeded_conn)
     # Both clusters are size 4; require 5 → no candidate pairs survive.
