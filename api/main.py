@@ -973,17 +973,7 @@ def _field_map_data(field_id: str) -> MapOut:
 
 
 def _entities_for_papers(conn, paper_ids: list[str], kinds: tuple[str, ...]) -> list[str]:
-    if not paper_ids:
-        return []
-    placeholders = ",".join("?" for _ in paper_ids)
-    kind_placeholders = ",".join("?" for _ in kinds)
-    rows = conn.execute(
-        f"SELECT DISTINCT canonical FROM paper_concepts "
-        f"WHERE paper_id IN ({placeholders}) AND kind IN ({kind_placeholders}) "
-        f"ORDER BY canonical",
-        [*paper_ids, *kinds],
-    ).fetchall()
-    return [r["canonical"] for r in rows]
+    return db.concepts_for_papers(conn, paper_ids, kinds)
 
 
 def _top_papers(g, member_ids: list[str], top_k: int = 5) -> list:
@@ -1205,11 +1195,7 @@ def field_paper_detail(field_id: str, paper_id: str):
         paper = rows.get(paper_id)
         if paper is None:
             raise HTTPException(status_code=404, detail="paper not found")
-        entity_rows = conn.execute(
-            "SELECT name, kind, canonical, evidence_span, confidence FROM paper_concepts "
-            "WHERE paper_id = ? ORDER BY confidence DESC",
-            (paper_id,),
-        ).fetchall()
+        entity_rows = db.paper_entities(conn, paper_id)
     finally:
         conn.close()
     return FieldPaperOut(

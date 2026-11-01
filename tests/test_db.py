@@ -95,6 +95,43 @@ def test_papers_by_ids_empty(empty_conn):
     assert db.papers_by_ids(empty_conn, []) == {}
 
 
+def test_concepts_for_papers_filters_by_paper_and_kind(empty_conn):
+    conn = empty_conn
+    db.insert_paper(conn, openalex_id="A1", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    db.insert_paper(conn, openalex_id="A2", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    ts = "2026-01-01T00:00:00+00:00"
+    db.replace_paper_concepts(
+        conn, "r1", "A1",
+        [("RAG", "method", "RAG", 0.9, "ev", 0.9, "agent", ts),
+         ("SQuAD", "dataset", "SQuAD", 0.9, "ev", 0.9, "agent", ts)],
+        [],
+    )
+    db.replace_paper_concepts(
+        conn, "r1", "A2", [("LoRA", "method", "LoRA", 0.9, "ev", 0.9, "agent", ts)], [],
+    )
+
+    assert db.concepts_for_papers(conn, ["A1", "A2"], ("method",)) == ["LoRA", "RAG"]
+    assert db.concepts_for_papers(conn, ["A1"], ("dataset",)) == ["SQuAD"]
+    assert db.concepts_for_papers(conn, [], ("method",)) == []
+
+
+def test_paper_entities_most_confident_first(empty_conn):
+    conn = empty_conn
+    db.insert_paper(conn, openalex_id="A1", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    ts = "2026-01-01T00:00:00+00:00"
+    db.replace_paper_concepts(
+        conn, "r1", "A1",
+        [("RAG", "method", "RAG", 0.9, "ev", 0.6, "agent", ts),
+         ("LoRA", "method", "LoRA", 0.9, "ev", 0.95, "agent", ts)],
+        [],
+    )
+    rows = db.paper_entities(conn, "A1")
+    assert [r["canonical"] for r in rows] == ["LoRA", "RAG"]
+
+
 def test_reset_corpus_fk_safe(seeded_conn):
     # paper_concepts/concept_cooccurrence FK -> papers.openalex_id; reset_corpus must clear
     # them before papers or a non-empty agent-pipeline run blocks every future reset.

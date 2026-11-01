@@ -520,4 +520,35 @@ def replace_paper_concepts(
     return len(concept_rows)
 
 
+def concepts_for_papers(
+    conn: sqlite3.Connection, paper_ids: Sequence[str], kinds: Sequence[str]
+) -> list[str]:
+    """Distinct canonical `paper_concepts` labels across a set of papers,
+    restricted to `kinds` (e.g. `("method",)` or `("dataset",)`). B4: lifted
+    out of api/main.py's `_entities_for_papers` -- gap detail's per-side
+    methods/datasets lists."""
+    if not paper_ids:
+        return []
+    placeholders = ",".join("?" for _ in paper_ids)
+    kind_placeholders = ",".join("?" for _ in kinds)
+    rows = conn.execute(
+        f"SELECT DISTINCT canonical FROM paper_concepts "
+        f"WHERE paper_id IN ({placeholders}) AND kind IN ({kind_placeholders}) "
+        f"ORDER BY canonical",
+        [*paper_ids, *kinds],
+    ).fetchall()
+    return [r["canonical"] for r in rows]
+
+
+def paper_entities(conn: sqlite3.Connection, paper_id: str) -> list[sqlite3.Row]:
+    """All `paper_concepts` rows for one paper, most-confident first -- the
+    Paper panel's "Extracted entities" list. B4: lifted out of
+    api/main.py's `field_paper_detail`."""
+    return conn.execute(
+        "SELECT name, kind, canonical, evidence_span, confidence FROM paper_concepts "
+        "WHERE paper_id = ? ORDER BY confidence DESC",
+        (paper_id,),
+    ).fetchall()
+
+
 
