@@ -928,6 +928,37 @@ unconsumed, against the new `/fields/*` endpoints (`ARCHITECTURE_NOTE.md`).
 Streamlit is NOT deleted -- it stays as an internal "lab console" against the
 pre-existing non-field-scoped endpoints/modules, per `PRODUCT.md`.
 
+## OD34 — Gap/community labels prefer agent `paper_concepts`, fall back to OpenAlex `concepts`
+
+**Context.** Flagged as an open question during stage-3 Phase C wireframing (PROGRESS.md):
+`gaps.py`'s `community_labels()` labeled every community from the raw OpenAlex `concepts`
+table, which is coarse/noisy as user-facing copy ("Philosophy", "Hop (telecommunications)").
+OD20 already keeps agent-extracted concepts in a separate `paper_concepts` table (never
+merged into `concepts`), with their own synonym-merge step (`link()` in
+`axiom/agents/linking.py` keeps one row per `(canonical, kind)`, so "RAG" and
+"retrieval-augmented generation" mentions in the same paper collapse to one canonical label)
+-- a materially cleaner label source, but only populated for papers the agent pipeline has
+actually run on (50/300 in the real corpus as of this decision).
+
+**Decision.** `community_labels()` now runs its existing TF-IDF-across-communities scoring
+twice -- once over `paper_concepts.canonical`, once over `concepts` (OpenAlex, canonicalized
+via OD14's `concept_canonical` table as before) -- and picks per community: agent concepts
+when a community has at least `GAP_LABEL_MIN_AGENT_CONCEPTS` (3, `axiom/config.py`) distinct
+canonicals, OpenAlex otherwise. A community's label source is never mixed mid-community. 3
+was picked to match `top=4` labels per community (roughly "enough distinct concepts to fill
+the label list"), not swept against a target -- same spirit as OD23's manual
+`VERIFIER_COSINE_MIN`, revisit if real usage shows it's too strict/loose once agent-pipeline
+coverage grows past the current 50-paper pilot subset.
+
+Verified against the real 300-paper corpus (`docs/product/gap-labeling/gaps_before.png` vs
+`gaps_after.png`): before, every visible gap headline read "Natural language processing
+cluster" or "Philosophy cluster" (near-useless, the TF-IDF generic-filter already does the
+best it can with only 5-ish distinct OpenAlex labels across most communities); after, the
+same gaps read "Language model cluster", "chatgpt cluster", "bridging operation cluster",
+"natural questions cluster" -- distinctive, agent-sourced, for every community that had
+enough agent coverage. No schema change (`paper_concepts` already existed, OD20); no API
+contract change (`GapAnalysisOut`/`TopicOut.labels` unchanged shape, just better content).
+
 ---
 
 ## Schema change log
