@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { NavLink, Route, Routes, useParams } from "react-router-dom";
 import Start from "./pages/Start";
 import Landscape from "./pages/Landscape";
@@ -5,8 +6,13 @@ import Gaps from "./pages/Gaps";
 import GapDetail from "./pages/GapDetail";
 import Shortlist from "./pages/Shortlist";
 import { PaperPanel } from "./components/PaperPanel";
+import { LoadingState } from "./components/States";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+
+// Outside the primary flow and pulls in a 3D rendering library -- code-split
+// so its weight never lands in the main-flow bundle (first-load JS budget).
+const MapScreen = lazy(() => import("./pages/Map"));
 
 function FieldNav() {
   const { fieldId } = useParams<{ fieldId: string }>();
@@ -27,6 +33,7 @@ function FieldNav() {
           <NavLink to={`/fields/${fieldId}/landscape`}>Landscape</NavLink>
           <NavLink to={`/fields/${fieldId}/gaps`}>Research gaps</NavLink>
           <NavLink to={`/fields/${fieldId}/shortlist`}>Shortlist</NavLink>
+          <NavLink to={`/fields/${fieldId}/map`}>Map</NavLink>
         </nav>
       )}
       {data && (
@@ -54,6 +61,14 @@ export default function App() {
                   <Route path="gaps" element={<Gaps />} />
                   <Route path="gaps/:gapIndex" element={<GapDetail />} />
                   <Route path="shortlist" element={<Shortlist />} />
+                  <Route
+                    path="map"
+                    element={
+                      <Suspense fallback={<LoadingState label="Loading the map…" />}>
+                        <MapScreen />
+                      </Suspense>
+                    }
+                  />
                 </Routes>
               </main>
               <PaperPanel />

@@ -203,6 +203,11 @@ CALIBRATION_PATH = PROJECT_ROOT / "eval" / "calibration.json"
 # otherwise it falls back to the raw OpenAlex `concepts` table.
 GAP_LABEL_MIN_AGENT_CONCEPTS = 3
 
+# Map screen (stage-3 product redesign): citation graph + embedding map both cap
+# at this many nodes -- a 3D force-directed render of more than this gets janky
+# on a laptop GPU, per the task's own "cap at 500 nodes for the laptop."
+MAP_NODE_CAP = 500
+
 
 def load_calibration() -> dict:
     """Return {'tau': float, 'weights': {...}}, calibrated file merged over defaults.

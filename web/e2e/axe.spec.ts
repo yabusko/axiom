@@ -8,6 +8,7 @@ const SCREENS = [
   { name: "landscape", path: "/fields/default/landscape" },
   { name: "gap-detail", path: "/fields/default/gaps/0" },
   { name: "shortlist", path: "/fields/default/shortlist" },
+  { name: "map", path: "/fields/default/map" },
 ];
 
 for (const { name, path } of SCREENS) {
