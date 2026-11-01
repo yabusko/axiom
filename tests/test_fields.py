@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from axiom import config, db, fields as fieldsmod
+from tests.conftest import SEED_VECTORS
 
 
 # --- axiom.fields: registry -----------------------------------------------------
@@ -188,16 +189,60 @@ def empty_fields_db(monkeypatch, tmp_path):
         conn.close()
 
 
-def test_create_field_returns_202_and_estimate(api_client, empty_fields_db, monkeypatch):
-    async def fake_build(field_id, topic, target):
-        pass
+def _patch_corpus(main, monkeypatch, patched_db_path, *, query_vector, min_papers=None):
+    """A4: POST /fields slices the cached base-corpus graph/vectors, not a
+    live download -- fake those two process-wide singletons (same seeded db
+    the rest of this fixture module already uses as a stand-in corpus) plus
+    the encoder's query embedding."""
+    from axiom import graph as graphmod
 
-    monkeypatch.setattr(fieldsmod, "build_field", fake_build)
+    for fn in (main.get_corpus_graph, main.get_corpus_vectors):
+        fn.cache_clear()
+    g = graphmod.load_graph(db.connect(patched_db_path))
+    monkeypatch.setattr(main, "get_corpus_graph", lambda: g)
+    monkeypatch.setattr(main, "get_corpus_vectors", lambda: dict(SEED_VECTORS))
 
-    r = api_client.post("/fields", json={"topic": "diffusion models", "target": 50})
-    assert r.status_code == 202
+    class _QueryEncoder:
+        def encode_query(self, query: str) -> list[float]:
+            return query_vector
+
+    monkeypatch.setattr(main, "get_encoder", lambda: _QueryEncoder())
+    if min_papers is not None:
+        monkeypatch.setattr(config, "FIELD_MIN_PAPERS", min_papers)
+
+
+def test_create_field_is_instant_and_ready(api_client, empty_fields_db, patched_db_path, monkeypatch):
+    import api.main as main
+
+    # Query aligned with cluster A ([1,0,0]) -> A1-A4 clear the 0.80 floor;
+    # 4 papers clears a lowered FIELD_MIN_PAPERS so this field lands 'ready'.
+    _patch_corpus(main, monkeypatch, patched_db_path, query_vector=[1.0, 0.0, 0.0], min_papers=2)
+
+    r = api_client.post("/fields", json={"topic": "retrieval", "target": 50})
+    assert r.status_code == 200
     body = r.json()
-    assert "field_id" in body and body["est_cost_usd"] > 0 and body["est_seconds"] > 0
+    assert body["status"] == "ready"
+    assert body["papers_total"] == 4            # A1-A4, see tests/conftest.py's seeded corpus
+    assert body["total_relevant"] == 4
+    assert body["extend_command"] is None
+
+    # And it's immediately usable -- no polling a background build.
+    status = api_client.get(f"/fields/{body['field_id']}").json()
+    assert status["status"] == "ready"
+
+
+def test_create_field_thin_coverage_includes_extend_command(api_client, empty_fields_db, patched_db_path, monkeypatch):
+    import api.main as main
+
+    # Same aligned query, but default FIELD_MIN_PAPERS (20) -- the seeded
+    # corpus only has 8 papers total, so this always lands 'thin'.
+    _patch_corpus(main, monkeypatch, patched_db_path, query_vector=[1.0, 0.0, 0.0])
+
+    r = api_client.post("/fields", json={"topic": "a very niche topic", "target": 50})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "thin"
+    assert body["extend_command"] == 'python scripts/build_corpus.py --extend "a very niche topic"'
 
 
 def test_create_field_validates_target_range(api_client, empty_fields_db):

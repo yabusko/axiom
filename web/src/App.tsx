@@ -45,6 +45,22 @@ function FieldNav() {
   );
 }
 
+function AppFooter() {
+  const { data } = useQuery({ queryKey: ["corpus-manifest"], queryFn: api.corpusManifest });
+  return (
+    <footer className="app-footer">
+      Axiom — a research-direction finder, not a paper search engine.
+      {data && (
+        <span className="corpus-manifest">
+          {" "}
+          · Base corpus: {data.papers_count.toLocaleString()} papers, {data.from_year}–{data.to_year}, updated{" "}
+          {data.updated_at.slice(0, 10)}
+        </span>
+      )}
+    </footer>
+  );
+}
+
 export default function App() {
   return (
     <>
@@ -76,7 +92,7 @@ export default function App() {
           }
         />
       </Routes>
-      <footer className="app-footer">Axiom — a research-direction finder, not a paper search engine.</footer>
+      <AppFooter />
     </>
   );
 }

@@ -14,19 +14,20 @@ that design's implementation; see it for the "why," not restated here.
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from axiom import config, db, ingest
+from axiom import config, corpus_slice, db, ingest
 from axiom.agents import pipeline as agents_pipeline
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS fields (
     id                 TEXT PRIMARY KEY,
     topic              TEXT NOT NULL,
-    status             TEXT NOT NULL DEFAULT 'queued',  -- queued | building | ready | failed
+    status             TEXT NOT NULL DEFAULT 'queued',  -- queued | building | ready | thin | failed
     step               TEXT,                             -- fetching | embedding | extracting | NULL
     papers_total       INTEGER,
     papers_done        INTEGER DEFAULT 0,
@@ -42,6 +43,12 @@ CREATE TABLE IF NOT EXISTS fields (
 """
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
 def connect_fields(path=None) -> sqlite3.Connection:
     path = str(path or config.FIELDS_DB_PATH)
     conn = sqlite3.connect(path)
@@ -51,6 +58,16 @@ def connect_fields(path=None) -> sqlite3.Connection:
 
 def init_fields_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    # Stage 4 (A4): a field is now usually a SLICE of the shared base corpus
+    # (source='slice'), not its own download (source='download', the
+    # pre-existing path, still used by "default" and anything built via
+    # scripts/build_corpus.py --extend). A slice field's db_path/collection
+    # point at the shared corpus; paper_ids_json is what actually scopes it.
+    _ensure_column(conn, "fields", "source", "source TEXT NOT NULL DEFAULT 'download'")
+    _ensure_column(conn, "fields", "query", "query TEXT")
+    _ensure_column(conn, "fields", "paper_ids_json", "paper_ids_json TEXT")
+    _ensure_column(conn, "fields", "relevance_floor", "relevance_floor REAL")
+    _ensure_column(conn, "fields", "total_relevant", "total_relevant INTEGER")
     conn.commit()
 
 
@@ -98,6 +115,39 @@ def create_field(conn: sqlite3.Connection, *, topic: str, target: int) -> sqlite
         VALUES (?, ?, 'queued', NULL, ?, 0, ?, ?, ?, ?, NULL)
         """,
         (field_id, topic, target, str(db_path), collection, ts, ts),
+    )
+    conn.commit()
+    return get_field(conn, field_id)
+
+
+def create_instant_field(
+    conn: sqlite3.Connection, *,
+    topic: str, corpus_graph, corpus_vectors: dict[str, list[float]], query_vector: list[float],
+    target_n: int = config.FIELD_SLICE_TARGET, floor: float = config.FIELD_RELEVANCE_FLOOR,
+) -> sqlite3.Row:
+    """A4: a field as a relevance-ranked SLICE of the shared base corpus --
+    computed here (milliseconds, no network/LLM call), not downloaded. Points
+    db_path/collection at the shared corpus (never copied); `paper_ids_json`
+    is what actually scopes this field. Status lands directly on 'ready' or
+    'thin' (A5) -- no 'queued'/'building' detour, since there's no async work
+    left to do by the time this returns.
+    """
+    result = corpus_slice.compute_slice(
+        corpus_graph, corpus_vectors, query_vector, target_n=target_n, floor=floor,
+    )
+    field_id = uuid.uuid4().hex
+    ts = _now()
+    status = "thin" if result.thin else "ready"
+    conn.execute(
+        """
+        INSERT INTO fields (id, topic, status, step, papers_total, papers_done,
+                             db_path, collection, created_at, updated_at, last_opened_at,
+                             source, query, paper_ids_json, relevance_floor, total_relevant)
+        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'slice', ?, ?, ?, ?)
+        """,
+        (field_id, topic, status, len(result.paper_ids), len(result.paper_ids),
+         str(config.CORPUS_DB_PATH), config.CORPUS_COLLECTION_NAME, ts, ts, ts,
+         topic, json.dumps(result.paper_ids), floor, result.total_relevant),
     )
     conn.commit()
     return get_field(conn, field_id)

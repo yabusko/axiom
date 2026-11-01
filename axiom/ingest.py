@@ -140,9 +140,9 @@ _WORK_FIELDS = ",".join([
 
 
 class OpenAlexClient:
-    def __init__(self, mailto: str | None = None, client: httpx.Client | None = None):
+    def __init__(self, api_key: str | None = None, client: httpx.Client | None = None):
         self.base = config.OPENALEX_BASE
-        self.mailto = mailto or config.OPENALEX_MAILTO
+        self.api_key = api_key or config.OPENALEX_API_KEY
         self._client = client or httpx.Client(
             base_url=self.base, timeout=config.OPENALEX_TIMEOUT
         )
@@ -157,7 +157,7 @@ class OpenAlexClient:
         self.close()
 
     def _get(self, path: str, params: dict) -> dict:
-        params = {**params, "mailto": self.mailto}
+        params = {**params, **({"api_key": self.api_key} if self.api_key else {})}
         last_exc: Exception | None = None
         for attempt in range(config.OPENALEX_MAX_RETRIES):
             try:
@@ -221,6 +221,70 @@ class OpenAlexClient:
             "select": _WORK_FIELDS,
         })
         return data.get("results", [])[:limit]
+
+    def resolve_source_ids(self, patterns: list[str], log=print) -> list[str]:
+        """Resolve `config.RELEVANT_VENUE_PATTERNS`-style name substrings to
+        concrete OpenAlex source ids, ONE small /sources lookup per pattern --
+        so the venue allow-list can be applied server-side
+        (`primary_location.source.id:S1|S2|...`) instead of over-fetching
+        /works pages and discarding most of them client-side (OD38: the old
+        `make_venue_filter`/`keep()` post-filter burned through most of the
+        keyless daily budget on admitted-but-discarded pages; this makes each
+        /works request count fully)."""
+        ids: list[str] = []
+        for pattern in patterns:
+            data = self._get("/sources", {
+                "search": pattern, "select": "id,display_name", "per-page": 25,
+            })
+            matched = [short_id(s["id"]) for s in data.get("results", [])
+                       if pattern.lower() in (s.get("display_name") or "").lower()]
+            ids.extend(matched)
+            log(f"[ingest] venue pattern {pattern!r} -> {len(matched)} source ids")
+        return sorted(set(i for i in ids if i))
+
+    def search_relevant(
+        self, query: str, filter_str: str, size: int, *,
+        skip_ids: set[str] | None = None, keep: Callable[[dict], bool] | None = None, log=print,
+    ) -> Iterator[dict]:
+        """Relevance-ranked works matching `query` within `filter_str`, cursor-paginated
+        past OpenAlex's ~10k offset-pagination ceiling so `size` can grow to 20k+ without
+        a different code path (stage 4 A2's requirement). Only yields NEW works (not
+        already in `skip_ids`, which this mutates as it goes) that pass `keep` (e.g. a
+        venue allow-list) -- `size` counts exactly what gets yielded, same contract as
+        `snowball()`'s `keep`-filtered counting loop, so a caller doesn't have to
+        over-fetch to compensate for a filter dropping candidates after the fact.
+
+        This also gives scripts/build_corpus.py its resumability (OD37): a paper already
+        in the corpus is cheap to skip, so re-running a fetch that was interrupted
+        mid-page just re-walks pages faster rather than restarting real work.
+        """
+        skip_ids = skip_ids if skip_ids is not None else set()
+        keep = keep or (lambda _w: True)
+        cursor = "*"
+        seen_new = 0
+        while cursor and seen_new < size:
+            data = self._get("/works", {
+                "search": query,
+                "filter": filter_str,
+                "sort": "relevance_score:desc",
+                "per-page": 200,
+                "cursor": cursor,
+                "select": _WORK_FIELDS,
+            })
+            results = data.get("results", [])
+            if not results:
+                break
+            for w in results:
+                sid = short_id(w.get("id"))
+                if not sid or sid in skip_ids or not keep(w):
+                    continue
+                skip_ids.add(sid)
+                seen_new += 1
+                yield w
+                if seen_new >= size:
+                    break
+            cursor = (data.get("meta") or {}).get("next_cursor")
+            log(f"[ingest] search_relevant: {seen_new}/{size} new works so far")
 
 
 # ---------------------------------------------------------------------------
@@ -323,23 +387,29 @@ def snowball(
 # ---------------------------------------------------------------------------
 # Write parsed works into SQLite (idempotent: wipes prior rows first)
 # ---------------------------------------------------------------------------
-def ingest_to_sqlite(
+def write_works(
     conn,
     works: Iterable[dict],
     *,
     source: str = "openalex",
     log=print,
 ) -> int:
-    """Parse + write works to SQLite. Returns the paper count written.
+    """Parse + UPSERT works into SQLite. Returns the paper count written.
+
+    Non-destructive (no reset_corpus) -- `insert_paper` is already `INSERT OR
+    REPLACE`, so calling this again with overlapping works is safe. Used by
+    both the legacy per-field downloader (via `ingest_to_sqlite` below, which
+    wraps a reset around this) and scripts/build_corpus.py's fetch/--extend
+    steps, which need to ADD to an existing corpus rather than wipe it.
 
     Citation edges are written for EVERY referenced_work, including dangling
     ones whose dst is outside the corpus (kept by design — flagged downstream
-    in the graph layer as in_corpus=False).
+    in the graph layer as in_corpus=False). Concepts/citation-edges have no
+    uniqueness constraint, so re-running this for a paper already present
+    duplicates its concept/edge rows -- callers that care about true
+    idempotency (scripts/build_corpus.py) only pass NEW works in the first
+    place (see OpenAlexClient.search_relevant's skip_ids).
     """
-    db.init_db(conn)
-    # Idempotent clean slate (mirrors the synthetic bootstrap).
-    db.reset_corpus(conn)
-
     parsed = [parse_work(w) for w in works]
     parsed = [p for p in parsed if p.openalex_id]
 
@@ -367,7 +437,23 @@ def ingest_to_sqlite(
                 [(p.openalex_id, dst, p.publication_year) for dst in p.references],
             )
     conn.commit()
-
-    edge_count = conn.execute("SELECT COUNT(*) AS n FROM citation_edges").fetchone()["n"]
-    log(f"[ingest] wrote {len(parsed)} papers, {edge_count} citation edges to {config.DB_PATH}")
     return len(parsed)
+
+
+def ingest_to_sqlite(
+    conn,
+    works: Iterable[dict],
+    *,
+    source: str = "openalex",
+    log=print,
+) -> int:
+    """Legacy per-field downloader: wipe the corpus, then write_works() the
+    given set. Kept for the --extend path's internal snowball reuse and any
+    remaining synthetic-bootstrap callers; scripts/build_corpus.py never calls
+    this (it must not wipe the shared base corpus)."""
+    db.init_db(conn)
+    db.reset_corpus(conn)
+    n = write_works(conn, works, source=source, log=log)
+    edge_count = conn.execute("SELECT COUNT(*) AS n FROM citation_edges").fetchone()["n"]
+    log(f"[ingest] wrote {n} papers, {edge_count} citation edges to {config.DB_PATH}")
+    return n

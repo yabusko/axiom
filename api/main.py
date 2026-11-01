@@ -228,13 +228,18 @@ class AgentRunStatusOut(BaseModel):
 # --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
 class FieldCreateIn(BaseModel):
     topic: str = Field(min_length=1, max_length=200)
-    target: int = Field(default=config.FIELD_DEFAULT_TARGET, ge=10, le=1000)
+    # Stage 4 (A4): a field is now a relevance slice of the shared base
+    # corpus, computed synchronously -- `target` overrides the default slice
+    # size (config.FIELD_SLICE_TARGET), it no longer sizes a download.
+    target: int = Field(default=config.FIELD_SLICE_TARGET, ge=10, le=1000)
 
 
 class FieldCreateOut(BaseModel):
     field_id: str
-    est_cost_usd: float
-    est_seconds: int
+    status: str                  # ready | thin (A5) -- instant, no more queued/building here
+    papers_total: int
+    total_relevant: int          # how many papers in the WHOLE corpus cleared the floor
+    extend_command: str | None   # A5: the exact CLI command to grow coverage, only when thin
 
 
 class FieldOut(BaseModel):
@@ -245,10 +250,19 @@ class FieldOut(BaseModel):
     last_opened_at: str | None
 
 
+class CorpusManifestOut(BaseModel):
+    papers_count: int
+    query: str
+    from_year: int
+    to_year: int
+    updated_at: str
+    spend_total_usd: float
+
+
 class FieldStatusOut(BaseModel):
     id: str
     topic: str
-    status: str                 # queued | building | ready | failed
+    status: str                 # queued | building | ready | thin | failed
     step: str | None            # fetching | embedding | extracting | None
     papers_total: int | None
     papers_done: int
@@ -436,6 +450,29 @@ def get_gap_analysis():
         return gapsmod.analyze(get_graph(), conn, get_store().fetch_dense_vectors())
     finally:
         conn.close()
+
+
+# --- Stage 4: the shared base corpus (A4 instant fields) -----------------------
+# Separate seam from get_graph()/get_store() above (those stay pointed at the
+# legacy "default" field's DB_PATH/COLLECTION_NAME) -- process-wide singletons
+# cached for the process lifetime, same rationale as the rest of this block:
+# a field slice needs to be fast (p50 < 5s, A7), and the base corpus only
+# changes via an explicit scripts/build_corpus.py run (which requires a
+# process restart to pick up, same limitation get_graph()/get_store() already
+# have for the "default" field).
+@lru_cache(maxsize=1)
+def get_corpus_graph():
+    return graphmod.load_graph(db.connect(config.CORPUS_DB_PATH))
+
+
+@lru_cache(maxsize=1)
+def get_corpus_store() -> AxiomQdrant:
+    return AxiomQdrant(collection=config.CORPUS_COLLECTION_NAME)
+
+
+@lru_cache(maxsize=1)
+def get_corpus_vectors() -> dict[str, list[float]]:
+    return get_corpus_store().fetch_dense_vectors()
 
 
 @lru_cache(maxsize=1)
@@ -816,7 +853,22 @@ def _resolve_field(field_id: str) -> sqlite3.Row:
     return row
 
 
+def _slice_paper_ids(row: sqlite3.Row) -> set[str] | None:
+    """A4: a 'slice' field is a (topic, paper_ids) pair over the SHARED base
+    corpus, not its own download -- None for a legacy/'download' field (no
+    paper_ids_json), which reads its own private db_path/collection whole."""
+    raw = row["paper_ids_json"] if "paper_ids_json" in row.keys() else None
+    return set(json.loads(raw)) if raw else None
+
+
 def _field_graph(row: sqlite3.Row):
+    ids = _slice_paper_ids(row)
+    if ids is not None:
+        # Subgraph induced by the slice's own members only -- a citation to a
+        # paper outside the slice drops out entirely (not even a dangling
+        # node), same effect as "outside the corpus" has elsewhere: structure
+        # and communities are scoped to what this field actually contains.
+        return get_corpus_graph().subgraph(ids).copy()
     conn = db.connect(row["db_path"])
     try:
         return graphmod.load_graph(conn)
@@ -831,12 +883,21 @@ def _field_store(row: sqlite3.Row) -> AxiomQdrant:
     return AxiomQdrant(collection=row["collection"])
 
 
+def _field_vectors(row: sqlite3.Row) -> dict[str, list[float]]:
+    """A slice field reuses the cached corpus-wide vector set (no live Qdrant
+    scroll per field -- the point of A4's "instant") rather than calling
+    `_field_store(row).fetch_dense_vectors()`, which a legacy/download field
+    (its own small collection) still does live, same as before stage 4."""
+    if _slice_paper_ids(row) is not None:
+        return get_corpus_vectors()
+    return _field_store(row).fetch_dense_vectors()
+
+
 def _field_gap_analysis(row: sqlite3.Row, g=None):
     g = g or _field_graph(row)
     conn = db.connect(row["db_path"])
     try:
-        store = _field_store(row)
-        return gapsmod.analyze(g, conn, store.fetch_dense_vectors())
+        return gapsmod.analyze(g, conn, _field_vectors(row))
     finally:
         conn.close()
 
@@ -858,7 +919,7 @@ def _field_map_data(field_id: str) -> MapOut:
     capped = graphmod.top_influential_subgraph(g, n=config.MAP_NODE_CAP)
     node_ids = list(capped.nodes())
 
-    vectors = _field_store(row).fetch_dense_vectors()
+    vectors = _field_vectors(row)
     coords = mapmod.project({pid: vectors[pid] for pid in node_ids if pid in vectors})
 
     nodes = [
@@ -914,16 +975,51 @@ def _top_papers(g, member_ids: list[str], top_k: int = 5) -> list:
     return out
 
 
-@app.post("/fields", response_model=FieldCreateOut, status_code=202)
-def create_field(body: FieldCreateIn, background_tasks: BackgroundTasks):
+@app.post("/fields", response_model=FieldCreateOut)
+def create_field(body: FieldCreateIn):
+    """A4: instant -- a relevance-ranked slice of the shared base corpus,
+    computed here synchronously (no download, no background task). A5: a
+    thin-coverage topic still gets a field row (status='thin'), with the
+    exact `--extend` command to grow the base corpus around it."""
+    query_vector = get_encoder().encode_query(body.topic)
     fconn = fieldsmod.connect_fields()
     try:
-        row = fieldsmod.create_field(fconn, topic=body.topic, target=body.target)
+        row = fieldsmod.create_instant_field(
+            fconn, topic=body.topic, corpus_graph=get_corpus_graph(),
+            corpus_vectors=get_corpus_vectors(), query_vector=query_vector,
+            target_n=body.target,
+        )
     finally:
         fconn.close()
-    background_tasks.add_task(fieldsmod.build_field, row["id"], body.topic, body.target)
-    estimate = fieldsmod.estimate_extraction(body.target)
-    return FieldCreateOut(field_id=row["id"], **estimate)
+    extend_command = (
+        f'python scripts/build_corpus.py --extend "{body.topic}"' if row["status"] == "thin" else None
+    )
+    return FieldCreateOut(
+        field_id=row["id"], status=row["status"], papers_total=row["papers_total"] or 0,
+        total_relevant=row["total_relevant"] or 0, extend_command=extend_command,
+    )
+
+
+@app.get("/corpus", response_model=CorpusManifestOut)
+def corpus_manifest():
+    """A6: the Start screen headline ("Instant search over N papers...") and
+    the app footer both read this -- the one place the shared base corpus's
+    own build manifest (scripts/build_corpus.py, corpus_meta table) surfaces
+    in the product."""
+    conn = db.connect(config.CORPUS_DB_PATH)
+    try:
+        meta = db.get_corpus_meta(conn)
+    finally:
+        conn.close()
+    if meta is None:
+        raise HTTPException(status_code=404, detail="base corpus not built yet")
+    filters = json.loads(meta["filters_json"])
+    return CorpusManifestOut(
+        papers_count=meta["papers_count"], query=meta["query"],
+        from_year=int(filters["from_publication_date"][:4]),
+        to_year=int(filters["to_publication_date"][:4]),
+        updated_at=meta["updated_at"], spend_total_usd=meta["spend_total"],
+    )
 
 
 @app.get("/fields", response_model=list[FieldOut])
@@ -1030,7 +1126,7 @@ def field_map_similarity(
     row = _resolve_field(field_id)
     g = _field_graph(row)
     analysis = _field_gap_analysis(row, g)
-    vectors = _field_store(row).fetch_dense_vectors()
+    vectors = _field_vectors(row)
 
     def resolve(kind: str, ident: str) -> tuple[list[float], str]:
         if kind == "paper":

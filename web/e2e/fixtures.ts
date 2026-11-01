@@ -91,12 +91,23 @@ const DRAFTED_ITEM = {
   status: "draft", notes: null, papers_to_read: [], created_at: "2026-10-31T21:00:00Z",
 };
 
+const CORPUS_MANIFEST = {
+  papers_count: 1000, query: "retrieval augmented generation question answering large language model knowledge",
+  from_year: 2019, to_year: 2026, updated_at: "2026-11-01T12:00:00Z", spend_total_usd: 0.42,
+};
+
 export async function mockApi(page: Page) {
   shortlistItems = [];
 
+  await page.route("http://localhost:8000/corpus", (route) => route.fulfill({ json: CORPUS_MANIFEST }));
   await page.route("http://localhost:8000/fields", (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({ json: FIELDS_LIST });
+    }
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        json: { field_id: FIELD_ID, status: "ready", papers_total: 300, total_relevant: 300, extend_command: null },
+      });
     }
     return route.continue();
   });

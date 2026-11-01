@@ -987,6 +987,104 @@ future follow-up (PROGRESS.md Session 2) -- `_field_map_data` is `@lru_cache(max
 keyed by `field_id`, safe because the PCA projection is deterministic and a field's corpus
 doesn't change shape between builds.
 
+## OD36 — Stage 4: a single prebuilt base corpus, narrow niche, resumable at paper/budget granularity
+
+**Context.** Every prior stage downloaded a fresh per-field corpus on demand (snowball + embed +
+extract, minutes, real $). Stage 4 wants fields to be instant -- the slow work moves ahead of time
+into one explicit, resumable script (`scripts/build_corpus.py`) building ONE shared corpus.
+
+**Decision (A1 scope).** Domain: retrieval / RAG / QA / LLM knowledge use, 2019-2026 -- narrow by
+design so a modest size (1000, `--size`, grows to 20k with no code change) stays dense rather than
+diffuse. Source: OpenAlex works with an abstract, `search=` (relevance ranking) + `filter=` (date
+range, `has_abstract:true`, venue allow-list resolved to source ids -- see OD38), cursor-paginated
+past the ~10k offset-pagination ceiling. Storage: `data/corpus/corpus.db` (same `db/schema.sql`
+shape as every other db this app writes) + Qdrant collection `corpus_v1`, fully separate from both
+the eval corpus (OD11) and any legacy per-field db.
+
+**Resumability semantics, decided explicitly rather than left implicit:** the 6 steps (fetch/store/
+embed/edges/extract/canonicalize) checkpoint in a new `corpus_meta` table (`steps_json`), mirrored
+to `data/corpus/manifest.json`. Fetch+store+edges share one pass (`ingest.write_works`, one paper ->
+one SQLite transaction covering all three) and are resumable at PAPER granularity: a paper already
+in `papers` is skipped via `OpenAlexClient.search_relevant`'s `skip_ids`, so an interrupted fetch
+just re-walks pages faster on rerun, never redoes real work or re-spends budget. Embed is resumable
+at STEP granularity only (`axiom.indexer.reindex_qdrant` already recreates the whole collection,
+not incremental) -- accepted because it's bounded local compute, not metered spend or unbounded
+network; a kill mid-embed just re-embeds the whole corpus next run. Extract is resumable at PAPER
+granularity via existing state, not a counter: "needs extraction" = no `paper_concepts` row yet,
+regardless of which `run_id` a prior successful extraction used, so a `--budget`-limited partial run
+always continues exactly where it left off next invocation, and the global `LLM_BUDGET_USD` cap
+(B4's "fix" target: that cap is cross-run/global, not per-run) is sidestepped entirely by giving
+`build_corpus.py` its own invocation-scoped budget check (`spent_already` read straight from the
+corpus db's own `llm_spend` table, not the global ledger).
+
+**Real bug found and fixed running this for real: `canonicalize`'s 1500-token budget overflows on a
+real batch.** `AGENT_MAX_TOKENS["canonicalize"]` (OD14) was sized for "a 50-label batch," but
+`canonicalize.py`'s own schema requires every ungrouped label to appear as its own singleton group
+in the JSON output (`{"canonical": "X", "members": ["X"]}`) -- a real 56-label batch with few true
+synonyms repeats most labels twice, overflowing 1500 tokens and hitting `LLMMaxTokensError` on the
+very first real run. Bumped to 4096 (matches `_DEFAULT_MAX_TOKENS`); same "model/schema got more
+verbose than the original estimate assumed" pattern OD28 already hit twice for other agents.
+
+## OD37 — A4 instant fields: relevance-floor slicing, calibrated against the real corpus (and its real limits)
+
+**Context.** A4 wants `POST /fields` to return in seconds: a relevance-ranked slice of the shared
+base corpus (`axiom/corpus_slice.py`) instead of a download. A field becomes a saved
+`(topic, paper_ids)` pair -- `fields.db_path`/`collection` point at the SHARED corpus unchanged
+(never copied); a new `paper_ids_json` column is what actually scopes it. `api/main.py`'s
+`_field_graph`/`_field_vectors` branch on its presence: a slice field gets
+`get_corpus_graph().subgraph(paper_ids)` (a citation to a paper outside the slice drops out
+entirely, same effect "outside the corpus" already has elsewhere) and the cached
+`get_corpus_vectors()` dict (no live Qdrant scroll per field -- the actual mechanism behind
+"instant"); a legacy/download field (`source='download'`, e.g. "default") is untouched, same
+behavior as every prior stage.
+
+**The floor itself, decided from REAL measurement, not a guess.** First pick was 0.80 dense SPECTER2
+cosine (`config.QUERY_EXPANSION_TEMPLATE`-wrapped query vs. every corpus paper's stored vector,
+`corpus_slice._cosine_to_all` — one vectorized matrix-vector product, not a per-candidate Python
+loop: ~40x faster at 1000 papers, which matters for A7's p50 target). Run for real against the live
+1000-paper corpus, 0.80 was USELESS: "protein structure prediction" and "medieval european history"
+both cleared it for 300+ papers each — the exact flat-score compression `QUERY_EXPANSION_TEMPLATE`'s
+own comment already warns about ("terse queries land in a mushy region... flat ~0.82-0.88"), here
+biting a NEW feature the original note never anticipated. Swept 0.85/0.88/0.90/0.92 against 3
+in-niche and 4 off-niche probe topics (paper counts clearing each floor, logged in this stage's
+session notes): 0.90 is the first floor with real separation -- in-niche topics land 36-634 papers,
+3 of 4 off-niche probes land under `FIELD_MIN_PAPERS` (20) ("medieval european history" at 40 is a
+known false positive, not eliminated). **Accepted, not solved**: SPECTER2 cosine doesn't cleanly
+separate every off-niche query from a narrow-by-design corpus where most papers already share
+substantial NLP/LLM vocabulary -- same root cause Part B's planned percentile-based gap-similarity
+fix exists for for a different feature. A5's "thin coverage" is honest about what it catches, not
+a guarantee it catches everything.
+
+**Real measurement (A7, `scripts/measure_field_latency.py`, `eval/field_latency.json`):** 20 topics
+(16 in-niche, 4 off-niche) against the real 1000-paper corpus, vectors+graph loaded once (process
+singletons, same pattern `get_graph()`/`get_store()` already use) and reused across all 20 --
+p50=0.164s, p95=0.389s, far under the 5s target. "protein structure prediction" (8 papers) correctly
+landed 'thin'; every in-niche topic landed 'ready'.
+
+## OD38 — OpenAlex requires an API key at any real volume; venue filtering moved server-side
+
+**Context.** The original ingest-layer assumption (OD7-era, `config.py`'s own comment: "No API key
+needed; OpenAlex asks only for a mailto") no longer holds: OpenAlex now caps KEYLESS traffic to a
+shared, per-IP $0.10/day budget. The first real 1000-paper build attempt hit `401 Unauthorized`
+after only 21 papers -- not a bug, a real policy change undocumented anywhere in this repo.
+
+**Decision.** `OPENALEX_API_KEY` (env var, free key from openalex.org/settings/api, its own $1/day)
+replaces `OPENALEX_MAILTO` everywhere (`OpenAlexClient.__init__`/`_get`) -- `OPENALEX_MAILTO` is
+deleted outright, not deprecated-and-kept, since it pointed at a teammate's address left over from
+the original team-project stages and keyless traffic is no longer viable at any real volume anyway.
+`build_corpus.py` fails fast with a clear message if no key is set, rather than silently fetching a
+fraction of what was asked.
+
+**Also fixed while at it: venue filtering moved server-side.** The old `make_venue_filter`/`keep()`
+pattern over-fetched whole /works pages and discarded most results client-side (the actual cause of
+burning the $0.10 keyless budget on only 21 admitted papers) -- `OpenAlexClient.resolve_source_ids`
+resolves `config.RELEVANT_VENUE_PATTERNS` to concrete source ids ONCE (6 small `/sources` lookups),
+baked into `filter=primary_location.source.id:S1|S2|...` so every `/works` page fetched counts fully
+toward `--size`. Real effect on the actual 1000-paper build: fetched exactly 1000/1000 in 5 pages
+(vs. the first attempt's 21 papers across several pages before exhausting budget). Also bumped
+`OPENALEX_BATCH_SIZE` 50 -> 100 (OpenAlex's own OR-filter cap) for `works_by_ids` (snowball/`--extend`
+path) -- fewer requests for the same referenced-works lookups.
+
 ---
 
 ## Schema change log
@@ -999,3 +1097,5 @@ doesn't change shape between builds.
 | 2026-07-04 | Added `review_queue` (id, gap_a_label, gap_b_label, title, claim, method_sketch, datasets_json, supporting_ids_json, status, created_at) — OD16 | UI track |
 | 2026-10-30 | Added `paper_concepts`, `concept_cooccurrence`, `agent_runs`, `agent_run_items` + indexes — agentic pipeline, OD19/OD20 | agentic track |
 | 2026-10-31 | Added `run_id` to `paper_concepts`/`concept_cooccurrence`, unique index `(paper_id, canonical, kind)`, new `llm_spend` table + index — stage-2 fixes B4/C3, OD26 | fixes track |
+| 2026-11-01 | Added `corpus_meta` (single-row build manifest) to the shared schema.sql — stage 4, OD36 | stage4 track |
+| 2026-11-01 | `fields.db` (a separate db, not schema.sql): added `source`, `query`, `paper_ids_json`, `relevance_floor`, `total_relevant` columns to `fields` — stage 4 A4, OD37 | stage4 track |

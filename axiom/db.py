@@ -424,6 +424,59 @@ def run_llm_spend(conn: sqlite3.Connection, run_id: str) -> float:
     return float(row["total"])
 
 
+# --- Corpus manifest (stage 4, OD36/OD37) --------------------------------------
+def get_corpus_meta(conn: sqlite3.Connection) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM corpus_meta WHERE id = 1").fetchone()
+
+
+def upsert_corpus_meta(
+    conn: sqlite3.Connection, *,
+    query: str | None = None, filters_json: str | None = None, size_target: int | None = None,
+    papers_count: int | None = None, steps_json: str | None = None,
+    spend_delta: float = 0.0, seconds_delta: float = 0.0,
+) -> sqlite3.Row:
+    """Insert the single corpus_meta row if absent, else update it. Spend/time
+    are deltas (added to the running total) -- every other field is a plain
+    overwrite, defaulting to the existing row's value when omitted (so a
+    partial update, e.g. just bumping steps_json, doesn't need to repeat the
+    full query/filters/size_target every call). `query`/`filters_json`/
+    `size_target` are required only for the first-ever call (the INSERT)."""
+    ts = datetime.now(timezone.utc).isoformat()
+    existing = get_corpus_meta(conn)
+    if existing is None:
+        if query is None or filters_json is None or size_target is None:
+            raise ValueError("query/filters_json/size_target are required to create corpus_meta")
+        conn.execute(
+            """
+            INSERT INTO corpus_meta
+                (id, version, query, filters_json, size_target, papers_count,
+                 steps_json, spend_total, build_seconds, created_at, updated_at)
+            VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (query, filters_json, size_target, papers_count or 0,
+             steps_json or "{}", spend_delta, seconds_delta, ts, ts),
+        )
+    else:
+        new_query = query if query is not None else existing["query"]
+        new_filters = filters_json if filters_json is not None else existing["filters_json"]
+        new_target = size_target if size_target is not None else existing["size_target"]
+        new_papers = papers_count if papers_count is not None else existing["papers_count"]
+        new_steps = steps_json if steps_json is not None else existing["steps_json"]
+        conn.execute(
+            """
+            UPDATE corpus_meta SET
+                query = ?, filters_json = ?, size_target = ?, papers_count = ?,
+                steps_json = ?, spend_total = spend_total + ?,
+                build_seconds = build_seconds + ?, updated_at = ?
+            WHERE id = 1
+            """,
+            (new_query, new_filters, new_target, new_papers, new_steps,
+             spend_delta, seconds_delta, ts),
+        )
+    conn.commit()
+    return get_corpus_meta(conn)
+
+
 def replace_paper_concepts(
     conn: sqlite3.Connection,
     run_id: str,

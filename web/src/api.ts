@@ -42,6 +42,23 @@ export interface FieldOut {
   last_opened_at: string | null;
 }
 
+export interface CorpusManifestOut {
+  papers_count: number;
+  query: string;
+  from_year: number;
+  to_year: number;
+  updated_at: string;
+  spend_total_usd: number;
+}
+
+export interface FieldCreateOut {
+  field_id: string;
+  status: "ready" | "thin";
+  papers_total: number;
+  total_relevant: number;
+  extend_command: string | null;
+}
+
 export interface FieldStatusOut {
   id: string;
   topic: string;
@@ -210,9 +227,10 @@ export interface MapSimilarityOut {
 // --- Calls -----------------------------------------------------------------------
 
 export const api = {
+  corpusManifest: () => req<CorpusManifestOut>("/corpus"),
   listFields: () => req<FieldOut[]>("/fields"),
   createField: (topic: string, target?: number) =>
-    req<{ field_id: string; est_cost_usd: number; est_seconds: number }>("/fields", {
+    req<FieldCreateOut>("/fields", {
       method: "POST",
       body: JSON.stringify({ topic, ...(target ? { target } : {}) }),
     }),

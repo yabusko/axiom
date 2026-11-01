@@ -36,6 +36,20 @@ test("start -> open a gap -> draft a direction -> keep it -> export", async ({ p
   await expect(page.getByText(/retrieval-augmented generation — shortlist/)).toBeVisible();
 });
 
+test("instant field creation redirects straight to landscape, no polling", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Start a field" })).toBeVisible();
+
+  await page.getByLabel("Topic").fill("retrieval augmented generation");
+  await page.getByRole("button", { name: "Find this topic" }).click();
+
+  // The mocked POST /fields returns status "ready" synchronously -- no
+  // build-progress screen, straight to the landscape.
+  await expect(page).toHaveURL(/\/fields\/default\/landscape/);
+  await expect(page.getByRole("heading", { name: "Landscape" })).toBeVisible();
+});
+
 test("paper panel opens with evidence-span highlighting", async ({ page }) => {
   await mockApi(page);
   await page.goto("/fields/default/gaps/0");

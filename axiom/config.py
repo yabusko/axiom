@@ -46,6 +46,26 @@ FIELD_DEFAULT_ID = "default"
 # generic 500 default below (see docs/DECISIONS.md OD32).
 FIELD_DEFAULT_TARGET = 300
 
+# --- Stage 4: prebuilt base corpus + instant fields (OD36) --------------------
+# A single, prebuilt, dense corpus (narrow niche: retrieval/RAG/QA/LLM knowledge
+# use) that scripts/build_corpus.py owns. A "field" (POST /fields) no longer
+# downloads anything -- it's a relevance-ranked slice of this corpus, computed
+# in seconds. See docs/DECISIONS.md OD36/OD37.
+CORPUS_DB_PATH = PROJECT_ROOT / "data" / "corpus" / "corpus.db"
+CORPUS_MANIFEST_PATH = PROJECT_ROOT / "data" / "corpus" / "manifest.json"
+CORPUS_COLLECTION_NAME = "corpus_v1"
+CORPUS_QUERY = "retrieval augmented generation question answering large language model knowledge"
+CORPUS_FROM_YEAR = 2019
+CORPUS_TO_YEAR = 2026
+CORPUS_SIZE_DEFAULT = 1000
+CORPUS_BUDGET_DEFAULT_USD = 3.00
+
+# A4: instant-field slicing. N ~= 200 (at most ~20% of a 1k corpus) above a
+# dense-cosine relevance floor; a field "thin"s out below FIELD_MIN_PAPERS.
+FIELD_SLICE_TARGET = 200
+FIELD_RELEVANCE_FLOOR = 0.90   # dense SPECTER2 cosine, see OD37 for real-corpus calibration + its known limits
+FIELD_MIN_PAPERS = 20          # fewer floor-passing papers than this -> "thin coverage" (A5)
+
 
 def _load_dotenv(path: Path) -> None:
     """Minimal `.env` loader -- no new dependency (repo keeps the stack pinned
@@ -74,15 +94,22 @@ QDRANT_PORT = 6333
 COLLECTION_NAME = "axiom_v1"
 
 # --- OpenAlex ingestion ------------------------------------------------------
-# Source of truth (decision: Data layer = OpenAlex -> SQLite). No API key needed;
-# OpenAlex asks only for a `mailto` to join the faster "polite pool".
+# Source of truth (decision: Data layer = OpenAlex -> SQLite). An API key is
+# required for any real volume -- see OPENALEX_API_KEY below (OD38).
 #
 # Corpus is built by SNOWBALL / 2-hop expansion (decision OD7): seed on a topic,
 # then pull in the papers the seeds cite (referenced_works[]) AND papers that
 # cite the seeds. This densifies *internal* citation edges so the graph is
 # actually connected, instead of a star of dangling external edges.
 OPENALEX_BASE = "https://api.openalex.org"
-OPENALEX_MAILTO = "yakub.yakubov.business@gmail.com"   # polite-pool contact
+# Stage 4: OpenAlex now caps keyless traffic to a tiny shared-per-IP daily
+# budget ($0.10) -- the old "mailto alone is enough for the polite pool"
+# assumption (OD7-era) no longer holds at any real corpus size. A free key
+# (openalex.org/settings/api) gets its own $1/day instead. No key -> OpenAlex
+# calls fail loudly rather than silently degrading, since a corpus build is
+# the kind of job that should stop and say so, not quietly fetch 1/50th of
+# what was asked.
+OPENALEX_API_KEY = os.environ.get("OPENALEX_API_KEY")
 OPENALEX_TIMEOUT = 30.0                                 # per-request seconds
 OPENALEX_MAX_RETRIES = 6                                # transient-error retries (rides out 429 throttles)
 OPENALEX_BACKOFF_CAP = 30.0                             # max seconds between retries
@@ -91,7 +118,7 @@ SEED_QUERY = "retrieval-augmented generation"           # default seed topic
 SEED_COUNT = 50                                         # most-cited seeds to start
 CORPUS_TARGET = 500                                     # snowball stops at ~this many papers
 CITERS_PER_SEED = 25                                    # capped citers pulled per seed (per hop)
-OPENALEX_BATCH_SIZE = 50                                # ids per `openalex_id:a|b|...` fetch
+OPENALEX_BATCH_SIZE = 100                               # ids per `openalex_id:a|b|...` fetch (OpenAlex's own OR-filter cap)
 SNOWBALL_MAX_CITERS_PER_HOP = 300                       # cap citer-expansion calls/hop (bounds runtime)
 
 # Venue allow-list for the snowball (case-insensitive substring match on the
@@ -283,7 +310,12 @@ AGENT_MAX_TOKENS = {
     "synthesis": 4096,
     "pair_judgment": 80,             # B3/E3: a short structured {label, reason} judgment
     "summarize": 300,                # OD14: exactly 3 bullets, <25 words each
-    "canonicalize": 1500,            # OD14: a 50-label synonym-grouping batch
+    # OD14 sized this at 1500 for a 50-label batch; stage 4's real run hit
+    # max_tokens at 56 labels -- the schema requires every label to appear as
+    # its own singleton group when ungrouped (canonicalize.py's _SYSTEM
+    # prompt), so a mostly-ungrouped batch repeats each label ~2x in JSON
+    # structure, not the handful of real synonym groups 1500 was sized for.
+    "canonicalize": 4096,
 }
 _DEFAULT_MAX_TOKENS = 4096          # fallback for any agent type not listed above
 
