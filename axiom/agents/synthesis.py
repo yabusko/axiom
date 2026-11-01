@@ -8,7 +8,7 @@ it has finished linking. Two independent jobs:
    workstream in a different worktree and may not exist yet here. Whoever
    wires `axiom/agents/pipeline.py` into the real corpus should call
    `concept_graph.get_communities(conn)` (once it exists) and pass the
-   result straight in -- see the agent-implementer patch note.
+   result straight in.
 2. `generate_hypothesis` + `queue_hypothesis` -- OD16's grounded hypothesis
    pitch, relocated from `axiom/hypothesis.py`. Same verifier rule (rule-based,
    not LLM self-report: >=2 supporting ids, both sides of the gap

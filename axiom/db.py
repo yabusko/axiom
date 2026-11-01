@@ -48,6 +48,8 @@ def init_db(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "review_queue", "papers_to_read_json", "papers_to_read_json TEXT NOT NULL DEFAULT '[]'")
     # Stage 4 B4: corpus_meta predates budget_usd -- backfill for an existing corpus db.
     _ensure_column(conn, "corpus_meta", "budget_usd", "budget_usd REAL NOT NULL DEFAULT 3.0")
+    # Stage 4 review fix: corpus_meta predates step_seconds_json -- backfill.
+    _ensure_column(conn, "corpus_meta", "step_seconds_json", "step_seconds_json TEXT NOT NULL DEFAULT '{}'")
     conn.commit()
 
 
@@ -436,6 +438,7 @@ def upsert_corpus_meta(
     query: str | None = None, filters_json: str | None = None, size_target: int | None = None,
     papers_count: int | None = None, steps_json: str | None = None, budget_usd: float | None = None,
     spend_delta: float = 0.0, seconds_delta: float = 0.0,
+    step_seconds_delta: dict[str, float] | None = None,
 ) -> sqlite3.Row:
     """Insert the single corpus_meta row if absent, else update it. Spend/time
     are deltas (added to the running total) -- every other field is a plain
@@ -445,21 +448,28 @@ def upsert_corpus_meta(
     `size_target` are required only for the first-ever call (the INSERT).
     `budget_usd` (B4): the `--budget` cap the run that last touched this row
     used -- persisted so the API/UI can report the real cap, not a guessed
-    constant."""
+    constant. `step_seconds_delta` (review fix): per-step wall time actually
+    spent THIS call, merged additively into the durable `step_seconds_json`
+    dict -- so a step a resume SKIPPED (already 'done') keeps its real
+    historical duration instead of a later no-op invocation overwriting it
+    with ~0."""
     ts = datetime.now(timezone.utc).isoformat()
     existing = get_corpus_meta(conn)
     if existing is None:
         if query is None or filters_json is None or size_target is None:
             raise ValueError("query/filters_json/size_target are required to create corpus_meta")
+        step_seconds = dict(step_seconds_delta or {})
         conn.execute(
             """
             INSERT INTO corpus_meta
                 (id, version, query, filters_json, size_target, papers_count,
-                 steps_json, spend_total, budget_usd, build_seconds, created_at, updated_at)
-            VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 steps_json, spend_total, budget_usd, build_seconds, step_seconds_json,
+                 created_at, updated_at)
+            VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (query, filters_json, size_target, papers_count or 0,
-             steps_json or "{}", spend_delta, budget_usd or 3.0, seconds_delta, ts, ts),
+             steps_json or "{}", spend_delta, budget_usd or 3.0, seconds_delta,
+             json.dumps(step_seconds), ts, ts),
         )
     else:
         new_query = query if query is not None else existing["query"]
@@ -468,16 +478,19 @@ def upsert_corpus_meta(
         new_papers = papers_count if papers_count is not None else existing["papers_count"]
         new_steps = steps_json if steps_json is not None else existing["steps_json"]
         new_budget = budget_usd if budget_usd is not None else existing["budget_usd"]
+        step_seconds = json.loads(existing["step_seconds_json"])
+        for name, delta in (step_seconds_delta or {}).items():
+            step_seconds[name] = step_seconds.get(name, 0.0) + delta
         conn.execute(
             """
             UPDATE corpus_meta SET
                 query = ?, filters_json = ?, size_target = ?, papers_count = ?,
                 steps_json = ?, spend_total = spend_total + ?, budget_usd = ?,
-                build_seconds = build_seconds + ?, updated_at = ?
+                build_seconds = build_seconds + ?, step_seconds_json = ?, updated_at = ?
             WHERE id = 1
             """,
             (new_query, new_filters, new_target, new_papers, new_steps,
-             spend_delta, new_budget, seconds_delta, ts),
+             spend_delta, new_budget, seconds_delta, json.dumps(step_seconds), ts),
         )
     conn.commit()
     return get_corpus_meta(conn)

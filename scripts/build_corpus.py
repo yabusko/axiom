@@ -161,18 +161,21 @@ def step_embed(conn, *, collection: str, log=log) -> None:
     reindex_qdrant(conn, collection=collection, log=log)
 
 
-def step_extract(conn, *, run_id: str, budget: float, db_path, log=log) -> bool:
+def step_extract(conn, *, run_id: str, budget: float, db_path, log=log) -> tuple[bool, bool]:
     """Step 5: agent extraction, only on papers with no `paper_concepts` row
     yet (resumable: a prior run's successfully-extracted papers are never
-    resubmitted, regardless of which run_id produced them). Returns True iff
-    every outstanding paper was submitted this call (step fully done)."""
+    resubmitted, regardless of which run_id produced them). Returns
+    (done, did_work): `done` iff every outstanding paper was submitted this
+    call (step fully done); `did_work` False when there was nothing to do
+    (a no-op resume) -- callers use it to avoid recording a real step
+    duration for a call that did no real work."""
     todo_rows = conn.execute(
         "SELECT openalex_id, title, abstract FROM papers "
         "WHERE openalex_id NOT IN (SELECT DISTINCT paper_id FROM paper_concepts)"
     ).fetchall()
     if not todo_rows:
         log("extract: nothing outstanding")
-        return True
+        return True, False
 
     spent_already = conn.execute("SELECT COALESCE(SUM(cost),0) AS t FROM llm_spend").fetchone()["t"]
     remaining_budget = max(0.0, budget - float(spent_already))
@@ -181,7 +184,7 @@ def step_extract(conn, *, run_id: str, budget: float, db_path, log=log) -> bool:
     if not batch:
         log(f"extract: budget exhausted (${spent_already:.2f} spent of ${budget:.2f}), "
             f"{len(todo_rows)} papers still outstanding -- re-run with --budget to continue")
-        return False
+        return False, False
 
     est_cost = len(batch) * _BENCHMARK_COST_PER_PAPER_USD
     est_seconds = (len(batch) / max(config.AGENT_CONCURRENCY, 1)) * _BENCHMARK_P50_LATENCY_S
@@ -193,7 +196,7 @@ def step_extract(conn, *, run_id: str, budget: float, db_path, log=log) -> bool:
     asyncio.run(agents_pipeline.run_pipeline(papers, encoder=None, db_path=db_path, run_id=run_id))
     _sync_spend(conn)
     log(f"extract: batch done, {len(todo_rows) - len(batch)} papers remain outstanding")
-    return len(batch) == len(todo_rows)
+    return len(batch) == len(todo_rows), True
 
 
 def step_canonicalize(conn, *, log=log) -> None:
@@ -311,6 +314,10 @@ def main() -> None:
     # --update always re-fetches (looking for papers published since the last
     # build) regardless of the "done" checkpoint -- that checkpoint exists to
     # make a normal/resumed run skip repeat work, not to make --update a no-op.
+    # Review fix: step_seconds only gets an entry for a step that ACTUALLY RAN
+    # this invocation -- a skipped (already 'done') step contributes nothing
+    # here, so a later no-op resume can never overwrite its real historical
+    # duration with ~0 in the durable step_seconds_json (see db.upsert_corpus_meta).
     ts = time.time()
     if args.update or _steps(conn).get("fetch_store") != "done":
         n_new = step_fetch_store(conn, query=args.query, size=args.size, filters=filters, source_ids=source_ids, log=log)
@@ -321,9 +328,9 @@ def main() -> None:
             steps = _steps(conn)
             steps["embed"] = "partial"
             db.upsert_corpus_meta(conn, steps_json=json.dumps(steps))
+        step_seconds["fetch_store"] = round(time.time() - ts, 1)
     else:
         log("fetch_store: already done, skipping")
-    step_seconds["fetch_store"] = round(time.time() - ts, 1)
 
     ts = time.time()
     if _steps(conn).get("embed") != "done":
@@ -332,40 +339,43 @@ def main() -> None:
             _mark_step(conn, "embed", "done")
         except ImportError as exc:
             log(f"embed: skipped, ML stack unavailable ({exc}); re-run on Python 3.10-3.12")
+        step_seconds["embed"] = round(time.time() - ts, 1)
     else:
         log("embed: already done, skipping")
-    step_seconds["embed"] = round(time.time() - ts, 1)
 
     ts = time.time()
     if not args.no_extract:
         run_id = f"corpus-{int(t0)}"
-        done = step_extract(conn, run_id=run_id, budget=args.budget, db_path=config.CORPUS_DB_PATH, log=log)
+        done, did_work = step_extract(conn, run_id=run_id, budget=args.budget, db_path=config.CORPUS_DB_PATH, log=log)
         _mark_step(conn, "extract", "done" if done else "partial")
+        if did_work:
+            step_seconds["extract"] = round(time.time() - ts, 1)
     else:
         log("extract: skipped (--no-extract)")
-    step_seconds["extract"] = round(time.time() - ts, 1)
 
     ts = time.time()
     if not args.no_canonicalize and _steps(conn).get("canonicalize") != "done":
         step_canonicalize(conn, log=log)
         _mark_step(conn, "canonicalize", "done")
+        step_seconds["canonicalize"] = round(time.time() - ts, 1)
     else:
         log("canonicalize: already done or skipped")
-    step_seconds["canonicalize"] = round(time.time() - ts, 1)
 
     elapsed = time.time() - t0
-    db.upsert_corpus_meta(conn, seconds_delta=elapsed, budget_usd=args.budget)
+    db.upsert_corpus_meta(conn, seconds_delta=elapsed, budget_usd=args.budget, step_seconds_delta=step_seconds)
     _write_manifest(conn)
     meta = db.get_corpus_meta(conn)
     log(f"done in {elapsed:.0f}s this run -- corpus: {meta['papers_count']} papers, "
         f"${meta['spend_total']:.4f} total spend, steps={meta['steps_json']}")
 
-    # A7: corpus build time per step + total spend.
+    # A7: corpus build time per step (cumulative, durable across resumes) + total spend.
     eval_path = config.PROJECT_ROOT / "eval" / "corpus_build.json"
     eval_path.parent.mkdir(parents=True, exist_ok=True)
     eval_path.write_text(json.dumps({
         "papers_count": meta["papers_count"], "this_run_seconds": round(elapsed, 1),
-        "this_run_step_seconds": step_seconds, "cumulative_build_seconds": round(meta["build_seconds"], 1),
+        "this_run_step_seconds": step_seconds,
+        "cumulative_step_seconds": json.loads(meta["step_seconds_json"]),
+        "cumulative_build_seconds": round(meta["build_seconds"], 1),
         "cumulative_spend_usd": round(meta["spend_total"], 4), "steps": json.loads(meta["steps_json"]),
     }, indent=2), encoding="utf-8")
     log(f"wrote {eval_path}")

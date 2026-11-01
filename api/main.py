@@ -851,13 +851,9 @@ def concepts_central():
 
 
 # --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
-# No field_id-keyed caching yet (deliberate scope cut for this pass, logged in
-# .claude/product/PROGRESS.md): every field-scoped read below recomputes from
-# that field's own db/collection per request. ARCHITECTURE_NOTE.md's
-# alternative -- keying the existing lru_cache singletons above by field_id --
-# is a reasonable follow-up once there's more than one field to actually
-# notice the recompute cost on; a single researcher's few-hundred-paper
-# corpus analyzes in low single-digit seconds, not a latency problem yet.
+# Field-scoped reads are cached per field_id (stage 4 B4: _cached_field_graph/
+# _cached_field_gap_analysis below), the same lru_cache pattern as the
+# singletons above -- ARCHITECTURE_NOTE.md's original follow-up, now done.
 
 def _resolve_field(field_id: str) -> sqlite3.Row:
     fconn = fieldsmod.connect_fields()

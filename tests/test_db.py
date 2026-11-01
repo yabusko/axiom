@@ -288,3 +288,18 @@ def test_upsert_corpus_meta_requires_full_fields_on_first_insert(empty_conn):
 
 def test_get_corpus_meta_none_when_absent(empty_conn):
     assert db.get_corpus_meta(empty_conn) is None
+
+
+def test_upsert_corpus_meta_step_seconds_accumulate_and_skip_steps_persist(empty_conn):
+    conn = empty_conn
+    db.upsert_corpus_meta(conn, query="q", filters_json="{}", size_target=10,
+                          step_seconds_delta={"fetch_store": 5.0})
+    row = db.upsert_corpus_meta(conn, step_seconds_delta={"fetch_store": 2.0, "embed": 9.0})
+    import json as _json
+    steps = _json.loads(row["step_seconds_json"])
+    assert steps == {"fetch_store": 7.0, "embed": 9.0}
+
+    # A later call that did no work (e.g. a no-op resume) passes no deltas --
+    # previously-recorded durations must survive untouched.
+    row2 = db.upsert_corpus_meta(conn, step_seconds_delta={})
+    assert _json.loads(row2["step_seconds_json"]) == {"fetch_store": 7.0, "embed": 9.0}

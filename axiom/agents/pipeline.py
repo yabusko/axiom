@@ -8,9 +8,8 @@ rows track status transitions, verifier attempts, and verdicts. `synthesis`
 it has finished linking -- only when the caller supplies cluster/gap input,
 since that data comes from the corpus-level concept/citation graphs (a
 sibling workstream's `axiom/concept_graph.py` for clusters, the existing
-`axiom/gaps.py` for gap candidates), not from this run's papers alone. See
-the agent-implementer patch note for how `api/main.py`'s `POST /agents/run`
-should supply them.
+`axiom/gaps.py` for gap candidates), not from this run's papers alone --
+`api/main.py`'s `POST /agents/run` supplies them.
 """
 from __future__ import annotations
 

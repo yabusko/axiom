@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS corpus_meta (
     spend_total      REAL NOT NULL DEFAULT 0.0,
     budget_usd       REAL NOT NULL DEFAULT 3.0,    -- B4: the --budget cap the last run used
     build_seconds    REAL NOT NULL DEFAULT 0.0,
+    step_seconds_json TEXT NOT NULL DEFAULT '{}',  -- {step_name: cumulative seconds actually spent running it}
     created_at       DATETIME NOT NULL,
     updated_at       DATETIME NOT NULL
 );
