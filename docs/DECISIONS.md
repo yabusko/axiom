@@ -1169,6 +1169,31 @@ check it against. `GapAnalysisOut` gained `total_in_corpus_citations` (computed 
 field, not per gap) so `GapCard`'s list view can apply the same rule as `GapDetail`'s single-
 gap view, which already had the figure.
 
+## OD42 — External OpenAlex corpus-artifact check per gap (B1)
+
+**Context.** A gap candidate can be numerically well-formed -- two sizable, semantically
+close, weakly-cited communities -- purely because this field's corpus is a few hundred
+papers, not because the two areas are actually disconnected in the wider literature. The
+in-corpus citation count alone can't tell the two cases apart.
+
+**Decision.** On-demand (a button, not computed for every gap on page load -- a live
+OpenAlex request per gap would slow the gap list down for a signal most users won't ask
+for every time), `GET /fields/{id}/gaps/{gap_id}/external-check` counts OpenAlex works
+whose title+abstract mention BOTH sides' top label (`title_and_abstract.search`'s
+multi-word filter value requires every word present, unlike the top-level `search=`
+param's OR-ranked relevance match -- so a single filter call is literally "works that
+combine both concepts," not an approximation). `>= 50` flags `is_likely_artifact`.
+
+Calibrated against 5 real label pairs from the live corpus's actual gap candidates:
+"GPT-3"+"retrieve-and-read" -> 26, "dense passage retrieval"+"retrieve-and-read" -> 9,
+"2WikiMultihopQA"+"ScienceQA" -> 0 (genuinely narrow pairings, real works are scarce) vs.
+"hallucination"+"retrieval-augmented generation" -> 4655, "chain of thought prompting"+
+"reasoning" -> 3882 (both sides are themselves broad, independently well-established
+areas -- not disconnected in the wider literature at all, just in this corpus's small
+citation subgraph). 50 sits cleanly in the gap between those two real clusters; same
+"accepted, not fully solved" spirit as OD37's relevance floor -- revisit once more real
+gaps exist to calibrate against.
+
 ---
 
 ## Schema change log

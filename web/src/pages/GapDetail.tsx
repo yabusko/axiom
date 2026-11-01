@@ -74,6 +74,10 @@ export default function GapDetail() {
     },
   });
 
+  const externalCheckMutation = useMutation({
+    mutationFn: () => api.gapExternalCheck(fieldId!, gapId!),
+  });
+
   if (isLoading) return <LoadingState label="Loading this gap…" />;
   if (isError || !data) {
     return (
@@ -138,6 +142,36 @@ export default function GapDetail() {
             especially on corpora too citation-sparse for the method above — but on its own it has no path to a
             direction pitch. (A deeper geometry breakdown — bridge ratio, nearest-neighbor papers — isn't computed for
             this view; see "Under the hood" for the full Vector Gap Discovery analysis.)
+          </p>
+        )}
+      </div>
+
+      <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-4) var(--space-6)", marginBottom: "var(--space-6)" }}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          This gap is weakly connected WITHIN this field's corpus — that can also mean the two areas are
+          actually well-connected in the wider literature and this corpus is just too small to show it.
+        </p>
+        <button
+          type="button"
+          className="btn-quiet"
+          style={{ fontWeight: 700, cursor: "pointer" }}
+          onClick={() => externalCheckMutation.mutate()}
+          disabled={externalCheckMutation.isPending}
+        >
+          {externalCheckMutation.isPending ? "Checking OpenAlex…" : "Check against OpenAlex"}
+        </button>
+        {externalCheckMutation.isError && (
+          <p style={{ color: "var(--action)", marginTop: "var(--space-4)" }}>
+            Couldn't reach OpenAlex: {(externalCheckMutation.error as Error).message}
+          </p>
+        )}
+        {externalCheckMutation.data && (
+          <p className="muted" style={{ marginTop: "var(--space-4)", marginBottom: 0 }}>
+            {externalCheckMutation.data.works_count.toLocaleString()} OpenAlex works combine both sides' key
+            concepts ("{externalCheckMutation.data.query}").{" "}
+            {externalCheckMutation.data.is_likely_artifact
+              ? "That's a lot — this may be a corpus-size artifact, not a real gap in the wider literature."
+              : "That's few enough that this looks like a genuinely under-explored pairing, not just an artifact of this corpus's size."}
           </p>
         )}
       </div>

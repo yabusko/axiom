@@ -1,0 +1,620 @@
+{
+  "_provenance": "AI-judged (claude-sonnet-5-5), stage 4 B1 -- see scripts/judge_gaps.py's module docstring for the rubric and what it deliberately withholds (g_score) from the judge.",
+  "generated_at": "2026-11-01T18:07:55.199120+00:00",
+  "run_id": "50464541afcf4d6fa3c0b50a3e8ac954",
+  "spend_usd": 0.2351,
+  "results": {
+    "retrieval-augmented generation": [
+      {
+        "gap_id": "23fcd4bb58add9d7",
+        "a_label": "GPT-3",
+        "b_label": "retrieve-and-read",
+        "inter_citations": 0,
+        "g_score": 0.8059725913567554,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The \"GPT-3\" cluster is a grab-bag labeled by a model name rather than a topic: it mixes repository-level code completion, controllable story generation, and story comprehension with knowledge graphs. The \"retrieve-and-read\" cluster is coherent, covering iterative and active retrieval for multi-step QA. The only real link is RepoCoder, which is itself an iterative retrieval-generation method and is clearly related to ITER-RETGEN and FLARE. That overlap is already well recognized, so it is not a blind spot. The story-generation papers (2020-2022) predate the iterative RAG wave and target a different task, so their lack of citations to 2023 work is expected from timing and not evidence of a gap. Zero cross-citations between clusters of 3 listed papers each looks like an artifact of small samples and loose, label-driven community detection. Applying iterative retrieval to story generation or narrative knowledge graphs is a possible but vague direction, and it is not a strong gap."
+        }
+      },
+      {
+        "gap_id": "46f73ec32d9403db",
+        "a_label": "full open-domain question answering",
+        "b_label": "retrieve-and-read",
+        "inter_citations": 1,
+        "g_score": 0.6857602430155091,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of noisy clustering in a small corpus rather than a real blind spot. The two clusters sit in the same subfield and are not really separate: single-round retrieval (In-Context RALM, REPLUG) and iterative or active retrieval (FLARE, IRCoT, ITER-RETGEN) are closely related RAG methods. FLARE, IRCoT and ITER-RETGEN explicitly position themselves against single-retrieval baselines such as In-Context RALM and REPLUG, so the low citation count between these specific papers probably reflects sampling or community-detection noise. The cluster labels ('full open-domain QA' vs 'retrieve-and-read') are loose, and the first cluster mixes in a hallucination survey that does not belong with the retrieval methods. Comparing single-shot and adaptive retrieval is also well-trodden ground, with many surveys and benchmark papers already covering it. There is no clear, novel research question here for someone to pursue."
+        }
+      },
+      {
+        "gap_id": "b9aa964bde8c615b",
+        "a_label": "full open-domain question answering",
+        "b_label": "GPT-3",
+        "inter_citations": 1,
+        "g_score": 0.6428129241775127,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The clusters look like artifacts of noisy community detection and a small corpus. The first is labeled 'open-domain QA' but mixes a hallucination survey with in-context RALM and REPLUG, which are general retrieval-augmented LM papers. The second is labeled 'GPT-3' and mixes code completion (RepoCoder) with story generation and knowledge graphs. The shared theme is only loose: retrieval or external knowledge augmenting LLMs. Weak citation links between general RAG papers and domain-specific applications such as code or story generation are expected and not a blind spot. The applications cite the general RAG literature, and the reverse direction is naturally sparse. RAG for creative writing or story generation might be a mildly interesting niche, but the evidence here is thin and the labels don't describe the actual content. The gap is not specific enough to act on."
+        }
+      },
+      {
+        "gap_id": "5e96291a0396ec30",
+        "a_label": "dense passage retrieval",
+        "b_label": "retrieve-and-read",
+        "inter_citations": 6,
+        "g_score": 0.6136983457106426,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of noisy clustering in a small corpus rather than a real blind spot. Dense passage retrieval and retrieve-and-read (iterative or active RAG) are tightly coupled subfields. FLARE, IRCoT and ITER-RETGEN all use dense or sparse retrievers and cite DPR-style work directly. The 'dense passage retrieval' cluster is also incoherent: it mixes DPR, query rewriting, and KG-based synthetic corpus generation for pre-training. That suggests community detection grouped the papers loosely. Only 6 cross-citations among 9 sampled papers is not a meaningful sparsity signal, since the sample is tiny and the clusters are probably not cleanly separated. The proposed gap, connecting retrieval methods with iterative retrieval-augmented generation, is already heavily explored (adaptive retrieval, query rewriting for multi-step RAG, retriever-generator joint training), so novelty is very low. There is no specific research question to act on beyond 'combine retriever work with iterative RAG', so actionability is weak."
+        }
+      },
+      {
+        "gap_id": "bc73b29825093072",
+        "a_label": "full open-domain question answering",
+        "b_label": "dense passage retrieval",
+        "inter_citations": 6,
+        "g_score": 0.6000361334122317,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of community detection on a small corpus rather than a real blind spot. Open-domain QA with retrieval-augmented LMs and dense passage retrieval are two of the most intertwined topics in RAG, and DPR is the retriever used in much of the QA work. The listed papers (REPLUG, In-Context RALM, query rewriting) all build on dense or standard retrievers and cite this line of work heavily. The six citations between clusters are probably just a consequence of the small sample and the odd groupings, such as a hallucination survey placed under open-domain QA and a KG-based synthetic corpus paper placed under dense retrieval. Any real gap, such as retriever-LM co-training for black-box LMs, is already well studied (REPLUG, Atlas, RA-DIT). The pair offers no distinct, novel, or actionable research direction."
+        }
+      },
+      {
+        "gap_id": "a1eace937e3d3c99",
+        "a_label": "Question answering",
+        "b_label": "GPT-3",
+        "inter_citations": 2,
+        "g_score": 0.5933736378409975,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The pairing looks like an artifact of noisy community labels rather than a real blind spot. The \"Question answering\" cluster holds RAG QA and evaluation papers (FiD, RGB benchmark, faithfulness evaluation). The \"GPT-3\" cluster is a loose grab-bag of code completion (RepoCoder), controllable story generation, and story comprehension with knowledge graphs. The GPT-3 label reflects the model used, not a shared research problem, so semantic closeness is probably superficial. Only 2 citations between them is unsurprising for clusters with different tasks (QA vs. code and story generation). The possible gap is that retrieval-augmented generation for creative or narrative generation lacks the rigorous evaluation of faithfulness and correctness that RAG QA has. That idea is plausible but already broadly known, since RAG evaluation work spans tasks and code RAG benchmarks exist. It is also too vague to act on from this sample. The small sample of 3 papers per cluster shown adds to the risk of corpus artifact, so I would not prioritize it."
+        }
+      },
+      {
+        "gap_id": "24afea2904405270",
+        "a_label": "dense passage retrieval",
+        "b_label": "Question answering",
+        "inter_citations": 8,
+        "g_score": 0.5906281903880091,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of noisy community detection on a small corpus, not a real blind spot. Dense passage retrieval and open-domain QA are among the most tightly coupled topics in RAG. DPR and Fusion-in-Decoder are standard pairings, and the QA cluster's benchmarking and evaluation papers assume retrieval as a given. Eight cross-citations between clusters of 7-8 papers is not sparse, and the split is likely a labeling or partition choice. The cluster contents are heterogeneous: the retrieval cluster mixes query rewriting with KG-based synthetic corpus generation, and the QA cluster mixes FiD with evaluation work. That heterogeneity suggests the clusters do not reflect coherent topics. Retrieval-versus-QA evaluation links are heavily studied (BEIR, KILT, RAGAS, and others), so the novelty of any gap is low. It also suggests no concrete research question, so actionability is weak. The pair is not worth pursuing as stated."
+        }
+      },
+      {
+        "gap_id": "cf72012f0a11a9a9",
+        "a_label": "Question answering",
+        "b_label": "retrieve-and-read",
+        "inter_citations": 5,
+        "g_score": 0.5882785704191398,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of community detection on a small corpus, not a real blind spot. Both clusters sit inside the same RAG subfield. 'Question answering' holds FiD plus evaluation and benchmark papers. 'Retrieve-and-read' holds iterative and active retrieval methods (FLARE, IRCoT, ITER-RETGEN), which are evaluated on QA tasks. Their semantic closeness is expected, since the methods are applied to QA and the benchmarks assess them. The weak citation link is also unsurprising: the 2023 methods papers and the 2024 evaluation papers are separated by time, and FiD (2021) is the foundation they all build on. There is a real adjacent question, namely whether benchmarks like RGB test iterative or active retrieval methods, but it is well known and already being explored (e.g., CRAG, multi-hop RAG benchmarks). Cluster labels are generic and the clusters are small (6-7 papers), so five cross-citations don't show neglect. A researcher would gain little from pursuing this as a distinct gap."
+        }
+      },
+      {
+        "gap_id": "235fd0f5f6466a5c",
+        "a_label": "dense passage retrieval",
+        "b_label": "GPT-3",
+        "inter_citations": 4,
+        "g_score": 0.5867581712953288,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The two clusters look like an artifact of community detection over a small corpus rather than a real blind spot. The 'dense passage retrieval' cluster mixes DPR, query rewriting and KG-based synthetic corpus generation for pretraining. The 'GPT-3' cluster mixes repository-level code completion, controllable story generation and KG-based story comprehension. Neither cluster has a coherent theme, so the labels reflect a dominant node more than a shared topic. Weak citation links are expected between papers that cover different tasks (QA, code, story generation) and sit in different sub-communities. The retrieval-for-code and retrieval-for-story links are already well explored, and RepoCoder itself is an iterative retrieval-generation method that builds on DPR-style retrieval. The 4 cross-citations show the clusters are not disconnected. A researcher has no concrete, specific question to pursue here beyond a vague 'apply retrieval ideas to knowledge-enhanced generation', which is already a crowded area."
+        }
+      },
+      {
+        "gap_id": "07b7e3b4c0b25089",
+        "a_label": "full open-domain question answering",
+        "b_label": "Question answering",
+        "inter_citations": 6,
+        "g_score": 0.5663008341681732,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "Both clusters sit squarely inside retrieval-augmented QA. The titles suggest they are the same literature split by noisy community detection, with one cluster closer to open-domain QA methods and the other closer to QA evaluation. The \"full open-domain question answering\" cluster mixes a hallucination survey with in-context RAG and REPLUG, so it looks incoherent. Six cross-citations between two small clusters of 7-8 papers is not a meaningful sparsity signal in a small corpus. Work connecting RAG methods, hallucination, and RAG evaluation or faithfulness is abundant (RAGAS, ARES, many surveys), so no blind spot is evident. There is no specific, actionable research question beyond a generic call to evaluate RAG methods more, and that is already well covered."
+        }
+      }
+    ],
+    "dense passage retrieval": [
+      {
+        "gap_id": "0ede177de7538ed6",
+        "a_label": "ChatGPT",
+        "b_label": "knowledge base question answering",
+        "inter_citations": 0,
+        "g_score": 0.8707800817375831,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters sit on different sides of a real divide: LLM-based retrieval and re-ranking (ChatGPT, query expansion, in-context RAG) versus KBQA with structured retrieval. A few papers in each cluster suggest a plausible link, since LLM re-ranking or query expansion could help subgraph retrieval and LLMs could reason over KB subgraphs. Zero citations between them is probably an artifact of a small corpus and a noisy 'ChatGPT' label that mixes unrelated papers, plus the 2019-2022 versus 2023 timing difference. The intersection is also already active and well covered (KB-BINDER, StructGPT, ToG, KG-augmented RAG, LLM-based KBQA retrievers), and one of the sampled KBQA papers is itself an LLM in-context learning paper. So the gap is not novel. It is somewhat actionable, for example by testing LLM re-rankers on KB subgraph or relation retrieval, but the gap as framed is weak and does not justify pursuit."
+        }
+      },
+      {
+        "gap_id": "31e5f40c0c35d773",
+        "a_label": "retrieve-and-read",
+        "b_label": "rocketqa",
+        "inter_citations": 0,
+        "g_score": 0.8642797571673716,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are semantically adjacent but they sit at different points of the pipeline. One covers iterative or active retrieval for LLM generation (FLARE, IRCoT, ITER-RETGEN). The other covers training and pretraining dense retrievers (RocketQA, coCondenser, RetroMAE). Zero citations between them is probably a timing and community-detection artifact. The 2023 LLM-RAG papers mostly use off-the-shelf retrievers such as BM25 or Contriever, so they have little reason to cite retriever-pretraining work. The overall question, whether better-trained dense retrievers help iterative RAG, is already studied under retriever-LLM alignment (REPLUG, RA-DIT, Self-RAG, and various retriever-for-RAG papers). The gap is therefore not novel. It is also loosely defined: a researcher could run an ablation of pretrained retrievers inside FLARE or IRCoT, but that is incremental. The small cluster sizes (8 and 6 papers) and the date mismatch point to a corpus artifact rather than a real blind spot."
+        }
+      },
+      {
+        "gap_id": "f068c4fd8d4d11b6",
+        "a_label": "knowledge base question answering",
+        "b_label": "rocketqa",
+        "inter_citations": 0,
+        "g_score": 0.8633033652451902,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The gap is partly real, since KBQA retrieval (PullNet, SR, in-context KBQA) and dense passage retrieval pre-training (RocketQA, coCondenser, RetroMAE) are separate communities that rarely cite each other. But the lack of citations reflects a genuine difference in what is retrieved (graph triples and subgraphs versus text passages) and in the methods used, not a blind spot. Applying dense retrieval training tricks such as hard negatives, cross-encoder distillation, and retrieval-oriented pre-training to KB or subgraph retrieval is plausible, and some work already does this (e.g. DecAF, UniK-QA, TIARA, and dense retrievers for KG linearization). The clusters are small, with only three papers shown for each, so the zero-citation count may be an artifact of the corpus. The idea is somewhat actionable as a project, but it is not novel enough or clearly enough supported to be a strong gap."
+        }
+      },
+      {
+        "gap_id": "24fa737d09e426c4",
+        "a_label": "retrieve-and-read",
+        "b_label": "knowledge base question answering",
+        "inter_citations": 0,
+        "g_score": 0.8541339626434459,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are conceptually close: iterative or multi-hop retrieval for QA, over text corpora in one and over knowledge bases in the other. Zero citations between them is probably partly a corpus artifact, since the sets are tiny (8 and 7 papers) and the 2023 LLM-era retrieval papers would not be expected to cite KBQA work like PullNet. The gap is also not truly a blind spot. Unified text-plus-KB retrieval (PullNet, UniK-QA, DecAF, and the KB-binder line) and LLM-based KBQA with retrieval (e.g., Think-on-Graph, StructGPT) already bridge the two, so a researcher would find existing work rather than an open area. A sensible next step would be to check whether the missing links exist in the wider literature before investing. The gap alone is a weak lead: iterative retrieval-generation on structured and unstructured sources is somewhat actionable, but it is not novel enough to prioritize."
+        }
+      },
+      {
+        "gap_id": "f14843314c4888c8",
+        "a_label": "ChatGPT",
+        "b_label": "retrieve-and-read",
+        "inter_citations": 1,
+        "g_score": 0.7254630688257144,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of community detection and a small corpus rather than a real blind spot. Both clusters come from the same 2023 wave of LLM-augmented retrieval work, and the 'ChatGPT' and 'retrieve-and-read' labels are arbitrary groupings. The topics are already heavily connected in the wider literature. Examples include the many surveys of RAG and LLM-for-IR, and work such as FLARE, IRCoT, and Iter-RetGen, which uses LLM-driven query rewriting and retrieval. Both sets of papers appeared within months of each other, so low mutual citation probably reflects timing and concurrent work, not neglect. Query expansion and LLM re-ranking are also well-known complements to iterative retrieval-generation. The possible idea would be to combine LLM re-ranking or query2doc expansion with iterative multi-step RAG. That is a fairly obvious direction that has largely been explored already, so it is not a novel or well-defined gap."
+        }
+      },
+      {
+        "gap_id": "08fa96fbb665154b",
+        "a_label": "ChatGPT",
+        "b_label": "rocketqa",
+        "inter_citations": 2,
+        "g_score": 0.6929182509405568,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The weak citation link looks like a temporal and community-labeling artifact rather than a real blind spot. The ChatGPT cluster (2023 LLM-era work on re-ranking, query expansion, in-context RAG) and the RocketQA cluster (2021-2022 dense retriever pre-training and training methods) belong to different generations of work. Later papers rarely cite earlier ones across that boundary, and the labels \"ChatGPT\" and \"rocketqa\" are arbitrary names for noisy communities. The semantic overlap is also generic: both are about retrieval. The actual connection, using LLMs to augment or improve dense retrievers, is already heavily studied. Examples include LLM-generated query expansion feeding dense retrievers, LLM-based data augmentation and distillation for DPR (InPars, Promptagator), and LLM embeddings as retrievers (RepLLaMA, E5-Mistral). Query2doc itself evaluates against dense retrievers. The small sampled clusters (3 listed papers each) suggest a corpus-size artifact. A researcher would find little unexplored ground, and the gap is too vague to act on."
+        }
+      },
+      {
+        "gap_id": "07d61ecdb1fc20c6",
+        "a_label": "accuracy",
+        "b_label": "knowledge base question answering",
+        "inter_citations": 1,
+        "g_score": 0.6450106392032623,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are semantically adjacent, since both cover open-domain QA with retrieval, but the weak citation link is probably a community-detection artifact. The 'accuracy' cluster is vaguely labeled and mixes unrelated papers (FiD, MuRAG, a retrieval-LM tutorial), and the KBQA cluster is small at 7 papers. Unifying text retrieval with KB retrieval is a known, active direction (PullNet, UniK-QA, DecAF, UniKGQA, KB-plus-text hybrid QA), so the claimed blind spot is not new. Some actionable work remains, such as applying dense retrieval and fusion-in-decoder to KB subgraph retrieval, but a researcher would find existing literature on it. The evidence does not show a genuine gap, so it is not worth pursuing as framed."
+        }
+      },
+      {
+        "gap_id": "f72cfb3e8d9869b5",
+        "a_label": "dense passage retrieval",
+        "b_label": "knowledge base question answering",
+        "inter_citations": 2,
+        "g_score": 0.6340970456046523,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are semantically close, since both concern retrieval for open-domain QA, but the weak citation link looks mostly like an artifact of how the field is organized. Dense passage retrieval over text and KBQA over structured knowledge bases are established, separate subcommunities, and they already meet in existing work. PullNet combines KB and text retrieval, SR (subgraph retrieval) applies dense retrieval ideas to KBs, and unified or hybrid retrieval has been studied (e.g., UniK-QA, DecAF, and retrieval-augmented LLMs over KGs). The 24-paper and 7-paper clusters are small, and the sample papers shown (RAG domain adaptation, query rewriting) are only loosely tied to KBQA. That suggests a small-corpus or community-detection artifact rather than a genuine blind spot. A possible real direction would be to transfer dense retrieval techniques (hard negatives, domain adaptation, query rewriting) to KB subgraph retrieval. That is incremental, and the literature probably already partly covers it, so it is not strongly worth pursuing as a gap."
+        }
+      },
+      {
+        "gap_id": "1dc9fcccef659bf0",
+        "a_label": "accuracy",
+        "b_label": "rocketqa",
+        "inter_citations": 2,
+        "g_score": 0.6080660062800209,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The two clusters look like an artifact of community detection rather than a real blind spot. The 'accuracy' cluster is a loose grab-bag of reader-side and retrieval-augmented generation work (FiD, MuRAG, a retrieval-LM tutorial). The 'rocketqa' cluster covers retriever pre-training and training methods (RocketQA, coCondenser, RetroMAE). They are semantically adjacent but address different stages of the pipeline, retriever and reader. The literature already links them: FiD is routinely paired with DPR/RocketQA-style retrievers, and the retrieval-LM survey covers both. The tiny corpus and the vague 'accuracy' label suggest the weak citation link reflects clustering noise. Two citations between a 20-paper cluster and a 6-paper cluster is not strong evidence of neglect. Some narrow questions remain, such as whether retriever pre-training gains carry over to generator-side performance in FiD or multimodal settings. But that is incremental and already partly studied, so there is no clear, novel direction."
+        }
+      },
+      {
+        "gap_id": "dbe3cdd9dbaa3877",
+        "a_label": "dense passage retrieval",
+        "b_label": "ChatGPT",
+        "inter_citations": 7,
+        "g_score": 0.5958117944639483,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of community detection on a small corpus rather than a real blind spot. The \"ChatGPT\" cluster contains papers (In-Context RALM, Query2doc, the RankGPT re-ranking paper) that are squarely about LLM-augmented retrieval, and the \"dense passage retrieval\" cluster includes RAG domain adaptation and query rewriting, which are also LLM-retrieval topics. The two clusters are semantically close because they are the same research area split by labeling. Seven cross-citations among 33 papers is not sparse, and the literature already integrates dense retrieval with LLMs heavily: query expansion, re-ranking, and retrieval-augmented LMs are all well-explored. A researcher would not find an unexplored connection here, so the actionable direction is vague (\"connect DPR and LLM methods\"), and that is already mainstream. The gap is not worth pursuing as framed."
+        }
+      }
+    ],
+    "hallucination in question answering": [
+      {
+        "gap_id": "3545eb147f211d0e",
+        "a_label": "accuracy",
+        "b_label": "mmcoqa",
+        "inter_citations": 0,
+        "g_score": 0.894680043124638,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The cluster labels ('accuracy', 'mmcoqa') look like noisy community-detection artifacts rather than coherent topics. Each cluster mixes unrelated work: the 'accuracy' cluster pairs multi-step RAG methods (IRCoT, ITER-RETGEN) with Kosmos-1, a multimodal LLM, and the 'mmcoqa' cluster pairs a hallucination benchmark (HaluEval) with internet-augmented dialogue and multimodal RAG (MuRAG). Zero citations between them is unsurprising in a small corpus, since the papers are from 2022-2023 and sit in different subareas. Some real overlap exists, namely retrieval-augmented QA across text and multimodal settings, plus evaluating hallucination in RAG. But that intersection is already actively studied (multimodal RAG, RAG hallucination benchmarks), so it is not a blind spot. It also does not translate into a specific research question. The gap looks mostly like a corpus and clustering artifact."
+        }
+      },
+      {
+        "gap_id": "2373071e60b830d3",
+        "a_label": "grailqa",
+        "b_label": "accuracy",
+        "inter_citations": 0,
+        "g_score": 0.8913758082535979,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The clusters are labeled by noisy keywords ('grailqa', 'accuracy'), not coherent themes. The first is KBQA (PullNet, ReTraCk, few-shot ICL on KBQA) and the second is a grab bag of retrieval-augmented LLM multi-step QA (IRCoT, ITER-RETGEN) plus Kosmos-1, a multimodal model that does not belong. Zero citations between them is partly a small-corpus artifact and partly reflects the different eras and methods. The underlying idea, bridging KB-grounded QA and retrieval-augmented LLM reasoning for hallucination mitigation, is plausible but already heavily explored by work such as KB-BINDER, StructGPT, Think-on-Graph, and KG-augmented RAG. Nothing in the hallucination framing is specific to this pairing, so it is hard to turn into a concrete research project. The gap looks mostly like a clustering artifact, with only a weak real signal."
+        }
+      },
+      {
+        "gap_id": "02252900bd99ee5e",
+        "a_label": "accuracy",
+        "b_label": "ok-vqa",
+        "inter_citations": 0,
+        "g_score": 0.8818847292336027,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are text-based retrieval-augmented multi-hop QA (IRCoT, ITER-RETGEN, plus the multimodal LLM Kosmos-1) and knowledge-based VQA on OK-VQA (retriever-reader, RA-VQA, InfoSeek). Zero citations between them is probably an artifact of the labels and the small corpus. The cluster named 'accuracy' is a loose grouping, and Kosmos-1 does not fit the text-RAG papers. The 2021-2022 VQA papers predate the 2023 text-RAG papers, so the lack of citations is partly temporal. Bridging iterative retrieval-and-reasoning with knowledge-based VQA is a reasonable idea, such as applying IRCoT-style interleaved retrieval to OK-VQA or InfoSeek. But this is already an active area (multimodal RAG, retrieval-augmented MLLMs), so the gap is not novel and would likely be filled by work outside this small corpus. The link to hallucination is also only indirect. Some actionability exists, but the gap looks more like a sampling artifact than a real blind spot."
+        }
+      },
+      {
+        "gap_id": "3e74c68102799ee8",
+        "a_label": "grailqa",
+        "b_label": "mmcoqa",
+        "inter_citations": 0,
+        "g_score": 0.8585804670855552,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The clusters look like an artifact of noisy community detection and a small corpus rather than a real blind spot. The GrailQA cluster is about KBQA (PullNet, ReTraCk, few-shot in-context KBQA), and the MMCoQA cluster is a loose mix of hallucination evaluation (HaluEval), internet-augmented dialogue and multimodal retrieval (MuRAG). The labels reflect dataset names, not coherent topics. The zero citations between them are unsurprising, since the papers span different tasks, modalities and years. Two things lower the plausibility further: the MMCoQA cluster has no thematic unity, and the real hallucination-in-KBQA connection is already studied through KG-grounded LLM work. A generic proposal such as 'apply KBQA grounding to hallucination benchmarks' is too vague to act on and not clearly novel. A better-defined pair would be needed to make this worth pursuing."
+        }
+      },
+      {
+        "gap_id": "1ee136ec3b64d596",
+        "a_label": "mmcoqa",
+        "b_label": "ok-vqa",
+        "inter_citations": 0,
+        "g_score": 0.8536128279922458,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 3,
+          "actionability": 3,
+          "worth_pursuing": true,
+          "rationale": "The clusters are semantically adjacent (multimodal retrieval-augmented QA over images and text versus knowledge-based VQA), and zero cross-citations looks partly like an artifact of the small sample (3 papers shown each) and loose cluster labels. The mmcoqa cluster mixes unrelated work (HaluEval, Internet-Augmented Dialogue), which suggests noisy community detection. A genuine gap does exist, though: the knowledge-based VQA retrieval literature (OK-VQA, RA-VQA, InfoSeek) rarely evaluates hallucination or faithfulness, while hallucination benchmarks like HaluEval focus on text-only LLMs. That makes hallucination evaluation of retrieval-augmented VQA a concrete project, such as building a hallucination benchmark for retrieval-augmented multimodal QA. It is not very novel, since multimodal hallucination work like POPE is already growing, and the evidence here is weak. It is worth pursuing, but with caution."
+        }
+      },
+      {
+        "gap_id": "179d153cd8f2be24",
+        "a_label": "open-domain question answering",
+        "b_label": "grailqa",
+        "inter_citations": 0,
+        "g_score": 0.852277909889363,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "Open-domain QA over text and KBQA (GrailQA) are well-known adjacent subfields, and the zero citation count between these two small clusters probably reflects how community detection split the graph rather than a real blind spot. Work such as PullNet, UniK-QA and the hybrid text+KB retrieval literature already bridges them. The cluster samples are heterogeneous: QASC and calibration papers sit with FiD, and KBQA in-context learning sits with ReTraCk. That suggests a noisy partition. The link to hallucination is also weak, since the listed papers are mostly about retrieval, calibration and semantic parsing. A possible angle is whether KB-grounded answering reduces hallucination compared with text-retrieval-based QA. That idea is broad and already partly explored in KG-augmented LLM work, so it does not give a concrete, novel gap to pursue."
+        }
+      },
+      {
+        "gap_id": "7e4360a7ab285d6c",
+        "a_label": "grailqa",
+        "b_label": "ok-vqa",
+        "inter_citations": 0,
+        "g_score": 0.8485424782890859,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are KBQA (GrailQA) and knowledge-based VQA (OK-VQA). Both use retrieval over external knowledge, so a semantic link is plausible, and the lack of citations between them is real. But the link is mostly generic: retrieval-augmented QA over external knowledge. Zero cross-citation is expected because they target different modalities and benchmarks. The gap is likely an artifact of benchmark-based clustering in a small corpus. Neither cluster is clearly about hallucination, so the tie to the field topic is weak. Work bridging KB retrieval and visual QA already exists, for example KB-VQA with knowledge graphs, and multimodal KBQA such as MMKGQA. That lowers novelty. A possible direction is to test whether KB-grounded retrieval and logical-form techniques from KBQA reduce hallucination in knowledge-based VQA. That is concrete but incremental, and the evidence for a blind spot is thin."
+        }
+      },
+      {
+        "gap_id": "3a6381c498a65b7d",
+        "a_label": "grailqa",
+        "b_label": "eli5",
+        "inter_citations": 0,
+        "g_score": 0.8292982139510788,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are labeled by datasets (GrailQA for KBQA, ELI5 for long-form QA), and the sample papers are only loosely related to hallucination. Zero citations between them is expected: KBQA with structured logical forms and long-form free-text QA are different subcommunities with different evaluation setups. The small 10-paper clusters and the dataset-based labels suggest the gap comes from community detection and a small corpus, not a real blind spot. The underlying idea of grounding long-form answers in knowledge bases to reduce hallucination is real and has been studied, for example in KB-grounded generation and retrieval-augmented LFQA such as WebGPT and KILT. A novel, concrete research question is hard to pull out from this pair, so it is not worth pursuing as stated."
+        }
+      },
+      {
+        "gap_id": "f7ec9c07022c2ed5",
+        "a_label": "accuracy",
+        "b_label": "answer sentence selection",
+        "inter_citations": 0,
+        "g_score": 0.8276782727169087,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The gap looks mostly like an artifact of noisy clustering in a small corpus. The 'accuracy' cluster mixes multi-step retrieval-augmented reasoning (IRCoT, ITER-RETGEN) with an unrelated multimodal paper (Kosmos-1), so it has no coherent theme. The 'answer sentence selection' cluster is classical answer generation and reranking for QA. Zero citations between them is unsurprising: the LLM-era retrieval-augmented work and the older answer-selection and generation work belong to different eras and framings. The link between them is also already well known, since retrieval-augmented generation draws on answer selection and reranking. Any connection would be a vague 'bridge IR-style answer selection with iterative RAG' idea, which is neither specific nor novel, and it has little concrete tie to hallucination. A researcher would find little actionable direction here beyond a standard literature review."
+        }
+      },
+      {
+        "gap_id": "8c19696c22114f31",
+        "a_label": "eli5",
+        "b_label": "ok-vqa",
+        "inter_citations": 0,
+        "g_score": 0.817329663974145,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The gap is likely partly an artifact of splitting the corpus into modality-based communities. The ELI5 cluster covers text and table long-form QA. The OK-VQA cluster covers knowledge-based visual QA with retrieval. Zero citations between them is expected, because they are different modalities with different benchmarks. The plausible link is that both involve retrieval-augmented, knowledge-intensive QA where hallucination and faithfulness matter. Long-form answer grounding and attribution from ELI5 could in principle transfer to open-ended VQA. However, multimodal RAG and hallucination work already bridges the two areas (e.g. InfoSeek, multimodal RAG, LVLM hallucination benchmarks), so novelty is low. The cluster samples are also small and heterogeneous, for example FeTaQA and the test-train overlap paper do not obviously belong with ELI5. Evidence for a real blind spot is weak. A narrower version could be worth pursuing: long-form, attributable answers for visual information-seeking questions. As framed, though, it is not a strong gap."
+        }
+      }
+    ],
+    "in-context learning": [
+      {
+        "gap_id": "8610fe3a6e707c33",
+        "a_label": "large language models",
+        "b_label": "language model prompting",
+        "inter_citations": 0,
+        "g_score": 0.8921264366148338,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The gap looks like an artifact of noisy clustering in a small corpus. The 'large language models' cluster is a grab-bag of knowledge-enhanced LM work (StructGPT, KG-based synthetic corpora, Megatron-CNTRL) with no coherent theme. The 'prompting' cluster is surveys plus Tree of Thoughts. Zero citations between them is unsurprising. The papers span 2020-2024, so the earlier ones (2020, 2021) could not cite the 2023-2024 ones. The reverse direction is also weak, since the prompting surveys cover a broad literature and need not cite every knowledge-augmented LM paper. Linking structured-data or knowledge-grounded reasoning with prompting strategies is already well explored: StructGPT is itself a prompting/reasoning framework, and surveys on reasoning already cover tool and knowledge augmentation. So there is little that is novel, and no specific research question follows from the pairing. Not worth pursuing."
+        }
+      },
+      {
+        "gap_id": "3e6c935b2b01d44b",
+        "a_label": "language model prompting",
+        "b_label": "multiple-choice datasets",
+        "inter_citations": 0,
+        "g_score": 0.880184998339796,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The pairing looks like a weak artifact of small-corpus clustering. The 'language model prompting' cluster mixes Tree of Thoughts with two surveys, and the 'multiple-choice datasets' cluster is incoherent: it holds QASC alongside two papers on context-faithfulness and working memory that are not about multiple-choice datasets. The zero citations between them are unsurprising, since surveys and Tree of Thoughts address reasoning and instruction following, while the other papers address knowledge conflicts and faithfulness to context. A weak link does exist, because context-faithful prompting is itself a prompting method and could be examined through reasoning-prompting lenses. But this is not a distinct blind spot. The literatures already overlap broadly, and a researcher could easily cite across them. The cluster labels are noisy and the corpus is tiny (3 papers listed per cluster of 4), so I would not pursue it as a research gap. The most defensible version would be to test whether deliberate reasoning methods like ToT improve context faithfulness under knowledge conflicts, but that is a modest, incremental idea rather than a gap the data reveals."
+        }
+      },
+      {
+        "gap_id": "86ef2da719ad757c",
+        "a_label": "grailqa",
+        "b_label": "language model prompting",
+        "inter_citations": 0,
+        "g_score": 0.8728819267983877,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The gap looks mostly like an artifact of small clusters and loose community detection. The KBQA cluster (PullNet, ReTraCk, few-shot ICL on KBQA) is a mix of pre-LLM retrieval methods and one ICL paper. The prompting cluster is a mix of Tree of Thoughts and two surveys. Zero citations between them is unsurprising, since PullNet (2019) and ReTraCk (2021) predate LLM prompting and could not cite it. The one pairing that matters, few-shot ICL on KBQA versus the prompting and reasoning literature, is already bridged in practice, because the 2023 KBQA paper builds directly on LLM prompting. Applying ToT-style deliberate search or instruction-following methods to KBQA or semantic parsing is a plausible direction, but several works on LLM-based KBQA and reasoning over knowledge graphs (e.g., Think-on-Graph, KB-BINDER) already cover it. A researcher would not find a genuine blind spot here, and the clusters are too thin to support a concrete research program."
+        }
+      },
+      {
+        "gap_id": "3f764bec31887849",
+        "a_label": "large language models",
+        "b_label": "multiple-choice datasets",
+        "inter_citations": 0,
+        "g_score": 0.8099773076098633,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The clusters look like an artifact of noisy community detection and a small corpus. The 'large language models' cluster mixes structured-data reasoning, KG-based pre-training corpora, and controllable story generation. The 'multiple-choice datasets' cluster mixes QASC with two papers on context-faithfulness and working memory in LLMs, so neither cluster is thematically coherent and the labels barely fit. Zero citations between them is expected given the 2020-2023 spread and the different subtopics. There is a loosely real thread: knowledge-grounded generation and context-faithful use of external knowledge. But that area is already actively studied (knowledge conflicts, retrieval-augmented generation, faithfulness), so a blind spot is unlikely. A researcher could not act on this pairing as it stands without redefining the gap, and the novelty is low."
+        }
+      },
+      {
+        "gap_id": "69db5b5be9e09612",
+        "a_label": "grailqa",
+        "b_label": "multiple-choice datasets",
+        "inter_citations": 0,
+        "g_score": 0.7888143922057845,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The link between the clusters is weak and mostly an artifact of small clusters (3 papers each) and loose topical similarity in QA. One cluster is KBQA (GrailQA, PullNet, ReTraCk, few-shot ICL for KBQA); the other mixes a multi-hop science QA dataset (QASC) with context-faithfulness work in LLMs (context-faithful prompting, controllable working memory). Zero citations is unsurprising, since the KBQA papers target structured retrieval while the others deal with knowledge conflicts between parametric and contextual knowledge. A possible real angle is studying knowledge-conflict and context-faithfulness in KBQA in-context learning, where retrieved KB facts may contradict model memory. But this is speculative, and the connecting papers are heterogeneous and not clearly representative of their fields. The gap is also not clearly novel, since retrieval-augmented and knowledge-conflict work already overlaps with KBQA. Overall it looks like noisy community detection rather than a distinct blind spot."
+        }
+      },
+      {
+        "gap_id": "05dbb54faffc9849",
+        "a_label": "open-domain question answering",
+        "b_label": "language model prompting",
+        "inter_citations": 1,
+        "g_score": 0.7288432882332448,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The gap looks like an artifact of community detection on a small corpus, not a genuine blind spot. Open-domain QA retrieval (DPR, RocketQA) and LLM prompting/reasoning (Tree of Thoughts, prompting surveys) are both well-known areas, and the work connecting them is extensive: retrieval-augmented generation, in-context retrieval, IRCoT, Self-Ask, ReAct, and retrieval-based prompting. The low citation count between the clusters most likely reflects a limited sample of 18 and 4 papers, plus different eras and venues, since DPR-style retrieval predates the prompting wave. The 4-paper prompting cluster is too small to support a claim of disconnection. The clusters include surveys, such as 'Retrieval-based Language Models and Applications', which already bridge the two. Any actionable direction, such as retrieval-augmented reasoning or prompting for retrievers, is already heavily explored, so a researcher would find little novelty."
+        }
+      },
+      {
+        "gap_id": "a0548165ac5beae4",
+        "a_label": "open-domain question answering",
+        "b_label": "multiple-choice datasets",
+        "inter_citations": 1,
+        "g_score": 0.6458763675241496,
+        "judgment": {
+          "plausibility": 3,
+          "novelty": 2,
+          "actionability": 3,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are semantically adjacent, since open-domain QA retrieval and context-faithful or controllable-memory prompting both concern how LLMs use retrieved context. But the weak citation link looks largely like a labeling and community-detection artifact. The 'multiple-choice datasets' cluster is a grab bag of 4 papers (QASC, plus two knowledge-conflict papers) with no coherent theme. The retrieval cluster is 18 papers, but the sampled examples are standard DPR/RocketQA work. The connection between retrieval-augmented LMs and context-faithfulness is already actively studied (knowledge conflicts, RAG faithfulness), including the survey 'Retrieval-based LMs and Applications'. So the gap is not novel and probably reflects a small corpus rather than a real blind spot. Actionability is moderate, since one could study how retriever quality interacts with context-faithful prompting, but this is already well covered."
+        }
+      },
+      {
+        "gap_id": "7b4b84355cc7492d",
+        "a_label": "open-domain question answering",
+        "b_label": "grailqa",
+        "inter_citations": 1,
+        "g_score": 0.6439969583844871,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The two clusters are text-based open-domain QA with dense retrieval and knowledge base QA (GrailQA, KBQA). They are close in meaning, but the low citation overlap looks like an artifact of the small corpus and community splits rather than a blind spot. Work already bridges the two: PullNet retrieves over both KBs and text, and the few-shot in-context KBQA paper builds on retrieval. Retrieval-based LMs and KBQA retrievers are also well known to share ideas, so the gap is not new. Unifying text and KB retrieval, as in UniK-QA and DecAF, is an established direction. A researcher could still run a survey or benchmark comparing dense retrieval with KB retrieval under in-context learning, but this candidate does not point to a specific, underexplored question."
+        }
+      },
+      {
+        "gap_id": "00fe12de18620f28",
+        "a_label": "large language models",
+        "b_label": "grailqa",
+        "inter_citations": 2,
+        "g_score": 0.6015665367610281,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "Both clusters sit in the same area: LLMs grounded in knowledge graphs and structured data, and KBQA. The weak citation link between them looks like an artifact of noisy community labels and small clusters. The 'large language models' cluster mixes unrelated works, including story generation and synthetic pretraining corpora. The 'grailqa' cluster is mostly KBQA systems. StructGPT and Few-shot ICL on KBQA already overlap heavily in topic and likely cite each other or the same sources, so the two clusters are not truly disconnected. The gap, if any, is that older KBQA retrieval work (PullNet, ReTraCk) is not integrated with LLM prompting. That is well known and already being addressed by many 2023-24 papers, such as KB-BINDER, ToG, and KG-augmented LLMs. The framing does not suggest a concrete, novel research question beyond a survey or bridging study."
+        }
+      },
+      {
+        "gap_id": "230ac76956012beb",
+        "a_label": "open-domain question answering",
+        "b_label": "large language models",
+        "inter_citations": 4,
+        "g_score": 0.5681053435667496,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of clustering rather than a real blind spot. The open-domain QA cluster (DPR, RocketQA, retrieval-based LMs) and the LLM cluster (StructGPT, KG-based corpus generation, Megatron-CNTRL) are both broad and heterogeneous, and the LLM cluster is really about knowledge-enhanced generation over structured data. Retrieval-augmented LLMs are among the most heavily studied topics, so the claim that the two areas are disconnected is implausible. The 4 cross-citations in a small sampled corpus most likely reflect sampling limits, not missing literature. The gap is also too vague to act on: no specific question or method is identified, and the field topic (in-context learning) is only loosely tied to either cluster. A researcher would find little here beyond known work on retrieval-augmented generation and knowledge-grounded LMs."
+        }
+      }
+    ],
+    "chain of thought prompting": [
+      {
+        "gap_id": "f4f2771757f7959c",
+        "a_label": "reasoning",
+        "b_label": "scienceqa",
+        "inter_citations": 1,
+        "g_score": 0.7416279791114374,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 1,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of small clusters and noisy community detection, not a genuine blind spot. The 'reasoning' cluster is mostly surveys on LLM reasoning and prompting, plus one self-verification paper. The 'scienceqa' cluster holds tool-augmented and multimodal reasoning frameworks (StructGPT, Chameleon, KAM-CoT). These are the same broad topic, chain-of-thought and LLM reasoning, and surveys typically cover such methods without citing each one closely, so the sparse citation link is expected. With only 4 papers per cluster and 1 cross-citation, there is no sign of a real disconnect. The gap is also vague: no specific unanswered question emerges, and bridging surveys with tool-augmented or multimodal methods is already well covered by existing work, so novelty is low. A researcher would find little here to act on."
+        }
+      },
+      {
+        "gap_id": "89346fc2f933debf",
+        "a_label": "2wikimultihopqa",
+        "b_label": "reasoning",
+        "inter_citations": 2,
+        "g_score": 0.6773170005779834,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 1,
+          "actionability": 1,
+          "worth_pursuing": false,
+          "rationale": "This looks like an artifact of a small corpus and noisy community detection, not a real blind spot. The 2WikiMultiHopQA cluster is a grab-bag of tree/retrieval/CoT papers (Tree of Thoughts, IRCoT, Tree of Clarifications) grouped by a shared dataset, not a coherent topic. The 'reasoning' cluster is mostly surveys plus a self-verification paper, so it naturally covers the same ground. Surveys and method papers from the same 2023 window, in the same CoT field, are semantically close almost by construction. Their weak direct citation is expected: surveys cite broadly, and the method papers were published around the same time as them. The retrieval-augmented multi-hop QA and CoT reasoning connection is already heavily studied, including IRCoT itself, so there is no novelty. There is also no clear research question to act on. The only possible angle is a survey of dataset-specific multi-hop reasoning, which is a weak and well-trodden idea."
+        }
+      },
+      {
+        "gap_id": "a959aee932b97ac4",
+        "a_label": "2wikimultihopqa",
+        "b_label": "scienceqa",
+        "inter_citations": 1,
+        "g_score": 0.6418157319731557,
+        "judgment": {
+          "plausibility": 2,
+          "novelty": 2,
+          "actionability": 2,
+          "worth_pursuing": false,
+          "rationale": "The clusters are named after benchmarks (2WikiMultihopQA, ScienceQA), not after a shared research question. They are small and loosely grouped. The 2Wiki cluster mixes search-based reasoning (Tree of Thoughts) with retrieval-augmented QA (IRCoT, Tree of Clarifications). The ScienceQA cluster mixes tool-augmented and structured-data reasoning (StructGPT, Chameleon) with multimodal CoT (KAM-CoT). The weak citation link between them most likely reflects different task domains and the small corpus, not a real blind spot. Work on retrieval and knowledge augmentation for reasoning, and on tool-use frameworks, already spans both areas. Any bridge, such as applying tree-search or retrieval-interleaved CoT to multimodal science QA, would be incremental and is partly covered already (KAM-CoT uses knowledge augmentation, Chameleon uses tools). The gap looks like an artifact of benchmark-based clustering with only 9 papers, so it is not worth pursuing as stated."
+        }
+      }
+    ]
+  }
+}

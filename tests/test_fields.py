@@ -399,6 +399,66 @@ def test_field_gap_detail_404_unknown_id(field_client):
     assert client.get(f"/fields/{field_id}/gaps/not-a-real-gap-id").status_code == 404
 
 
+class _FakeOpenAlexClient:
+    def __init__(self, count: int = 7):
+        self.count = count
+        self.last_query: str | None = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+    def count_works(self, query: str) -> int:
+        self.last_query = query
+        return self.count
+
+
+def test_field_gap_external_check_flags_a_high_count_as_artifact(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+    fake = _FakeOpenAlexClient(count=5000)
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: fake)
+
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["works_count"] == 5000
+    assert body["is_likely_artifact"] is True
+    assert fake.last_query  # built from both sides' labels
+
+
+def test_field_gap_external_check_low_count_not_flagged(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: _FakeOpenAlexClient(count=3))
+
+    body = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check").json()
+    assert body["works_count"] == 3
+    assert body["is_likely_artifact"] is False
+
+
+def test_field_gap_external_check_502_on_openalex_failure(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+
+    class _FailingClient(_FakeOpenAlexClient):
+        def count_works(self, query: str) -> int:
+            raise RuntimeError("OpenAlex GET /works failed after retries")
+
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: _FailingClient())
+
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check")
+    assert r.status_code == 502
+
+
 def test_field_paper_detail_with_entities(field_client, patched_db_path):
     client, field_id = field_client
     conn = db.connect(patched_db_path)

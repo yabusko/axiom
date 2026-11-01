@@ -38,10 +38,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, embedding_map as mapmod, fields as fieldsmod, llm_providers
+from axiom import concept_graph, config, db, embedding_map as mapmod, external_check, fields as fieldsmod, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
+from axiom import ingest as ingestmod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
 from axiom.agents import pipeline as agents_pipeline
@@ -316,6 +317,12 @@ class GapDetailOut(BaseModel):
     g_score: float
     components: dict[str, float]
     meets_threshold: bool
+
+
+class GapExternalCheckOut(BaseModel):
+    query: str
+    works_count: int
+    is_likely_artifact: bool
 
 
 class EntityOut(BaseModel):
@@ -1182,6 +1189,28 @@ def field_gap_detail(field_id: str, gap_id: str):
         total_in_corpus_citations=stats["edges_in_corpus"],
         gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
         meets_threshold=gap.meets_threshold,
+    )
+
+
+@app.get("/fields/{field_id}/gaps/{gap_id}/external-check", response_model=GapExternalCheckOut)
+def field_gap_external_check(field_id: str, gap_id: str):
+    """B1: on-demand (not computed for every gap on page load -- a real
+    OpenAlex request per gap would be wasteful and slow down the gap list
+    for a signal most users won't ask for every time) external corpus-
+    artifact check. A live OpenAlex outage/timeout surfaces as 502, not an
+    unhandled 500 -- this endpoint augments a gap's trustworthiness signal,
+    it never blocks viewing the gap itself."""
+    analysis = _cached_field_gap_analysis(field_id)
+    gap = _find_gap(analysis, gap_id)
+    label_a = gap.a.labels[0] if gap.a.labels else gap.a.label
+    label_b = gap.b.labels[0] if gap.b.labels else gap.b.label
+    try:
+        with ingestmod.OpenAlexClient() as client:
+            result = external_check.check_gap(client, label_a, label_b)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=f"OpenAlex check failed: {exc}")
+    return GapExternalCheckOut(
+        query=result.query, works_count=result.works_count, is_likely_artifact=result.is_likely_artifact,
     )
 
 

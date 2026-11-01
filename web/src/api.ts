@@ -226,6 +226,12 @@ export interface MapOut {
 
 export type MapEntityKind = "paper" | "topic";
 
+export interface GapExternalCheckOut {
+  query: string;
+  works_count: number;
+  is_likely_artifact: boolean;
+}
+
 export interface MapSimilarityOut {
   a_label: string;
   b_label: string;
@@ -250,6 +256,8 @@ export const api = {
   gaps: (fieldId: string) => req<GapAnalysisOut>(`/fields/${fieldId}/gaps`),
   gapDetail: (fieldId: string, gapId: string) =>
     req<GapDetailOut>(`/fields/${fieldId}/gaps/${encodeURIComponent(gapId)}`),
+  gapExternalCheck: (fieldId: string, gapId: string) =>
+    req<GapExternalCheckOut>(`/fields/${fieldId}/gaps/${encodeURIComponent(gapId)}/external-check`),
   paper: (fieldId: string, paperId: string) =>
     req<FieldPaperOut>(`/fields/${fieldId}/papers/${encodeURIComponent(paperId)}`),
   shortlist: (fieldId: string, status?: ShortlistStatus) =>

@@ -192,6 +192,23 @@ class OpenAlexClient:
         })
         return data.get("results", [])[:count]
 
+    def count_works(self, query: str) -> int:
+        """Total OpenAlex works matching `query` (stage 4 B1's external
+        corpus-artifact check) -- `meta.count`, not the page of results
+        itself, so `per-page=1` is enough and this costs the same one
+        request as any other `/works` call regardless of how big the real
+        total is. `title_and_abstract.search`'s multi-word filter value
+        requires every word present (not an OR relevance match like the
+        top-level `search=` param), which is exactly "works that combine
+        both sides' key concepts" -- see axiom/external_check.py for how
+        `query` gets built from a gap's two labels."""
+        data = self._get("/works", {
+            "filter": f"title_and_abstract.search:{query}",
+            "per-page": 1,
+            "select": "id",
+        })
+        return int(data.get("meta", {}).get("count", 0))
+
     def works_by_ids(self, ids: list[str], log=print) -> list[dict]:
         """Fetch metadata for specific works via an OR filter on openalex_id.
 

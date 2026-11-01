@@ -125,6 +125,9 @@ export async function mockApi(page: Page) {
     return route.continue();
   });
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/gaps/${GAP_ID}`, (route) => route.fulfill({ json: GAP_DETAIL }));
+  await page.route(`http://localhost:8000/fields/${FIELD_ID}/gaps/${GAP_ID}/external-check`, (route) =>
+    route.fulfill({ json: { query: "Natural language processing Question answering", works_count: 12, is_likely_artifact: false } }),
+  );
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/papers/*`, (route) =>
     route.fulfill({
       json: {

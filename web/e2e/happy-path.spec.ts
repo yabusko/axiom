@@ -23,6 +23,11 @@ test("start -> open a gap -> draft a direction -> keep it -> export", async ({ p
 
   await expect(page).toHaveURL(new RegExp(`/fields/default/gaps/${GAP_ID}`));
   await expect(page.getByRole("heading", { name: /barely cites/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Check against OpenAlex" }).click();
+  await expect(page.getByText(/12 OpenAlex works combine both sides/)).toBeVisible();
+  await expect(page.getByText(/genuinely under-explored pairing/)).toBeVisible();
+
   await page.getByRole("button", { name: "Draft direction" }).click();
 
   await expect(page).toHaveURL(/\/fields\/default\/shortlist/);
