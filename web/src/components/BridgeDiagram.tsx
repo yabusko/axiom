@@ -27,6 +27,45 @@ function connectorWidth(interCitations: number): number {
   return Math.min(MIN_STROKE + Math.sqrt(interCitations) * 1.8, MAX_STROKE);
 }
 
+// Review fix: long real topic labels ("dense passage retrieval for
+// open-domain question answering") overflowed the box at a fixed font size.
+// SVG has no native word-wrap, so this greedily wraps to at most 2 lines
+// sized to the box's actual width, truncating line 2 with an ellipsis if it's
+// still too long -- an approximation (average glyph width, not measured text)
+// but one that degrades to "slightly tight" rather than "overflows the box".
+const AVG_CHAR_WIDTH_RATIO = 0.56;
+
+function wrapLabel(label: string, boxW: number, fontSize: number): string[] {
+  const maxChars = Math.max(6, Math.floor((boxW - 16) / (fontSize * AVG_CHAR_WIDTH_RATIO)));
+  if (label.length <= maxChars) return [label];
+  const words = label.split(" ");
+  let line1 = "";
+  let splitAt = 0;
+  for (; splitAt < words.length; splitAt++) {
+    const next = line1 ? `${line1} ${words[splitAt]}` : words[splitAt];
+    if (next.length > maxChars && line1) break;
+    line1 = next;
+  }
+  let line2 = words.slice(splitAt).join(" ");
+  if (!line2) return [line1];
+  if (line2.length > maxChars) line2 = `${line2.slice(0, Math.max(1, maxChars - 1))}…`;
+  return [line1, line2];
+}
+
+function BoxLabel({ lines, cx, cy, fontSize }: { lines: string[]; cx: number; cy: number; fontSize: number }) {
+  const lineHeight = fontSize + 3;
+  const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+  return (
+    <>
+      {lines.map((line, i) => (
+        <text key={i} x={cx} y={startY + i * lineHeight} textAnchor="middle" style={{ fill: "var(--text)", fontSize, fontWeight: 700 }}>
+          {line}
+        </text>
+      ))}
+    </>
+  );
+}
+
 export function BridgeDiagram({
   aLabel,
   aSize,
@@ -71,19 +110,15 @@ export function BridgeDiagram({
 
         <g transform={`translate(${160 - wA / 2}, 85)`}>
           <rect width={wA} height={BOX_H} style={{ fill: "var(--region-wash)", stroke: "var(--region)", strokeWidth: 2 }} />
-          <text x={wA / 2} y={BOX_H / 2 - 10} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 15, fontWeight: 700 }}>
-            {aLabel}
-          </text>
-          <text x={wA / 2} y={BOX_H / 2 + 14} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
+          <BoxLabel lines={wrapLabel(aLabel, wA, 15)} cx={wA / 2} cy={BOX_H / 2 - 10} fontSize={15} />
+          <text x={wA / 2} y={BOX_H / 2 + 26} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
             {aSize} papers
           </text>
         </g>
         <g transform={`translate(${480 - wB / 2}, 85)`}>
           <rect width={wB} height={BOX_H} style={{ fill: "var(--region-wash)", stroke: "var(--region)", strokeWidth: 2 }} />
-          <text x={wB / 2} y={BOX_H / 2 - 10} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 15, fontWeight: 700 }}>
-            {bLabel}
-          </text>
-          <text x={wB / 2} y={BOX_H / 2 + 14} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
+          <BoxLabel lines={wrapLabel(bLabel, wB, 15)} cx={wB / 2} cy={BOX_H / 2 - 10} fontSize={15} />
+          <text x={wB / 2} y={BOX_H / 2 + 26} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
             {bSize} papers
           </text>
         </g>
@@ -94,7 +129,13 @@ export function BridgeDiagram({
             <circle cx="320" cy="140" r={4} style={{ fill: "var(--mark)" }} />
           </>
         )}
-        <text x="320" y={hasBridge ? 118 : 140} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13, fontWeight: 700 }}>
+        {/* Review fix: this label used to sit at y=118/140, between the two
+            boxes -- at max box width the gap between boxes is only ~60px,
+            far narrower than the label text, so it overlapped box B. Moved
+            below the box row (y=195) where the full 640px width is open
+            regardless of box size; the connector line/circle above still
+            marks the link itself. */}
+        <text x="320" y="216" textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13, fontWeight: 700 }}>
           {hasBridge ? `${interCitations} citations — the gap` : "0 citations cross — the gap"}
         </text>
         <text x="320" y="238" textAnchor="middle" style={{ fill: "var(--text-muted)", fontSize: 13 }}>
@@ -117,10 +158,8 @@ export function BridgeDiagram({
 
         <g transform={`translate(${160 - wA / 2}, 42)`}>
           <rect width={wA} height={BOX_H} style={{ fill: "var(--region-wash)", stroke: "var(--region)", strokeWidth: 2 }} />
-          <text x={wA / 2} y={BOX_H / 2 - 10} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 14, fontWeight: 700 }}>
-            {aLabel}
-          </text>
-          <text x={wA / 2} y={BOX_H / 2 + 14} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
+          <BoxLabel lines={wrapLabel(aLabel, wA, 14)} cx={wA / 2} cy={BOX_H / 2 - 10} fontSize={14} />
+          <text x={wA / 2} y={BOX_H / 2 + 26} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
             {aSize} papers
           </text>
         </g>
@@ -133,10 +172,8 @@ export function BridgeDiagram({
 
         <g transform={`translate(${160 - wB / 2}, 198)`}>
           <rect width={wB} height={BOX_H} style={{ fill: "var(--region-wash)", stroke: "var(--region)", strokeWidth: 2 }} />
-          <text x={wB / 2} y={BOX_H / 2 - 10} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 14, fontWeight: 700 }}>
-            {bLabel}
-          </text>
-          <text x={wB / 2} y={BOX_H / 2 + 14} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
+          <BoxLabel lines={wrapLabel(bLabel, wB, 14)} cx={wB / 2} cy={BOX_H / 2 - 10} fontSize={14} />
+          <text x={wB / 2} y={BOX_H / 2 + 26} textAnchor="middle" style={{ fill: "var(--text)", fontSize: 13 }}>
             {bSize} papers
           </text>
         </g>
