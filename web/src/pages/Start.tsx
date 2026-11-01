@@ -7,23 +7,13 @@ import { EmptyState, ErrorState, LoadingState } from "../components/States";
 function ThinCoverageCard({ result, topic }: { result: FieldCreateOut; topic: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div
-      className="card"
-      style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-6)" }}
-    >
+    <div className="card">
       <h3 style={{ marginTop: 0 }}>Thin coverage for &ldquo;{topic}&rdquo;</h3>
       <p className="muted">
         Only {result.total_relevant} papers in the corpus are relevant to this topic — too few for a useful
         landscape or gap analysis. The corpus can grow around this topic specifically:
       </p>
-      <pre
-        style={{
-          background: "var(--bg)", border: "1px solid var(--border)", padding: "var(--space-4)",
-          overflowX: "auto", fontSize: "var(--small)",
-        }}
-      >
-        {result.extend_command}
-      </pre>
+      <pre className="thin-coverage-command">{result.extend_command}</pre>
       <button
         type="button"
         className="btn-quiet"
@@ -79,7 +69,7 @@ export default function Start() {
   return (
     <>
       <header className="app-header">
-        <a href="/" className="brand" style={{ textDecoration: "none" }}>
+        <a href="/" className="brand">
           <span className="wordmark">Axiom</span>
           <span className="tagline">Find under-explored directions, with evidence.</span>
         </a>
@@ -90,34 +80,20 @@ export default function Start() {
           <p className="lede">{headline}</p>
         </div>
 
-        <div
-          className="card"
-          style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-6)", marginBottom: "var(--space-8)" }}
-        >
+        <div className="card card--spaced">
           <form
+            className="start-form"
             onSubmit={(e) => {
               e.preventDefault();
               if (topic.trim()) createMutation.mutate();
             }}
-            style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}
           >
-            <label htmlFor="topic-input" style={{ width: "100%", fontWeight: 700 }}>
-              Topic
-            </label>
+            <label htmlFor="topic-input">Topic</label>
             <input
               id="topic-input"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               placeholder="e.g. retrieval-augmented generation"
-              style={{
-                flex: "1 1 320px",
-                padding: "11px 14px",
-                border: "1px solid var(--border-strong)",
-                background: "var(--bg)",
-                color: "var(--text)",
-                fontFamily: "inherit",
-                fontSize: "1rem",
-              }}
             />
             <button className="btn btn-primary" type="submit" disabled={!topic.trim() || createMutation.isPending}>
               {createMutation.isPending ? "Searching…" : "Find this topic"}
@@ -128,14 +104,14 @@ export default function Start() {
             extraction.
           </p>
           {createMutation.isError && (
-            <p style={{ color: "var(--action)", marginTop: "var(--space-4)" }}>
+            <p className="field-error">
               Couldn't find this topic: {(createMutation.error as Error).message}
             </p>
           )}
         </div>
 
         {thinResult && (
-          <div style={{ marginBottom: "var(--space-8)" }}>
+          <div className="card--spaced">
             <ThinCoverageCard result={thinResult.result} topic={thinResult.topic} />
           </div>
         )}

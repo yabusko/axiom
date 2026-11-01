@@ -4,6 +4,19 @@
    dark activates via [data-theme="dark"] on the root element, same pattern
    as the existing Streamlit app's persisted toggle (see AUDIT.md). */
 
+/* B3: self-hosted (no Google Fonts runtime dependency) -- one variable-font
+   file covers the whole 400-800 weight range DESIGN_SYSTEM.md's Type section
+   calls for (body 400/500, button labels 700, headlines 800), latin subset
+   only. Was never actually loaded before this (no @font-face, no <link> --
+   --font-sans below silently fell back to its system-font stack). */
+@font-face {
+  font-family: "Public Sans";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/PublicSans-Variable.woff2") format("woff2");
+}
+
 :root {
   /* ---- Light theme (default) ---- */
   --bg: #F3F6F7;

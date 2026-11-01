@@ -15,14 +15,14 @@ test("start -> open a gap -> draft a direction -> keep it -> export", async ({ p
 
   await expect(page).toHaveURL(/\/fields\/default\/landscape/);
   await expect(page.getByRole("heading", { name: "Landscape" })).toBeVisible();
-  await expect(page.getByText("300", { exact: true })).toBeVisible();
+  await expect(page.getByText("220", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Research gaps" }).click();
   await expect(page).toHaveURL(/\/fields\/default\/gaps$/);
-  await page.getByText(/barely cites/).click();
+  await page.getByText(/shares 7 citations with/).click();
 
   await expect(page).toHaveURL(new RegExp(`/fields/default/gaps/${GAP_ID}`));
-  await expect(page.getByRole("heading", { name: /barely cites/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /shares 7 citations with/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Check against OpenAlex" }).click();
   await expect(page.getByText(/12 OpenAlex works combine both sides/)).toBeVisible();
@@ -32,7 +32,7 @@ test("start -> open a gap -> draft a direction -> keep it -> export", async ({ p
 
   await expect(page).toHaveURL(/\/fields\/default\/shortlist/);
   await expect(page.getByRole("heading", { name: "Draft" })).toBeVisible();
-  await expect(page.getByText("Bridging NLP methods and QA-focused work")).toBeVisible();
+  await expect(page.getByText("Bridging retrieve-and-read methods and re-ranking-based open-domain QA")).toBeVisible();
 
   await page.getByRole("button", { name: "Keep" }).click();
   await expect(page.getByRole("heading", { name: "Kept" })).toBeVisible();
@@ -58,8 +58,14 @@ test("instant field creation redirects straight to landscape, no polling", async
 test("paper panel opens with evidence-span highlighting", async ({ page }) => {
   await mockApi(page);
   await page.goto(`/fields/default/gaps/${GAP_ID}`);
-  await page.getByRole("button", { name: "Semantic Parsing on Freebase from Question-Answer Pairs" }).click();
+  await page.getByRole("button", { name: "Leveraging Passage Retrieval with Generative Models for Open Domain Question Answering" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText("Unverified")).toBeVisible();
-  await expect(page.locator(".abstract .ev-method")).toContainText("semantic parser");
+  // Real data quirk: the "open domain question answering" (task) and
+  // "Generative model" (method) entities share the exact same evidence_span
+  // text -- highlightAbstract() keeps only the first (higher-confidence)
+  // match for an overlapping span, so only .ev-task renders here, not
+  // .ev-method. .ev-dataset ("Natural Questions...") has its own span.
+  await expect(page.locator(".abstract .ev-task")).toContainText("open domain question answering");
+  await expect(page.locator(".abstract .ev-dataset")).toContainText("Natural Questions");
 });

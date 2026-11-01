@@ -8,9 +8,9 @@ test("show on map from a gap, then compare two topics' similarity", async ({ pag
   await mockApi(page);
 
   await page.goto(`/fields/default/gaps/${GAP_ID}`);
-  await expect(page.getByRole("heading", { name: /barely cites/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /shares 7 citations with/ })).toBeVisible();
 
-  await page.getByRole("link", { name: "Show on map →" }).click();
+  await page.getByRole("link", { name: "Show on map" }).click();
   await expect(page).toHaveURL(/\/fields\/default\/map\?a=0&b=1/);
   await expect(page.getByRole("heading", { name: "Map" })).toBeVisible();
   await expect(page.getByText(/Highlighting the gap between/)).toBeVisible();

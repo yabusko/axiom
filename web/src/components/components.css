@@ -63,6 +63,33 @@
 .btn-quiet { border-color: transparent; background: transparent; color: var(--text-muted); font-weight: 500; }
 .btn-quiet:hover { color: var(--text); background: none; }
 
+/* B3: a genuine in-text link style (e.g. "Open paper (DOI)") -- distinct
+   from both .btn (a button-shaped CTA) and the default unstyled UA blue,
+   which nothing in this system had replaced before this. */
+.link { color: var(--action); font-weight: 700; text-decoration: underline; }
+.link:hover { color: var(--action-hover); }
+
+/* B3: `className="card"` was a no-op everywhere it appeared -- every
+   instance (Start.tsx, GapDetail.tsx, ...) re-declared the same
+   border/background/padding inline instead. Filling in the base class here
+   so Start.tsx can drop its inline duplicates. */
+.card { border: 1px solid var(--border); background: var(--surface); padding: var(--space-6); }
+.card--spaced { margin-bottom: var(--space-8); }
+
+.field-error { color: var(--action); margin-top: var(--space-4); }
+
+.start-form { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.start-form label { width: 100%; font-weight: 700; }
+.start-form input {
+  flex: 1 1 320px; padding: 11px 14px; border: 1px solid var(--border-strong);
+  background: var(--bg); color: var(--text); font-family: inherit; font-size: 1rem;
+}
+
+.thin-coverage-command {
+  background: var(--bg); border: 1px solid var(--border); padding: var(--space-4);
+  overflow-x: auto; font-size: var(--small);
+}
+
 .topic-grid { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: stretch; }
 .topic-tile {
   background: var(--region-wash); border: 1px solid var(--border); border-left: 3px solid var(--region);

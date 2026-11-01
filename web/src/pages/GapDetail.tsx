@@ -18,18 +18,24 @@ function headline(a: SideDetailOut, b: SideDetailOut, interCitations: number, to
   return `${a.size}-paper ${a.labels[0] ?? "cluster"} cluster ${verb} the ${b.size}-paper ${b.labels[0] ?? "cluster"} cluster right next to it`;
 }
 
-function SideCard({ side, label }: { side: SideDetailOut; label: string }) {
+function SideCard({ side, fallbackLabel }: { side: SideDetailOut; fallbackLabel: string }) {
+  // labels[0] is already shown as this side's name in the page's <h1> and the
+  // bridge diagram -- repeating it as the first tag here too (on top of the
+  // literal "Side A"/"Side B" heading this card used to show) was redundant.
+  const [primary, ...rest] = side.labels;
   return (
     <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-6)" }}>
-      <h3 style={{ marginTop: 0 }}>{label}</h3>
+      <h3 style={{ marginTop: 0 }}>{primary ?? fallbackLabel}</h3>
       <p className="muted" style={{ marginTop: 0 }}>{side.size} papers</p>
-      <div className="badge-row" style={{ marginBottom: "var(--space-2)" }}>
-        {side.labels.map((l) => (
-          <span className="badge" key={l}>{l}</span>
-        ))}
-      </div>
+      {rest.length > 0 && (
+        <div className="badge-row" style={{ marginBottom: "var(--space-2)" }}>
+          {rest.map((l) => (
+            <span className="badge" key={l}>{l}</span>
+          ))}
+        </div>
+      )}
       <p className="muted" style={{ fontSize: "var(--small)" }}>
-        These are raw OpenAlex concept tags — a rough description of the cluster, not the pipeline's own extraction.
+        Concept tags for this cluster — the pipeline's own canonical extraction where there's enough of it, OpenAlex's raw tags otherwise (see docs/DECISIONS.md OD34).
       </p>
       {side.top_papers.length > 0 && (
         <>
@@ -105,7 +111,7 @@ export default function GapDetail() {
       />
       {" "}
       <a className="btn-quiet" href={`/fields/${fieldId}/map?a=${data.a.cid}&b=${data.b.cid}`}>
-        Show on map →
+        Show on map
       </a>
 
       <div style={{ margin: "var(--space-6) 0" }}>
@@ -121,8 +127,8 @@ export default function GapDetail() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--space-6)", marginBottom: "var(--space-6)" }}>
-        <SideCard side={data.a} label="Side A" />
-        <SideCard side={data.b} label="Side B" />
+        <SideCard side={data.a} fallbackLabel="Side A" />
+        <SideCard side={data.b} fallbackLabel="Side B" />
       </div>
 
       <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-4) var(--space-6)", marginBottom: "var(--space-6)" }}>
