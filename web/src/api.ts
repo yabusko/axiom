@@ -127,6 +127,7 @@ export interface GapCandidateOut {
   a: CommunityOut;
   b: CommunityOut;
   semantic_similarity: number;
+  similarity_percentile: number;
   inter_citations: number;
   gap_score: number;
   g_score: number;
@@ -154,6 +155,7 @@ export interface GapDetailOut {
   a: SideDetailOut;
   b: SideDetailOut;
   semantic_similarity: number;
+  similarity_percentile: number;
   inter_citations: number;
   total_in_corpus_citations: number;
   gap_score: number;

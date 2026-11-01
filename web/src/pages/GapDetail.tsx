@@ -83,8 +83,8 @@ export default function GapDetail() {
       </p>
       <h1>{headline(data.a, data.b)}</h1>
       <p className="lede" style={{ color: "var(--text-muted)", maxWidth: "70ch" }}>
-        {data.a.size} papers centered on {data.a.labels[0] ?? "this cluster"} sit at{" "}
-        {(data.semantic_similarity * 100).toFixed(1)}% semantic similarity to a {data.b.size}-paper{" "}
+        {data.a.size} papers centered on {data.a.labels[0] ?? "this cluster"} sit closer than{" "}
+        {data.similarity_percentile.toFixed(0)}% of this field's topic pairs to a {data.b.size}-paper{" "}
         {data.b.labels[0] ?? "cluster"}, but only {data.inter_citations} citations cross between them.
       </p>
 
@@ -103,7 +103,7 @@ export default function GapDetail() {
           aSize={data.a.size}
           bLabel={data.b.labels[0] ?? "Side B"}
           bSize={data.b.size}
-          similarityPct={data.semantic_similarity * 100}
+          similarityPercentile={data.similarity_percentile}
           interCitations={data.inter_citations}
           totalCitations={data.total_in_corpus_citations}
         />
@@ -126,8 +126,8 @@ export default function GapDetail() {
         </button>
         {crossCheckOpen && (
           <p className="muted" style={{ marginTop: "var(--space-4)", marginBottom: 0 }}>
-            An independent, citation-free read on the same two clusters: {(data.semantic_similarity * 100).toFixed(1)}%
-            centroid similarity in embedding space alone, with no citation graph involved. Useful as a second opinion,
+            An independent, citation-free read on the same two clusters: closer than {data.similarity_percentile.toFixed(0)}%
+            of this field's topic pairs in embedding space alone, with no citation graph involved. Useful as a second opinion,
             especially on corpora too citation-sparse for the method above — but on its own it has no path to a
             direction pitch. (A deeper geometry breakdown — bridge ratio, nearest-neighbor papers — isn't computed for
             this view; see "Under the hood" for the full Vector Gap Discovery analysis.)

@@ -13,7 +13,7 @@ export function GapCard({ gap, fieldId }: { gap: GapCandidateOut; fieldId: strin
       <h3>{gapHeadline(gap)}</h3>
       <div className="gap-stats">
         <span>
-          <b>{(gap.semantic_similarity * 100).toFixed(1)}%</b> semantic similarity
+          closer than <b>{gap.similarity_percentile.toFixed(0)}%</b> of this field's topic pairs
         </span>
         <span>
           <b>{gap.inter_citations}</b> citations cross

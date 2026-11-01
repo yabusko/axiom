@@ -32,7 +32,7 @@ export function BridgeDiagram({
   aSize,
   bLabel,
   bSize,
-  similarityPct,
+  similarityPercentile,
   interCitations,
   totalCitations,
 }: {
@@ -40,7 +40,7 @@ export function BridgeDiagram({
   aSize: number;
   bLabel: string;
   bSize: number;
-  similarityPct: number;
+  similarityPercentile: number;
   interCitations: number;
   totalCitations: number;
 }) {
@@ -51,7 +51,7 @@ export function BridgeDiagram({
   const hasBridge = interCitations > 0;
   const ariaLabel =
     `Bridge diagram: ${aLabel}, ${aSize} papers, and ${bLabel}, ${bSize} papers, enclosed in a dashed ` +
-    `boundary marking ${similarityPct.toFixed(1)}% semantic similarity` +
+    `boundary marking a gap closer than ${similarityPercentile.toFixed(0)}% of this run's topic pairs` +
     (hasBridge ? `, connected by a line marking the gap, labeled ${interCitations} citations.` : ", with no citations crossing between them.");
 
   return (
@@ -66,7 +66,7 @@ export function BridgeDiagram({
         <rect x="6" y="6" width="628" height="248" fill="url(#gridpat-h)" />
         <rect x="6" y="6" width="628" height="248" fill="none" style={{ stroke: "var(--text-muted)", strokeWidth: 1.25 }} strokeDasharray="5 6" />
         <text x="320" y="30" textAnchor="middle" style={{ fill: "var(--text-muted)", fontSize: 14 }}>
-          {similarityPct.toFixed(1)}% semantic similarity (embedding centroids)
+          closer than {similarityPercentile.toFixed(0)}% of this run’s topic pairs (embedding centroids)
         </text>
 
         <g transform={`translate(${160 - wA / 2}, 85)`}>
@@ -112,7 +112,7 @@ export function BridgeDiagram({
         <rect x="6" y="6" width="308" height="408" fill="url(#gridpat-v)" />
         <rect x="6" y="6" width="308" height="408" fill="none" style={{ stroke: "var(--text-muted)", strokeWidth: 1.25 }} strokeDasharray="5 6" />
         <text x="160" y="28" textAnchor="middle" style={{ fill: "var(--text-muted)", fontSize: 13 }}>
-          {similarityPct.toFixed(1)}% semantic similarity
+          closer than {similarityPercentile.toFixed(0)}% of pairs
         </text>
 
         <g transform={`translate(${160 - wA / 2}, 42)`}>

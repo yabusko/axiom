@@ -55,6 +55,11 @@ class GapCandidate:
     g_score: float = 0.0                     # weighted blend of `components`, ~[0,1]
     components: dict = field(default_factory=dict)  # {similarity, disconnection, velocity, authority}
     meets_threshold: bool = False            # g_score >= calibrated τ
+    # Stage 4 B1: this pair's semantic_similarity's rank among EVERY candidate
+    # community pair's similarity in this run (0-100, higher = closer than
+    # more pairs) -- see analyze()'s docstring for why a raw cosine percent is
+    # misleading on its own.
+    similarity_percentile: float = 0.0
 
     @property
     def gap_id(self) -> str:
@@ -186,6 +191,17 @@ def _cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (na * nb))
 
 
+def similarity_percentile(sim: float, all_sims: list[float]) -> float:
+    """B1: `sim`'s rank (0-100) among `all_sims` (every candidate community
+    pair's raw cosine similarity this run) -- "closer than X% of pairs,"
+    the honest read when raw cosines all cluster near the top. `all_sims`
+    need not be pre-sorted."""
+    if not all_sims:
+        return 0.0
+    rank = sum(1 for s in all_sims if s <= sim)
+    return 100.0 * rank / len(all_sims)
+
+
 def _velocity_map(conn) -> dict[str, float]:
     """{canonical concept -> velocity} across the whole corpus (OD10), for scoring."""
     analysis = velocitymod.compute_velocity(conn, top_k=10 ** 9)
@@ -218,6 +234,17 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
     composite `g_score` — a calibrated weighted blend of similarity,
     disconnection, concept velocity, and authority. Candidates are ranked by
     `g_score`; `meets_threshold` marks those at or above the calibrated τ.
+
+    `similarity_percentile` (stage 4 B1): a raw cosine like "98.8%" invites
+    reading it the way a normal percentage reads -- almost maximal. SPECTER2
+    centroid cosines don't carry that meaning at all: real corpus runs put
+    EVERY pair of communities, related or not, in the 0.95-0.99+ band (the
+    same flat-score compression `config.QUERY_EXPANSION_TEMPLATE`'s own
+    comment already documents for search queries, here affecting community
+    centroids too). The percentile -- this pair's rank among every candidate
+    pair's similarity THIS run -- stays honest regardless of where the raw
+    cosines happen to cluster: "closer than 90% of pairs" means something
+    even when every pair's raw cosine looks the same.
     """
     node2c = detect_communities(g, resolution=resolution)
     if not node2c:
@@ -266,6 +293,8 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
     lo, hi = (min(auth_vals), max(auth_vals)) if auth_vals else (0.0, 0.0)
     span = hi - lo
 
+    all_sims = sorted(r["sim"] for r in raw)
+
     gaps: list[GapCandidate] = []
     for r in raw:
         A = (r["authority_raw"] - lo) / span if span > 0 else 0.5
@@ -279,6 +308,7 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
             gap_score=r["sim"] / (1.0 + r["cites"]),
             g_score=g_score, components=components,
             meets_threshold=g_score >= tau,
+            similarity_percentile=similarity_percentile(r["sim"], all_sims),
         ))
     gaps.sort(key=lambda x: x.g_score, reverse=True)
     return GapAnalysis(node2c=node2c, communities=communities, gaps=gaps[:top_k])

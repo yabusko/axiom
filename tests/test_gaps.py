@@ -99,6 +99,26 @@ def test_analyze_gap_score_formula(seeded_conn):
     assert math.isclose(cand.gap_score, cand.semantic_similarity / (1 + 1), abs_tol=1e-6)
 
 
+# --- B1: similarity percentile --------------------------------------------------
+def test_similarity_percentile_ranks_among_all_pairs():
+    all_sims = [0.80, 0.90, 0.95, 0.98, 0.99]
+    assert gaps.similarity_percentile(0.80, all_sims) == 20.0   # lowest -> 1/5
+    assert gaps.similarity_percentile(0.99, all_sims) == 100.0  # highest -> 5/5
+    assert gaps.similarity_percentile(0.95, all_sims) == 60.0   # 3/5 at-or-below
+
+
+def test_similarity_percentile_empty_is_zero():
+    assert gaps.similarity_percentile(0.9, []) == 0.0
+
+
+def test_analyze_attaches_a_real_percentile(seeded_conn):
+    g = graphmod.load_graph(seeded_conn)
+    cand = gaps.analyze(g, seeded_conn, SEED_VECTORS, min_community_size=4).gaps[0]
+    # Only one candidate pair in the seeded fixture (2 communities) -> it's
+    # necessarily both the closest and the only one, 100th percentile.
+    assert cand.similarity_percentile == 100.0
+
+
 # --- B4: stable gap_id ---------------------------------------------------------
 def test_gap_id_is_stable_and_order_independent():
     a = gaps.Community(cid=0, members=["P1", "P2"], labels=["X"], size=2)

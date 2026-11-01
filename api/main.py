@@ -151,6 +151,7 @@ class GapCandidateOut(BaseModel):
     a: CommunityOut
     b: CommunityOut
     semantic_similarity: float
+    similarity_percentile: float         # B1: rank among this run's pairs, not a raw cosine
     inter_citations: int
     gap_score: float
     g_score: float                       # OD17 composite score
@@ -307,6 +308,7 @@ class GapDetailOut(BaseModel):
     a: SideDetailOut
     b: SideDetailOut
     semantic_similarity: float
+    similarity_percentile: float         # B1: rank among this run's pairs, not a raw cosine
     inter_citations: int
     total_in_corpus_citations: int
     gap_score: float
@@ -1176,7 +1178,8 @@ def field_gap_detail(field_id: str, gap_id: str):
 
     return GapDetailOut(
         gap_id=gap.gap_id, a=sides[0], b=sides[1],
-        semantic_similarity=gap.semantic_similarity, inter_citations=gap.inter_citations,
+        semantic_similarity=gap.semantic_similarity,
+        similarity_percentile=gap.similarity_percentile, inter_citations=gap.inter_citations,
         total_in_corpus_citations=stats["edges_in_corpus"],
         gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
         meets_threshold=gap.meets_threshold,

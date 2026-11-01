@@ -21,7 +21,7 @@ const GAP = {
   gap_id: GAP_ID,
   a: { cid: 0, members: ["W1"], labels: ["Natural language processing", "Philosophy", "Machine learning"], size: 43 },
   b: { cid: 1, members: ["W2"], labels: ["Natural language processing", "Question answering"], size: 20 },
-  semantic_similarity: 0.988, inter_citations: 32, gap_score: 0.03, g_score: 0.618,
+  semantic_similarity: 0.988, similarity_percentile: 95, inter_citations: 32, gap_score: 0.03, g_score: 0.618,
   components: { similarity: 0.988, disconnection: 0.9, velocity: 0.1, authority: 0.5 },
   meets_threshold: true,
 };
@@ -40,7 +40,7 @@ const GAP_DETAIL = {
     top_papers: [{ paper_id: "W_FREEBASE", title: "Semantic Parsing on Freebase from Question-Answer Pairs", year: 2013, venue: "EMNLP", cited_by_count: 1583, local_in_degree: 5, pagerank: 0.0431 }],
     methods: [], datasets: [],
   },
-  semantic_similarity: GAP.semantic_similarity, inter_citations: GAP.inter_citations,
+  semantic_similarity: GAP.semantic_similarity, similarity_percentile: GAP.similarity_percentile, inter_citations: GAP.inter_citations,
   total_in_corpus_citations: 1699, gap_score: GAP.gap_score, g_score: GAP.g_score,
   components: GAP.components, meets_threshold: GAP.meets_threshold,
 };
