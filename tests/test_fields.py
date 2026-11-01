@@ -255,6 +255,32 @@ def test_field_status_404_when_unknown(api_client, empty_fields_db):
     assert api_client.get("/fields/nope").status_code == 404
 
 
+def test_field_status_get_does_not_touch_last_opened(api_client, empty_fields_db, tmp_path, monkeypatch):
+    """B4: GET /fields/{id} must stay read-only; POST /fields/{id}/open is the
+    one explicit 'opened' signal."""
+    monkeypatch.setattr(config, "FIELDS_DB_PATH", tmp_path / "fields.db")
+    conn = fieldsmod.connect_fields()
+    fieldsmod.init_fields_db(conn)
+    row = fieldsmod.create_field(conn, topic="x", target=10)
+    conn.execute("UPDATE fields SET status = 'ready' WHERE id = ?", (row["id"],))
+    conn.commit()
+    before = fieldsmod.get_field(conn, row["id"])["last_opened_at"]
+    conn.close()
+
+    assert api_client.get(f"/fields/{row['id']}").status_code == 200
+
+    conn = fieldsmod.connect_fields()
+    assert fieldsmod.get_field(conn, row["id"])["last_opened_at"] == before
+
+    assert api_client.post(f"/fields/{row['id']}/open").status_code == 204
+    assert fieldsmod.get_field(conn, row["id"])["last_opened_at"] != before
+    conn.close()
+
+
+def test_field_open_404_when_unknown(api_client, empty_fields_db):
+    assert api_client.post("/fields/nope/open").status_code == 404
+
+
 def test_field_overview(field_client):
     client, field_id = field_client
     r = client.get(f"/fields/{field_id}/overview")
@@ -400,3 +426,18 @@ def test_shortlist_export_empty(field_client):
     r = client.get(f"/fields/{field_id}/shortlist/export.md")
     assert r.status_code == 200
     assert "No kept directions yet" in r.text
+
+
+# --- B4: /map/similarity on a bad topic id -------------------------------------
+def test_field_map_similarity_bad_topic_id_is_422_not_500(field_client):
+    """Stage 4 B4: a non-numeric topic id used to crash `int(ident)` uncaught,
+    surfacing as an unhandled 500 instead of a client error."""
+    client, field_id = field_client
+    r = client.get(f"/fields/{field_id}/map/similarity?a_kind=topic&a_id=not-a-number&b_kind=topic&b_id=0")
+    assert r.status_code == 422
+
+
+def test_field_map_similarity_unknown_topic_cid_is_404(field_client):
+    client, field_id = field_client
+    r = client.get(f"/fields/{field_id}/map/similarity?a_kind=topic&a_id=99999&b_kind=topic&b_id=0")
+    assert r.status_code == 404

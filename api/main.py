@@ -1034,15 +1034,32 @@ def list_fields():
 
 @app.get("/fields/{field_id}", response_model=FieldStatusOut)
 def field_status(field_id: str):
+    """B4: read-only -- this is polled (FieldNav, build-progress) and a GET
+    must stay safe/idempotent. `last_opened_at` updates only via the explicit
+    POST /fields/{id}/open below, not as a side effect of every poll."""
     fconn = fieldsmod.connect_fields()
     try:
         out = fieldsmod.live_status(fconn, field_id)
         if out is None:
             raise HTTPException(status_code=404, detail="no such field")
-        fieldsmod.touch_last_opened(fconn, field_id)
     finally:
         fconn.close()
     return FieldStatusOut(**out)
+
+
+@app.post("/fields/{field_id}/open", status_code=204)
+def field_open(field_id: str):
+    """The one explicit 'this field was opened' signal -- call once when a
+    user actually navigates into a field, not on every status poll. Drives
+    `list_fields`'s "Recent fields" ordering (`COALESCE(last_opened_at,
+    created_at) DESC`)."""
+    fconn = fieldsmod.connect_fields()
+    try:
+        if fieldsmod.get_field(fconn, field_id) is None:
+            raise HTTPException(status_code=404, detail="no such field")
+        fieldsmod.touch_last_opened(fconn, field_id)
+    finally:
+        fconn.close()
 
 
 @app.get("/fields/{field_id}/overview", response_model=OverviewOut)
@@ -1133,7 +1150,10 @@ def field_map_similarity(
             if ident not in vectors:
                 raise HTTPException(status_code=404, detail=f"no vector for paper {ident!r}")
             return vectors[ident], g.nodes.get(ident, {}).get("title") or ident
-        cid = int(ident)
+        try:
+            cid = int(ident)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"topic id must be an integer, got {ident!r}")
         community = analysis.communities.get(cid)
         if community is None:
             raise HTTPException(status_code=404, detail=f"no topic community {cid}")

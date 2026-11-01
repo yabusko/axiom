@@ -112,6 +112,7 @@ export async function mockApi(page: Page) {
     return route.continue();
   });
   await page.route(`http://localhost:8000/fields/${FIELD_ID}`, (route) => route.fulfill({ json: FIELD_STATUS }));
+  await page.route(`http://localhost:8000/fields/${FIELD_ID}/open`, (route) => route.fulfill({ status: 204 }));
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/overview`, (route) => route.fulfill({ json: OVERVIEW }));
   await page.route(`http://localhost:8000/fields/${FIELD_ID}/gaps`, (route) => {
     if (route.request().method() === "GET" && !route.request().url().includes("/gaps/")) {

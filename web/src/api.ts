@@ -17,6 +17,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, detail);
   }
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
   if (res.headers.get("content-type")?.includes("text/markdown")) {
     return (await res.text()) as unknown as T;
   }
@@ -235,6 +238,7 @@ export const api = {
       body: JSON.stringify({ topic, ...(target ? { target } : {}) }),
     }),
   fieldStatus: (fieldId: string) => req<FieldStatusOut>(`/fields/${fieldId}`),
+  openField: (fieldId: string) => req<void>(`/fields/${fieldId}/open`, { method: "POST" }),
   overview: (fieldId: string) => req<OverviewOut>(`/fields/${fieldId}/overview`),
   gaps: (fieldId: string) => req<GapAnalysisOut>(`/fields/${fieldId}/gaps`),
   gapDetail: (fieldId: string, gapIndex: number) =>

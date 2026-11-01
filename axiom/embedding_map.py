@@ -4,15 +4,20 @@ explanations for the "select two papers/topics" comparison UI.
 
 PCA, not UMAP: UMAP needs numba/pynndescent, which breaks this repo's
 established "no new heavy deps" bar (`gaps.py`: "Pure-Python: networkx +
-numpy only"). `scikit-learn` is already pinned (requirements.txt) and unused
-elsewhere, so `sklearn.decomposition.PCA` costs nothing new. Deferred, not
-decided against -- revisit if a real need for UMAP's better global structure
-shows up.
+numpy only"). PCA itself is plain `numpy.linalg.svd` (stage 4 B5) -- the
+original draft used `sklearn.decomposition.PCA` since scikit-learn was
+already pinned, but that broke the "whole suite runs on bare Python" CI
+requirement: sklearn has no wheel for the 3.14 dev environment this repo's
+test stubs already accommodate for torch/transformers/qdrant_client
+(tests/conftest.py), and pytest collecting this module would crash on
+import before a single test ran. A plain SVD is numerically identical to
+what PCA does internally for a matrix this shape (sklearn's own 'full'
+solver IS `numpy.linalg.svd`) and is deterministic with no randomness to
+seed, so dropping it costs nothing.
 """
 from __future__ import annotations
 
 import numpy as np
-from sklearn.decomposition import PCA
 
 
 def project(vectors: dict[str, list[float]], n_components: int = 3) -> dict[str, list[float]]:
@@ -20,8 +25,8 @@ def project(vectors: dict[str, list[float]], n_components: int = 3) -> dict[str,
     to roughly [-50, 50] per axis so a 3D viewer gets a sane default camera
     framing regardless of the embedding model's native scale.
 
-    Deterministic given the same `vectors` (fixed `random_state`, no other
-    source of randomness) -- the API layer caches this per field_id on that
+    Deterministic given the same `vectors` (mean-center + SVD, no random
+    source anywhere) -- the API layer caches this per field_id on that
     assumption.
     """
     ids = list(vectors)
@@ -29,7 +34,9 @@ def project(vectors: dict[str, list[float]], n_components: int = 3) -> dict[str,
         return {pid: [0.0] * n_components for pid in ids}
     X = np.asarray([vectors[pid] for pid in ids], dtype=float)
     k = min(n_components, X.shape[0], X.shape[1])
-    coords = PCA(n_components=k, random_state=0).fit_transform(X)
+    centered = X - X.mean(axis=0)
+    u, s, _vt = np.linalg.svd(centered, full_matrices=False)
+    coords = u[:, :k] * s[:k]
     if coords.shape[1] < n_components:
         coords = np.hstack([coords, np.zeros((coords.shape[0], n_components - coords.shape[1]))])
     span = float(np.abs(coords).max()) or 1.0

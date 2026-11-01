@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { NavLink, Route, Routes, useParams } from "react-router-dom";
 import Start from "./pages/Start";
 import Landscape from "./pages/Landscape";
@@ -21,6 +21,13 @@ function FieldNav() {
     queryFn: () => api.fieldStatus(fieldId!),
     enabled: !!fieldId,
   });
+
+  // B4: GET /fields/{id} is read-only now (polled by the query above) --
+  // "this field was opened" is this one explicit call, fired once per
+  // fieldId, not on every poll.
+  useEffect(() => {
+    if (fieldId) api.openField(fieldId).catch(() => {});
+  }, [fieldId]);
 
   return (
     <header className="app-header">
