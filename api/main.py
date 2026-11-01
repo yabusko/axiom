@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -668,16 +669,23 @@ async def hypothesize(gap_index: int):
     Stores the pitch in review_queue as `pending` -- never auto-promoted.
     `gap_index` is the position in `GET /graph/gaps`'s `gaps` list.
     """
-    analysis = get_gap_analysis()
+    analysis = await run_in_threadpool(get_gap_analysis)  # B4: cheap on cache hit, real work on miss
     if gap_index < 0 or gap_index >= len(analysis.gaps):
         raise HTTPException(status_code=404, detail="no gap candidate at that index")
     gap = analysis.gaps[gap_index]
 
+    def _trend_context() -> list[str]:
+        conn = db.connect()
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10)
+            return [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    trend_context = await run_in_threadpool(_trend_context)
+
     conn = db.connect()
     try:
-        v = velocitymod.get_top_velocity_keywords(conn, n=10)
-        trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
-
         try:
             pitch = await synthesis_agent.generate_hypothesis(
                 gap, get_graph(), run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
@@ -902,6 +910,25 @@ def _field_gap_analysis(row: sqlite3.Row, g=None):
         conn.close()
 
 
+# B4: "results cached per field/slice" -- a field's graph + gap analysis are
+# recomputed from scratch on nearly every field endpoint (overview, gaps,
+# gap detail, map, map/similarity, shortlist create); a slice field's
+# paper_ids never change after creation (A4) and a legacy field is only ever
+# queried by these endpoints once its build reaches 'ready', so caching by
+# field_id alone is safe -- same precedent `_field_map_data` below already
+# set. `maxsize=32` keyed by field_id, not unbounded, so a long-running
+# server building many fields over time doesn't leak memory per field forever.
+@lru_cache(maxsize=32)
+def _cached_field_graph(field_id: str):
+    return _field_graph(_resolve_field(field_id))
+
+
+@lru_cache(maxsize=32)
+def _cached_field_gap_analysis(field_id: str):
+    row = _resolve_field(field_id)
+    return _field_gap_analysis(row, _cached_field_graph(field_id))
+
+
 @lru_cache(maxsize=8)
 def _field_map_data(field_id: str) -> MapOut:
     """Nodes/edges/topics for the Map screen, capped at `config.MAP_NODE_CAP`
@@ -912,8 +939,8 @@ def _field_map_data(field_id: str) -> MapOut:
     safe to cache indefinitely for a field that isn't being rebuilt.
     """
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
     total_papers = graphmod.stats(g)["papers"]
 
     capped = graphmod.top_influential_subgraph(g, n=config.MAP_NODE_CAP)
@@ -1065,8 +1092,8 @@ def field_open(field_id: str):
 @app.get("/fields/{field_id}/overview", response_model=OverviewOut)
 def field_overview(field_id: str):
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    gap_analysis = _field_gap_analysis(row, g)
+    g = _cached_field_graph(field_id)
+    gap_analysis = _cached_field_gap_analysis(field_id)
     stats = graphmod.stats(g)
     conn = db.connect(row["db_path"])
     try:
@@ -1088,15 +1115,15 @@ def field_overview(field_id: str):
 
 @app.get("/fields/{field_id}/gaps", response_model=GapAnalysisOut)
 def field_gaps(field_id: str):
-    row = _resolve_field(field_id)
-    return GapAnalysisOut.model_validate(_field_gap_analysis(row))
+    _resolve_field(field_id)  # 404s before touching the cache
+    return GapAnalysisOut.model_validate(_cached_field_gap_analysis(field_id))
 
 
 @app.get("/fields/{field_id}/gaps/{gap_index}", response_model=GapDetailOut)
 def field_gap_detail(field_id: str, gap_index: int):
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
     if gap_index < 0 or gap_index >= len(analysis.gaps):
         raise HTTPException(status_code=404, detail="no gap candidate at that index")
     gap = analysis.gaps[gap_index]
@@ -1141,8 +1168,8 @@ def field_map_similarity(
     b_id: str = Query(min_length=1),
 ):
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
     vectors = _field_vectors(row)
 
     def resolve(kind: str, ident: str) -> tuple[list[float], str]:
@@ -1224,16 +1251,33 @@ async def field_shortlist_create(field_id: str, body: ShortlistCreateIn):
     (AUDIT.md: Streamlit's inline button and POST /graph/gaps/{i}/hypothesize
     both call generate_hypothesis + add_to_review_queue separately) into one."""
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
+    # B4: no heavy sync work inside this async def -- on a cache miss, a full
+    # graph load + gap analysis (community detection, concept-label queries)
+    # over a 1000-paper corpus is real CPU/IO time that would otherwise block
+    # every other request this process is serving. Each threadpooled callable
+    # is fully self-contained (opens and closes its own sqlite connection) --
+    # never hands a connection across the thread boundary, since sqlite3
+    # connections are thread-affine (same caveat axiom/fields.py's build job
+    # already documents).
+    g, analysis = await run_in_threadpool(
+        lambda: (_cached_field_graph(field_id), _cached_field_gap_analysis(field_id))
+    )
     if body.gap_index < 0 or body.gap_index >= len(analysis.gaps):
         raise HTTPException(status_code=404, detail="no gap candidate at that index")
     gap = analysis.gaps[body.gap_index]
 
+    def _trend_context() -> list[str]:
+        conn = db.connect(row["db_path"])
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10, paper_ids=_slice_paper_ids(row))
+            return [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    trend_context = await run_in_threadpool(_trend_context)
+
     conn = db.connect(row["db_path"])
     try:
-        v = velocitymod.get_top_velocity_keywords(conn, n=10, paper_ids=_slice_paper_ids(row))
-        trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
         try:
             pitch = await synthesis_agent.generate_hypothesis(
                 gap, g, run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
