@@ -10,6 +10,14 @@
 
 .bridge-label { text-anchor: middle; font-family: var(--font-sans); }
 
+/* Bridge diagram (stage 4 B2): horizontal layout by default, a genuinely
+   different stacked layout below 600px -- not the same SVG just shrunk. */
+.bridge-vertical { display: none; }
+@media (max-width: 600px) {
+  .bridge-horizontal { display: none; }
+  .bridge-vertical { display: block; }
+}
+
 .trend-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
 .trend-row:last-child { border-bottom: none; }
 .trend-name { font-weight: 700; }
