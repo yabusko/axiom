@@ -199,3 +199,24 @@ CREATE INDEX IF NOT EXISTS idx_paper_concepts_canonical ON paper_concepts(canoni
 CREATE INDEX IF NOT EXISTS idx_cooc_a ON concept_cooccurrence(concept_a);
 CREATE INDEX IF NOT EXISTS idx_cooc_b ON concept_cooccurrence(concept_b);
 CREATE INDEX IF NOT EXISTS idx_llm_spend_run ON llm_spend(run_id);
+
+-- Stage 4: the prebuilt base corpus's own build manifest (OD36/OD37). Harmless,
+-- unused on every other database this schema also creates (fields' per-field
+-- dbs, the eval corpus) -- one shared schema file stays the single contract,
+-- per this file's own header. Single-row table (id=1); scripts/build_corpus.py
+-- is the only writer.
+CREATE TABLE IF NOT EXISTS corpus_meta (
+    id               INTEGER PRIMARY KEY CHECK (id = 1),
+    version          INTEGER NOT NULL DEFAULT 1,
+    query            TEXT NOT NULL,          -- the base search string (A1)
+    filters_json     TEXT NOT NULL,          -- date range, venue patterns, concept ids
+    size_target      INTEGER NOT NULL,
+    papers_count     INTEGER NOT NULL DEFAULT 0,
+    steps_json       TEXT NOT NULL DEFAULT '{}',  -- {step_name: "done"|"partial"|null}
+    spend_total      REAL NOT NULL DEFAULT 0.0,
+    budget_usd       REAL NOT NULL DEFAULT 3.0,    -- B4: the --budget cap the last run used
+    build_seconds    REAL NOT NULL DEFAULT 0.0,
+    step_seconds_json TEXT NOT NULL DEFAULT '{}',  -- {step_name: cumulative seconds actually spent running it}
+    created_at       DATETIME NOT NULL,
+    updated_at       DATETIME NOT NULL
+);

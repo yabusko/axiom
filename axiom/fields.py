@@ -14,19 +14,20 @@ that design's implementation; see it for the "why," not restated here.
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from axiom import config, db, ingest
+from axiom import config, corpus_slice, db, ingest
 from axiom.agents import pipeline as agents_pipeline
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS fields (
     id                 TEXT PRIMARY KEY,
     topic              TEXT NOT NULL,
-    status             TEXT NOT NULL DEFAULT 'queued',  -- queued | building | ready | failed
+    status             TEXT NOT NULL DEFAULT 'queued',  -- queued | building | ready | thin | failed
     step               TEXT,                             -- fetching | embedding | extracting | NULL
     papers_total       INTEGER,
     papers_done        INTEGER DEFAULT 0,
@@ -42,6 +43,12 @@ CREATE TABLE IF NOT EXISTS fields (
 """
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
 def connect_fields(path=None) -> sqlite3.Connection:
     path = str(path or config.FIELDS_DB_PATH)
     conn = sqlite3.connect(path)
@@ -51,6 +58,16 @@ def connect_fields(path=None) -> sqlite3.Connection:
 
 def init_fields_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    # Stage 4 (A4): a field is now usually a SLICE of the shared base corpus
+    # (source='slice'), not its own download (source='download', the
+    # pre-existing path, still used by "default" and anything built via
+    # scripts/build_corpus.py --extend). A slice field's db_path/collection
+    # point at the shared corpus; paper_ids_json is what actually scopes it.
+    _ensure_column(conn, "fields", "source", "source TEXT NOT NULL DEFAULT 'download'")
+    _ensure_column(conn, "fields", "query", "query TEXT")
+    _ensure_column(conn, "fields", "paper_ids_json", "paper_ids_json TEXT")
+    _ensure_column(conn, "fields", "relevance_floor", "relevance_floor REAL")
+    _ensure_column(conn, "fields", "total_relevant", "total_relevant INTEGER")
     conn.commit()
 
 
@@ -103,6 +120,39 @@ def create_field(conn: sqlite3.Connection, *, topic: str, target: int) -> sqlite
     return get_field(conn, field_id)
 
 
+def create_instant_field(
+    conn: sqlite3.Connection, *,
+    topic: str, corpus_graph, corpus_vectors: dict[str, list[float]], query_vector: list[float],
+    target_n: int = config.FIELD_SLICE_TARGET, floor: float = config.FIELD_RELEVANCE_FLOOR,
+) -> sqlite3.Row:
+    """A4: a field as a relevance-ranked SLICE of the shared base corpus --
+    computed here (milliseconds, no network/LLM call), not downloaded. Points
+    db_path/collection at the shared corpus (never copied); `paper_ids_json`
+    is what actually scopes this field. Status lands directly on 'ready' or
+    'thin' (A5) -- no 'queued'/'building' detour, since there's no async work
+    left to do by the time this returns.
+    """
+    result = corpus_slice.compute_slice(
+        corpus_graph, corpus_vectors, query_vector, target_n=target_n, floor=floor,
+    )
+    field_id = uuid.uuid4().hex
+    ts = _now()
+    status = "thin" if result.thin else "ready"
+    conn.execute(
+        """
+        INSERT INTO fields (id, topic, status, step, papers_total, papers_done,
+                             db_path, collection, created_at, updated_at, last_opened_at,
+                             source, query, paper_ids_json, relevance_floor, total_relevant)
+        VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'slice', ?, ?, ?, ?)
+        """,
+        (field_id, topic, status, len(result.paper_ids), len(result.paper_ids),
+         str(config.CORPUS_DB_PATH), config.CORPUS_COLLECTION_NAME, ts, ts, ts,
+         topic, json.dumps(result.paper_ids), floor, result.total_relevant),
+    )
+    conn.commit()
+    return get_field(conn, field_id)
+
+
 def get_field(conn: sqlite3.Connection, field_id: str) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM fields WHERE id = ?", (field_id,)).fetchone()
 
@@ -117,6 +167,50 @@ def list_fields(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 def touch_last_opened(conn: sqlite3.Connection, field_id: str) -> None:
     conn.execute("UPDATE fields SET last_opened_at = ? WHERE id = ?", (_now(), field_id))
     conn.commit()
+
+
+def delete_field(conn: sqlite3.Connection, field_id: str) -> bool:
+    """B4: delete a field (a saved query). `config.FIELD_DEFAULT_ID` is never
+    deletable -- it's the pre-existing corpus the Streamlit "lab console"
+    (OD33) still depends on, not a field a user created.
+
+    A legacy/download field (`source='download'`) owns a private db file +
+    Qdrant collection -- both are removed too (best-effort: a missing or
+    unreachable Qdrant collection doesn't block deleting the field row). A
+    slice field (A4, `source='slice'`) owns nothing of its own -- db_path/
+    collection point at the SHARED base corpus, which this never touches;
+    only its `fields` row goes away.
+
+    Returns True if a field was found and deleted, False if it didn't exist.
+    """
+    if field_id == config.FIELD_DEFAULT_ID:
+        raise ValueError("the default field can't be deleted")
+    row = get_field(conn, field_id)
+    if row is None:
+        return False
+    if row["source"] == "download":
+        db_path = Path(row["db_path"])
+        if db_path.exists():
+            db_path.unlink()
+        try:
+            from axiom.qdrant_client import AxiomQdrant
+            AxiomQdrant(collection=row["collection"]).delete_collection()
+        except Exception:
+            pass
+    conn.execute("DELETE FROM fields WHERE id = ?", (field_id,))
+    conn.commit()
+    return True
+
+
+def mark_interrupted_jobs_failed(conn: sqlite3.Connection) -> int:
+    """B4: at API startup, any field still 'queued'/'building' belonged to a
+    background build task that died with the previous process -- it will
+    never finish or update again. Marks each 'failed' with a clear error
+    instead of leaving it stuck forever in the UI. Returns the count fixed."""
+    rows = conn.execute("SELECT id FROM fields WHERE status IN ('queued', 'building')").fetchall()
+    for r in rows:
+        set_status(conn, r["id"], "failed", error="Interrupted: the server restarted mid-build.")
+    return len(rows)
 
 
 def set_status(conn: sqlite3.Connection, field_id: str, status: str, *, error: str | None = None) -> None:

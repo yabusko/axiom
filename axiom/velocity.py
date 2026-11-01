@@ -29,6 +29,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from math import log2
+from typing import Collection
 
 from axiom import config, db
 
@@ -76,13 +77,22 @@ def compute_velocity(
     *,
     venue: str | None = None,
     year_range: tuple[int, int] | None = None,
+    paper_ids: Collection[str] | None = None,
     min_concept_level: int = config.VELOCITY_MIN_CONCEPT_LEVEL,
     min_freq: int = config.VELOCITY_MIN_FREQ,
     top_k: int = config.VELOCITY_TOP_K,
 ) -> VelocityAnalysis:
-    """Rank concepts by velocity: normalized-frequency log2-ratio, recent vs prior window."""
+    """Rank concepts by velocity: normalized-frequency log2-ratio, recent vs prior window.
+
+    `paper_ids`, when given, restricts the computation to that set (stage 4:
+    a field 'slice' field shares the base corpus's db_path, so without this
+    every field would otherwise see the WHOLE corpus's trends regardless of
+    its own topic -- found running the real corpus for real, see OD39).
+    """
     paper_year: dict[str, int] = {}
     for p in db.iter_papers(conn):
+        if paper_ids is not None and p["openalex_id"] not in paper_ids:
+            continue
         year = p["publication_year"]
         if year is None:
             continue
@@ -156,6 +166,7 @@ def compute_velocity(
 def get_top_velocity_keywords(
     conn, n: int = 50, venue: str | None = None,
     year_range: tuple[int, int] | None = None,
+    paper_ids: Collection[str] | None = None,
 ) -> VelocityAnalysis:
     """Backlog-contract wrapper: top-n keywords by velocity for a venue/year filter."""
-    return compute_velocity(conn, venue=venue, year_range=year_range, top_k=n)
+    return compute_velocity(conn, venue=venue, year_range=year_range, paper_ids=paper_ids, top_k=n)

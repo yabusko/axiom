@@ -73,6 +73,12 @@ class AxiomQdrant:
             },
         )
 
+    def delete_collection(self) -> None:
+        """B4: drop this collection outright (no recreate) -- used when a
+        legacy/download field that owns its own private collection is
+        deleted. Never call this on a shared collection (e.g. corpus_v1)."""
+        self.client.delete_collection(collection_name=self.collection)
+
     def count(self) -> int:
         return self.client.count(self.collection, exact=True).count
 

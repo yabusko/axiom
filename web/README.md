@@ -24,11 +24,20 @@ npm run dev   # http://localhost:5173
 The API base URL defaults to `http://localhost:8000`; override with a `VITE_API_BASE`
 env var (e.g. in `web/.env.local`) if FastAPI runs elsewhere.
 
+### Static demo build (no backend)
+
+`VITE_DEMO=1 npm run build` routes every API call to `src/demoData.ts` instead of
+fetching -- the whole app works with no backend at all, for a static deploy (this
+repo's GitHub Pages workflow, `.github/workflows/pages.yml`, builds this way).
+
 ## Structure
 
 - `src/api.ts` — typed client for every `/fields/*` endpoint; types mirror
   `api/main.py`'s Pydantic response models 1:1.
-- `src/pages/` — the 5 MVP screens (Start, Landscape, Gaps, GapDetail, Shortlist).
+- `src/pages/` — Start, Landscape, Gaps, GapDetail, Shortlist, and Map (3D citation
+  graph / embedding view, lazy-loaded, outside the main flow).
+- `src/demoData.ts` — static response data for a `VITE_DEMO=1` build (below); keep it
+  in sync with `e2e/fixtures.ts` if you refresh one.
 - `src/components/` — shared components per `docs/product/DESIGN_SYSTEM.md`'s specs
   (gap card, bridge view, trend row, paper row, evidence highlight, badge,
   build-progress steps, empty/error states) plus the global Paper panel.

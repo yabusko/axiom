@@ -1,0 +1,151 @@
+{
+  "n_topics": 20,
+  "corpus_papers": 1000,
+  "p50_seconds": 0.1638,
+  "p95_seconds": 0.3891,
+  "max_seconds": 0.4379,
+  "target_p50_seconds": 5.0,
+  "meets_target": true,
+  "results": [
+    {
+      "topic": "retrieval augmented generation",
+      "seconds": 0.1721,
+      "status": "ready",
+      "papers_total": 221,
+      "total_relevant": 634
+    },
+    {
+      "topic": "open domain question answering",
+      "seconds": 0.152,
+      "status": "ready",
+      "papers_total": 235,
+      "total_relevant": 403
+    },
+    {
+      "topic": "dense passage retrieval",
+      "seconds": 0.31,
+      "status": "ready",
+      "papers_total": 226,
+      "total_relevant": 411
+    },
+    {
+      "topic": "large language model hallucination",
+      "seconds": 0.4379,
+      "status": "ready",
+      "papers_total": 209,
+      "total_relevant": 313
+    },
+    {
+      "topic": "in-context learning",
+      "seconds": 0.3739,
+      "status": "ready",
+      "papers_total": 185,
+      "total_relevant": 185
+    },
+    {
+      "topic": "knowledge-intensive NLP tasks",
+      "seconds": 0.3189,
+      "status": "ready",
+      "papers_total": 225,
+      "total_relevant": 345
+    },
+    {
+      "topic": "chain of thought prompting",
+      "seconds": 0.3865,
+      "status": "ready",
+      "papers_total": 88,
+      "total_relevant": 88
+    },
+    {
+      "topic": "multi-hop question answering",
+      "seconds": 0.3098,
+      "status": "ready",
+      "papers_total": 239,
+      "total_relevant": 424
+    },
+    {
+      "topic": "semantic parsing",
+      "seconds": 0.3522,
+      "status": "ready",
+      "papers_total": 22,
+      "total_relevant": 22
+    },
+    {
+      "topic": "document reranking",
+      "seconds": 0.3366,
+      "status": "ready",
+      "papers_total": 157,
+      "total_relevant": 157
+    },
+    {
+      "topic": "few-shot learning for language models",
+      "seconds": 0.1035,
+      "status": "ready",
+      "papers_total": 233,
+      "total_relevant": 364
+    },
+    {
+      "topic": "instruction tuning",
+      "seconds": 0.1045,
+      "status": "ready",
+      "papers_total": 36,
+      "total_relevant": 36
+    },
+    {
+      "topic": "vector database indexing",
+      "seconds": 0.1661,
+      "status": "ready",
+      "papers_total": 23,
+      "total_relevant": 23
+    },
+    {
+      "topic": "hybrid sparse-dense retrieval",
+      "seconds": 0.117,
+      "status": "ready",
+      "papers_total": 232,
+      "total_relevant": 469
+    },
+    {
+      "topic": "long-context language models",
+      "seconds": 0.1521,
+      "status": "ready",
+      "papers_total": 211,
+      "total_relevant": 264
+    },
+    {
+      "topic": "retrieval-augmented code generation",
+      "seconds": 0.1614,
+      "status": "ready",
+      "papers_total": 213,
+      "total_relevant": 475
+    },
+    {
+      "topic": "fact verification with retrieval",
+      "seconds": 0.1454,
+      "status": "ready",
+      "papers_total": 200,
+      "total_relevant": 205
+    },
+    {
+      "topic": "conversational question answering",
+      "seconds": 0.1391,
+      "status": "ready",
+      "papers_total": 201,
+      "total_relevant": 228
+    },
+    {
+      "topic": "graph neural networks",
+      "seconds": 0.1434,
+      "status": "ready",
+      "papers_total": 126,
+      "total_relevant": 126
+    },
+    {
+      "topic": "protein structure prediction",
+      "seconds": 0.1141,
+      "status": "thin",
+      "papers_total": 8,
+      "total_relevant": 8
+    }
+  ]
+}

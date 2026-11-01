@@ -7,8 +7,7 @@ the implementation of it.
 ## Direction
 
 Cartographic/spatial, grounded in the subject (a map of a field, not a generic SaaS dashboard —
-see `AXIOM_PRODUCT_TASK.md` §6, condensed into the task's own design principles since the
-`frontend-design` plugin couldn't be loaded mid-session, see `.claude/product/PROGRESS.md`).
+see `AXIOM_PRODUCT_TASK.md` §6, condensed into the task's own design principles).
 Topics render as sized map tiles, not a list; the gap "bridge" view sits on a graph-paper
 backdrop; one accent color (coral) marks the signature element — the gap connector and the
 single primary action per screen — and nowhere else. Sharp 0px corners throughout (map-tile

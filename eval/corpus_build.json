@@ -1,0 +1,18 @@
+{
+  "papers_count": 1000,
+  "this_run_seconds": 0.0,
+  "this_run_step_seconds": {},
+  "cumulative_step_seconds": {
+    "extract": 1366.2,
+    "canonicalize": 206.2,
+    "fetch_store_and_embed": 777.4
+  },
+  "cumulative_build_seconds": 2349.9,
+  "cumulative_spend_usd": 0.4133,
+  "steps": {
+    "fetch_store": "done",
+    "embed": "done",
+    "extract": "done",
+    "canonicalize": "done"
+  }
+}

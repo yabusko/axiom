@@ -95,6 +95,43 @@ def test_papers_by_ids_empty(empty_conn):
     assert db.papers_by_ids(empty_conn, []) == {}
 
 
+def test_concepts_for_papers_filters_by_paper_and_kind(empty_conn):
+    conn = empty_conn
+    db.insert_paper(conn, openalex_id="A1", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    db.insert_paper(conn, openalex_id="A2", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    ts = "2026-01-01T00:00:00+00:00"
+    db.replace_paper_concepts(
+        conn, "r1", "A1",
+        [("RAG", "method", "RAG", 0.9, "ev", 0.9, "agent", ts),
+         ("SQuAD", "dataset", "SQuAD", 0.9, "ev", 0.9, "agent", ts)],
+        [],
+    )
+    db.replace_paper_concepts(
+        conn, "r1", "A2", [("LoRA", "method", "LoRA", 0.9, "ev", 0.9, "agent", ts)], [],
+    )
+
+    assert db.concepts_for_papers(conn, ["A1", "A2"], ("method",)) == ["LoRA", "RAG"]
+    assert db.concepts_for_papers(conn, ["A1"], ("dataset",)) == ["SQuAD"]
+    assert db.concepts_for_papers(conn, [], ("method",)) == []
+
+
+def test_paper_entities_most_confident_first(empty_conn):
+    conn = empty_conn
+    db.insert_paper(conn, openalex_id="A1", title="t", abstract="x", publication_year=2020,
+                    venue_id=None, venue=None, cited_by_count=0, doi=None)
+    ts = "2026-01-01T00:00:00+00:00"
+    db.replace_paper_concepts(
+        conn, "r1", "A1",
+        [("RAG", "method", "RAG", 0.9, "ev", 0.6, "agent", ts),
+         ("LoRA", "method", "LoRA", 0.9, "ev", 0.95, "agent", ts)],
+        [],
+    )
+    rows = db.paper_entities(conn, "A1")
+    assert [r["canonical"] for r in rows] == ["LoRA", "RAG"]
+
+
 def test_reset_corpus_fk_safe(seeded_conn):
     # paper_concepts/concept_cooccurrence FK -> papers.openalex_id; reset_corpus must clear
     # them before papers or a non-empty agent-pipeline run blocks every future reset.
@@ -217,3 +254,52 @@ def test_init_db_migrates_a_real_pre_od26_database_end_to_end(tmp_path):
         assert conn.execute("SELECT COUNT(*) c FROM paper_concepts").fetchone()["c"] == 0
     finally:
         conn.close()
+
+
+# --- Stage 4: corpus_meta (build manifest) -------------------------------------
+def test_upsert_corpus_meta_insert_then_update(empty_conn):
+    conn = empty_conn
+    row = db.upsert_corpus_meta(
+        conn, query="retrieval", filters_json="{}", size_target=1000,
+        papers_count=100, steps_json='{"fetch_store": "done"}', budget_usd=3.0,
+    )
+    assert row["papers_count"] == 100
+    assert row["spend_total"] == 0.0
+    assert row["budget_usd"] == 3.0
+
+    # A partial update (just bumping papers_count/spend) doesn't need to
+    # repeat query/filters/size_target, and spend/seconds are deltas.
+    row2 = db.upsert_corpus_meta(conn, papers_count=200, spend_delta=0.05, seconds_delta=12.0)
+    assert row2["query"] == "retrieval"       # carried over, not reset
+    assert row2["papers_count"] == 200
+    assert row2["spend_total"] == pytest.approx(0.05)
+    assert row2["build_seconds"] == pytest.approx(12.0)
+    assert row2["budget_usd"] == 3.0          # carried over when omitted
+
+    row3 = db.upsert_corpus_meta(conn, spend_delta=0.02, budget_usd=5.0)
+    assert row3["spend_total"] == pytest.approx(0.07)  # delta accumulates
+    assert row3["budget_usd"] == 5.0                   # explicit overwrite
+
+
+def test_upsert_corpus_meta_requires_full_fields_on_first_insert(empty_conn):
+    with pytest.raises(ValueError):
+        db.upsert_corpus_meta(empty_conn, papers_count=5)
+
+
+def test_get_corpus_meta_none_when_absent(empty_conn):
+    assert db.get_corpus_meta(empty_conn) is None
+
+
+def test_upsert_corpus_meta_step_seconds_accumulate_and_skip_steps_persist(empty_conn):
+    conn = empty_conn
+    db.upsert_corpus_meta(conn, query="q", filters_json="{}", size_target=10,
+                          step_seconds_delta={"fetch_store": 5.0})
+    row = db.upsert_corpus_meta(conn, step_seconds_delta={"fetch_store": 2.0, "embed": 9.0})
+    import json as _json
+    steps = _json.loads(row["step_seconds_json"])
+    assert steps == {"fetch_store": 7.0, "embed": 9.0}
+
+    # A later call that did no work (e.g. a no-op resume) passes no deltas --
+    # previously-recorded durations must survive untouched.
+    row2 = db.upsert_corpus_meta(conn, step_seconds_delta={})
+    assert _json.loads(row2["step_seconds_json"]) == {"fetch_store": 7.0, "embed": 9.0}

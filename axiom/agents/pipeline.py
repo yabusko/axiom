@@ -8,9 +8,8 @@ rows track status transitions, verifier attempts, and verdicts. `synthesis`
 it has finished linking -- only when the caller supplies cluster/gap input,
 since that data comes from the corpus-level concept/citation graphs (a
 sibling workstream's `axiom/concept_graph.py` for clusters, the existing
-`axiom/gaps.py` for gap candidates), not from this run's papers alone. See
-the agent-implementer patch note for how `api/main.py`'s `POST /agents/run`
-should supply them.
+`axiom/gaps.py` for gap candidates), not from this run's papers alone --
+`api/main.py`'s `POST /agents/run` supplies them.
 """
 from __future__ import annotations
 
@@ -289,7 +288,7 @@ async def run_pipeline(
 
 
 def get_run_status(conn: sqlite3.Connection, run_id: str) -> RunStatusOut | None:
-    """For `GET /agents/runs/{id}` -- see the patch note."""
+    """Status + spend for one agent run, for `GET /agents/runs/{id}`."""
     row = db.get_agent_run(conn, run_id)
     if row is None:
         return None

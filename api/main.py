@@ -31,15 +31,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import numpy as np
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from axiom import concept_graph, config, db, fields as fieldsmod, llm_providers
+from axiom import concept_graph, config, db, embedding_map as mapmod, external_check, fields as fieldsmod, llm_providers
 from axiom import gaps as gapsmod
 from axiom import graph as graphmod
 from axiom import hypothesis as hypothesismod
+from axiom import ingest as ingestmod
 from axiom import summarize as summarizemod
 from axiom import velocity as velocitymod
 from axiom.agents import pipeline as agents_pipeline
@@ -145,9 +148,11 @@ class CommunityOut(BaseModel):
 
 class GapCandidateOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    gap_id: str                          # B4: stable id, replaces list-position gap_index
     a: CommunityOut
     b: CommunityOut
     semantic_similarity: float
+    similarity_percentile: float         # B1: rank among this run's pairs, not a raw cosine
     inter_citations: int
     gap_score: float
     g_score: float                       # OD17 composite score
@@ -184,6 +189,7 @@ class GapAnalysisOut(BaseModel):
     node2c: dict[str, int]
     communities: dict[int, CommunityOut]
     gaps: list[GapCandidateOut]
+    total_in_corpus_citations: int = 0   # review fix: lets the UI compute a real cross-citation share
 
 
 class ConceptCommunityOut(BaseModel):
@@ -227,13 +233,18 @@ class AgentRunStatusOut(BaseModel):
 # --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
 class FieldCreateIn(BaseModel):
     topic: str = Field(min_length=1, max_length=200)
-    target: int = Field(default=config.FIELD_DEFAULT_TARGET, ge=10, le=1000)
+    # Stage 4 (A4): a field is now a relevance slice of the shared base
+    # corpus, computed synchronously -- `target` overrides the default slice
+    # size (config.FIELD_SLICE_TARGET), it no longer sizes a download.
+    target: int = Field(default=config.FIELD_SLICE_TARGET, ge=10, le=1000)
 
 
 class FieldCreateOut(BaseModel):
     field_id: str
-    est_cost_usd: float
-    est_seconds: int
+    status: str                  # ready | thin (A5) -- instant, no more queued/building here
+    papers_total: int
+    total_relevant: int          # how many papers in the WHOLE corpus cleared the floor
+    extend_command: str | None   # A5: the exact CLI command to grow coverage, only when thin
 
 
 class FieldOut(BaseModel):
@@ -244,10 +255,21 @@ class FieldOut(BaseModel):
     last_opened_at: str | None
 
 
+class CorpusManifestOut(BaseModel):
+    papers_count: int
+    query: str
+    from_year: int
+    to_year: int
+    updated_at: str
+    spend_total_usd: float
+    budget_usd: float             # B4: the cap scripts/build_corpus.py ran under
+    extraction_complete: bool     # False if the last run stopped on 'partial' (budget reached)
+
+
 class FieldStatusOut(BaseModel):
     id: str
     topic: str
-    status: str                 # queued | building | ready | failed
+    status: str                 # queued | building | ready | thin | failed
     step: str | None            # fetching | embedding | extracting | None
     papers_total: int | None
     papers_done: int
@@ -275,6 +297,7 @@ class OverviewOut(BaseModel):
 
 
 class SideDetailOut(BaseModel):
+    cid: int                     # community id -- lets the frontend link to Map's ?a=/?b=
     labels: list[str]
     size: int
     top_papers: list[PaperRankOut]
@@ -283,16 +306,23 @@ class SideDetailOut(BaseModel):
 
 
 class GapDetailOut(BaseModel):
-    index: int
+    gap_id: str                          # B4: stable id, replaces list-position gap_index
     a: SideDetailOut
     b: SideDetailOut
     semantic_similarity: float
+    similarity_percentile: float         # B1: rank among this run's pairs, not a raw cosine
     inter_citations: int
     total_in_corpus_citations: int
     gap_score: float
     g_score: float
     components: dict[str, float]
     meets_threshold: bool
+
+
+class GapExternalCheckOut(BaseModel):
+    query: str
+    works_count: int
+    is_likely_artifact: bool
 
 
 class EntityOut(BaseModel):
@@ -312,6 +342,37 @@ class FieldPaperOut(BaseModel):
     cited_by_count: int
     doi: str | None
     entities: list[EntityOut]
+
+
+# --- Map screen (stage-3 product redesign) ------------------------------------
+class MapNodeOut(BaseModel):
+    paper_id: str
+    title: str | None
+    cid: int                     # community id, for topic coloring
+    x: float
+    y: float
+    z: float
+
+
+class MapTopicOut(BaseModel):
+    cid: int
+    label: str
+    size: int                    # papers from this topic present in the map (post-cap)
+
+
+class MapOut(BaseModel):
+    nodes: list[MapNodeOut]
+    edges: list[tuple[str, str]]
+    topics: list[MapTopicOut]
+    total_papers: int            # papers in the field, before the node cap
+    capped: bool                 # True if total_papers > len(nodes)
+
+
+class MapSimilarityOut(BaseModel):
+    a_label: str
+    b_label: str
+    cosine: float
+    explanation: str
 
 
 # draft/kept/discarded is the product-facing vocabulary (PRODUCT.md); the
@@ -338,7 +399,7 @@ class ShortlistItemOut(BaseModel):
 
 
 class ShortlistCreateIn(BaseModel):
-    gap_index: int = Field(ge=0)
+    gap_id: str = Field(min_length=1)   # B4: stable id, replaces list-position gap_index
 
 
 class ShortlistPatchIn(BaseModel):
@@ -360,6 +421,10 @@ async def _lifespan(app: FastAPI):
     try:
         fieldsmod.init_fields_db(fconn)
         fieldsmod.ensure_default_field(fconn)
+        # B4: a field left 'queued'/'building' belonged to a background task
+        # that died with whatever process crashed/restarted last -- it will
+        # never finish on its own; say so instead of leaving it stuck.
+        fieldsmod.mark_interrupted_jobs_failed(fconn)
     finally:
         fconn.close()
     yield
@@ -403,6 +468,29 @@ def get_gap_analysis():
         return gapsmod.analyze(get_graph(), conn, get_store().fetch_dense_vectors())
     finally:
         conn.close()
+
+
+# --- Stage 4: the shared base corpus (A4 instant fields) -----------------------
+# Separate seam from get_graph()/get_store() above (those stay pointed at the
+# legacy "default" field's DB_PATH/COLLECTION_NAME) -- process-wide singletons
+# cached for the process lifetime, same rationale as the rest of this block:
+# a field slice needs to be fast (p50 < 5s, A7), and the base corpus only
+# changes via an explicit scripts/build_corpus.py run (which requires a
+# process restart to pick up, same limitation get_graph()/get_store() already
+# have for the "default" field).
+@lru_cache(maxsize=1)
+def get_corpus_graph():
+    return graphmod.load_graph(db.connect(config.CORPUS_DB_PATH))
+
+
+@lru_cache(maxsize=1)
+def get_corpus_store() -> AxiomQdrant:
+    return AxiomQdrant(collection=config.CORPUS_COLLECTION_NAME)
+
+
+@lru_cache(maxsize=1)
+def get_corpus_vectors() -> dict[str, list[float]]:
+    return get_corpus_store().fetch_dense_vectors()
 
 
 @lru_cache(maxsize=1)
@@ -598,16 +686,23 @@ async def hypothesize(gap_index: int):
     Stores the pitch in review_queue as `pending` -- never auto-promoted.
     `gap_index` is the position in `GET /graph/gaps`'s `gaps` list.
     """
-    analysis = get_gap_analysis()
+    analysis = await run_in_threadpool(get_gap_analysis)  # B4: cheap on cache hit, real work on miss
     if gap_index < 0 or gap_index >= len(analysis.gaps):
         raise HTTPException(status_code=404, detail="no gap candidate at that index")
     gap = analysis.gaps[gap_index]
 
+    def _trend_context() -> list[str]:
+        conn = db.connect()
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10)
+            return [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    trend_context = await run_in_threadpool(_trend_context)
+
     conn = db.connect()
     try:
-        v = velocitymod.get_top_velocity_keywords(conn, n=10)
-        trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
-
         try:
             pitch = await synthesis_agent.generate_hypothesis(
                 gap, get_graph(), run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,
@@ -764,13 +859,9 @@ def concepts_central():
 
 
 # --- Fields (stage-3 product redesign, docs/product/ARCHITECTURE_NOTE.md) -----
-# No field_id-keyed caching yet (deliberate scope cut for this pass, logged in
-# .claude/product/PROGRESS.md): every field-scoped read below recomputes from
-# that field's own db/collection per request. ARCHITECTURE_NOTE.md's
-# alternative -- keying the existing lru_cache singletons above by field_id --
-# is a reasonable follow-up once there's more than one field to actually
-# notice the recompute cost on; a single researcher's few-hundred-paper
-# corpus analyzes in low single-digit seconds, not a latency problem yet.
+# Field-scoped reads are cached per field_id (stage 4 B4: _cached_field_graph/
+# _cached_field_gap_analysis below), the same lru_cache pattern as the
+# singletons above -- ARCHITECTURE_NOTE.md's original follow-up, now done.
 
 def _resolve_field(field_id: str) -> sqlite3.Row:
     fconn = fieldsmod.connect_fields()
@@ -783,7 +874,33 @@ def _resolve_field(field_id: str) -> sqlite3.Row:
     return row
 
 
+def _find_gap(analysis, gap_id: str):
+    """B4: look up a gap candidate by its stable gap_id (a hash of both sides'
+    member sets -- see GapCandidate.gap_id), replacing the old list-position
+    gap_index lookup everywhere a gap is addressed from outside analyze()'s
+    own ranked list (a URL, a shortlist request body)."""
+    for candidate in analysis.gaps:
+        if candidate.gap_id == gap_id:
+            return candidate
+    raise HTTPException(status_code=404, detail=f"no gap candidate with id {gap_id!r}")
+
+
+def _slice_paper_ids(row: sqlite3.Row) -> set[str] | None:
+    """A4: a 'slice' field is a (topic, paper_ids) pair over the SHARED base
+    corpus, not its own download -- None for a legacy/'download' field (no
+    paper_ids_json), which reads its own private db_path/collection whole."""
+    raw = row["paper_ids_json"] if "paper_ids_json" in row.keys() else None
+    return set(json.loads(raw)) if raw else None
+
+
 def _field_graph(row: sqlite3.Row):
+    ids = _slice_paper_ids(row)
+    if ids is not None:
+        # Subgraph induced by the slice's own members only -- a citation to a
+        # paper outside the slice drops out entirely (not even a dangling
+        # node), same effect as "outside the corpus" has elsewhere: structure
+        # and communities are scoped to what this field actually contains.
+        return get_corpus_graph().subgraph(ids).copy()
     conn = db.connect(row["db_path"])
     try:
         return graphmod.load_graph(conn)
@@ -798,28 +915,89 @@ def _field_store(row: sqlite3.Row) -> AxiomQdrant:
     return AxiomQdrant(collection=row["collection"])
 
 
+def _field_vectors(row: sqlite3.Row) -> dict[str, list[float]]:
+    """A slice field reuses the cached corpus-wide vector set (no live Qdrant
+    scroll per field -- the point of A4's "instant") rather than calling
+    `_field_store(row).fetch_dense_vectors()`, which a legacy/download field
+    (its own small collection) still does live, same as before stage 4."""
+    if _slice_paper_ids(row) is not None:
+        return get_corpus_vectors()
+    return _field_store(row).fetch_dense_vectors()
+
+
 def _field_gap_analysis(row: sqlite3.Row, g=None):
     g = g or _field_graph(row)
     conn = db.connect(row["db_path"])
     try:
-        store = _field_store(row)
-        return gapsmod.analyze(g, conn, store.fetch_dense_vectors())
+        return gapsmod.analyze(g, conn, _field_vectors(row))
     finally:
         conn.close()
 
 
+# B4: "results cached per field/slice" -- a field's graph + gap analysis are
+# recomputed from scratch on nearly every field endpoint (overview, gaps,
+# gap detail, map, map/similarity, shortlist create); a slice field's
+# paper_ids never change after creation (A4) and a legacy field is only ever
+# queried by these endpoints once its build reaches 'ready', so caching by
+# field_id alone is safe -- same precedent `_field_map_data` below already
+# set. `maxsize=32` keyed by field_id, not unbounded, so a long-running
+# server building many fields over time doesn't leak memory per field forever.
+@lru_cache(maxsize=32)
+def _cached_field_graph(field_id: str):
+    return _field_graph(_resolve_field(field_id))
+
+
+@lru_cache(maxsize=32)
+def _cached_field_gap_analysis(field_id: str):
+    row = _resolve_field(field_id)
+    return _field_gap_analysis(row, _cached_field_graph(field_id))
+
+
+@lru_cache(maxsize=8)
+def _field_map_data(field_id: str) -> MapOut:
+    """Nodes/edges/topics for the Map screen, capped at `config.MAP_NODE_CAP`
+    by PageRank (same ranking `graphmod.influence`/`top_influential_subgraph`
+    already use elsewhere) so a laptop GPU can render the 3D view. PCA is
+    computed once over just the capped set and cached here per field_id --
+    deterministic given the same vectors (`embedding_map.project`), so this is
+    safe to cache indefinitely for a field that isn't being rebuilt.
+    """
+    row = _resolve_field(field_id)
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
+    total_papers = graphmod.stats(g)["papers"]
+
+    capped = graphmod.top_influential_subgraph(g, n=config.MAP_NODE_CAP)
+    node_ids = list(capped.nodes())
+
+    vectors = _field_vectors(row)
+    coords = mapmod.project({pid: vectors[pid] for pid in node_ids if pid in vectors})
+
+    nodes = [
+        MapNodeOut(
+            paper_id=pid, title=g.nodes[pid].get("title"),
+            cid=analysis.node2c.get(pid, -1),
+            x=coords.get(pid, [0.0, 0.0, 0.0])[0],
+            y=coords.get(pid, [0.0, 0.0, 0.0])[1],
+            z=coords.get(pid, [0.0, 0.0, 0.0])[2],
+        )
+        for pid in node_ids
+    ]
+    edges = [(u, v) for u, v in capped.edges()]
+
+    sizes: dict[int, int] = {}
+    for n in nodes:
+        sizes[n.cid] = sizes.get(n.cid, 0) + 1
+    topics = [
+        MapTopicOut(cid=cid, label=analysis.communities[cid].label if cid in analysis.communities else f"cluster {cid}", size=size)
+        for cid, size in sorted(sizes.items(), key=lambda kv: kv[1], reverse=True)
+    ]
+
+    return MapOut(nodes=nodes, edges=edges, topics=topics, total_papers=total_papers, capped=total_papers > len(nodes))
+
+
 def _entities_for_papers(conn, paper_ids: list[str], kinds: tuple[str, ...]) -> list[str]:
-    if not paper_ids:
-        return []
-    placeholders = ",".join("?" for _ in paper_ids)
-    kind_placeholders = ",".join("?" for _ in kinds)
-    rows = conn.execute(
-        f"SELECT DISTINCT canonical FROM paper_concepts "
-        f"WHERE paper_id IN ({placeholders}) AND kind IN ({kind_placeholders}) "
-        f"ORDER BY canonical",
-        [*paper_ids, *kinds],
-    ).fetchall()
-    return [r["canonical"] for r in rows]
+    return db.concepts_for_papers(conn, paper_ids, kinds)
 
 
 def _top_papers(g, member_ids: list[str], top_k: int = 5) -> list:
@@ -838,16 +1016,54 @@ def _top_papers(g, member_ids: list[str], top_k: int = 5) -> list:
     return out
 
 
-@app.post("/fields", response_model=FieldCreateOut, status_code=202)
-def create_field(body: FieldCreateIn, background_tasks: BackgroundTasks):
+@app.post("/fields", response_model=FieldCreateOut)
+def create_field(body: FieldCreateIn):
+    """A4: instant -- a relevance-ranked slice of the shared base corpus,
+    computed here synchronously (no download, no background task). A5: a
+    thin-coverage topic still gets a field row (status='thin'), with the
+    exact `--extend` command to grow the base corpus around it."""
+    query_vector = get_encoder().encode_query(body.topic)
     fconn = fieldsmod.connect_fields()
     try:
-        row = fieldsmod.create_field(fconn, topic=body.topic, target=body.target)
+        row = fieldsmod.create_instant_field(
+            fconn, topic=body.topic, corpus_graph=get_corpus_graph(),
+            corpus_vectors=get_corpus_vectors(), query_vector=query_vector,
+            target_n=body.target,
+        )
     finally:
         fconn.close()
-    background_tasks.add_task(fieldsmod.build_field, row["id"], body.topic, body.target)
-    estimate = fieldsmod.estimate_extraction(body.target)
-    return FieldCreateOut(field_id=row["id"], **estimate)
+    extend_command = (
+        f'python scripts/build_corpus.py --extend "{body.topic}"' if row["status"] == "thin" else None
+    )
+    return FieldCreateOut(
+        field_id=row["id"], status=row["status"], papers_total=row["papers_total"] or 0,
+        total_relevant=row["total_relevant"] or 0, extend_command=extend_command,
+    )
+
+
+@app.get("/corpus", response_model=CorpusManifestOut)
+def corpus_manifest():
+    """A6: the Start screen headline ("Instant search over N papers...") and
+    the app footer both read this -- the one place the shared base corpus's
+    own build manifest (scripts/build_corpus.py, corpus_meta table) surfaces
+    in the product."""
+    conn = db.connect(config.CORPUS_DB_PATH)
+    try:
+        meta = db.get_corpus_meta(conn)
+    finally:
+        conn.close()
+    if meta is None:
+        raise HTTPException(status_code=404, detail="base corpus not built yet")
+    filters = json.loads(meta["filters_json"])
+    steps = json.loads(meta["steps_json"])
+    return CorpusManifestOut(
+        papers_count=meta["papers_count"], query=meta["query"],
+        from_year=int(filters["from_publication_date"][:4]),
+        to_year=int(filters["to_publication_date"][:4]),
+        updated_at=meta["updated_at"], spend_total_usd=meta["spend_total"],
+        budget_usd=meta["budget_usd"],
+        extraction_complete=steps.get("extract") == "done",
+    )
 
 
 @app.get("/fields", response_model=list[FieldOut])
@@ -862,26 +1078,64 @@ def list_fields():
 
 @app.get("/fields/{field_id}", response_model=FieldStatusOut)
 def field_status(field_id: str):
+    """B4: read-only -- this is polled (FieldNav, build-progress) and a GET
+    must stay safe/idempotent. `last_opened_at` updates only via the explicit
+    POST /fields/{id}/open below, not as a side effect of every poll."""
     fconn = fieldsmod.connect_fields()
     try:
         out = fieldsmod.live_status(fconn, field_id)
         if out is None:
             raise HTTPException(status_code=404, detail="no such field")
-        fieldsmod.touch_last_opened(fconn, field_id)
     finally:
         fconn.close()
     return FieldStatusOut(**out)
 
 
+@app.post("/fields/{field_id}/open", status_code=204)
+def field_open(field_id: str):
+    """The one explicit 'this field was opened' signal -- call once when a
+    user actually navigates into a field, not on every status poll. Drives
+    `list_fields`'s "Recent fields" ordering (`COALESCE(last_opened_at,
+    created_at) DESC`)."""
+    fconn = fieldsmod.connect_fields()
+    try:
+        if fieldsmod.get_field(fconn, field_id) is None:
+            raise HTTPException(status_code=404, detail="no such field")
+        fieldsmod.touch_last_opened(fconn, field_id)
+    finally:
+        fconn.close()
+
+
+@app.delete("/fields/{field_id}", status_code=204)
+def field_delete(field_id: str):
+    """B4: delete a field (a saved query). The default field can't be
+    deleted -- see `fieldsmod.delete_field`'s docstring."""
+    fconn = fieldsmod.connect_fields()
+    try:
+        try:
+            found = fieldsmod.delete_field(fconn, field_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not found:
+            raise HTTPException(status_code=404, detail="no such field")
+    finally:
+        fconn.close()
+    # No per-field cache eviction needed: field_ids are fresh UUIDs, never
+    # reused, so a deleted field's cached graph/analysis entry (if any) just
+    # becomes harmless dead weight until LRU eviction -- no endpoint can
+    # reach it again (_resolve_field 404s first). Clearing the whole cache
+    # would only punish every OTHER field's hit rate for no benefit.
+
+
 @app.get("/fields/{field_id}/overview", response_model=OverviewOut)
 def field_overview(field_id: str):
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    gap_analysis = _field_gap_analysis(row, g)
+    g = _cached_field_graph(field_id)
+    gap_analysis = _cached_field_gap_analysis(field_id)
     stats = graphmod.stats(g)
     conn = db.connect(row["db_path"])
     try:
-        velocity_analysis = velocitymod.get_top_velocity_keywords(conn, n=8)
+        velocity_analysis = velocitymod.get_top_velocity_keywords(conn, n=8, paper_ids=_slice_paper_ids(row))
     finally:
         conn.close()
     rising = [k for k in velocity_analysis.keywords if k.velocity > 0][:6]
@@ -899,18 +1153,18 @@ def field_overview(field_id: str):
 
 @app.get("/fields/{field_id}/gaps", response_model=GapAnalysisOut)
 def field_gaps(field_id: str):
-    row = _resolve_field(field_id)
-    return GapAnalysisOut.model_validate(_field_gap_analysis(row))
+    _resolve_field(field_id)  # 404s before touching the cache
+    out = GapAnalysisOut.model_validate(_cached_field_gap_analysis(field_id))
+    out.total_in_corpus_citations = graphmod.stats(_cached_field_graph(field_id))["edges_in_corpus"]
+    return out
 
 
-@app.get("/fields/{field_id}/gaps/{gap_index}", response_model=GapDetailOut)
-def field_gap_detail(field_id: str, gap_index: int):
+@app.get("/fields/{field_id}/gaps/{gap_id}", response_model=GapDetailOut)
+def field_gap_detail(field_id: str, gap_id: str):
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
-    if gap_index < 0 or gap_index >= len(analysis.gaps):
-        raise HTTPException(status_code=404, detail="no gap candidate at that index")
-    gap = analysis.gaps[gap_index]
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
+    gap = _find_gap(analysis, gap_id)
     stats = graphmod.stats(g)
 
     conn = db.connect(row["db_path"])
@@ -919,7 +1173,7 @@ def field_gap_detail(field_id: str, gap_index: int):
         for community in (gap.a, gap.b):
             top_papers = _top_papers(g, community.members)
             sides.append(SideDetailOut(
-                labels=community.labels, size=community.size, top_papers=[
+                cid=community.cid, labels=community.labels, size=community.size, top_papers=[
                     PaperRankOut.model_validate(p) for p in top_papers
                 ],
                 methods=_entities_for_papers(conn, community.members, ("method",)),
@@ -929,12 +1183,78 @@ def field_gap_detail(field_id: str, gap_index: int):
         conn.close()
 
     return GapDetailOut(
-        index=gap_index, a=sides[0], b=sides[1],
-        semantic_similarity=gap.semantic_similarity, inter_citations=gap.inter_citations,
+        gap_id=gap.gap_id, a=sides[0], b=sides[1],
+        semantic_similarity=gap.semantic_similarity,
+        similarity_percentile=gap.similarity_percentile, inter_citations=gap.inter_citations,
         total_in_corpus_citations=stats["edges_in_corpus"],
         gap_score=gap.gap_score, g_score=gap.g_score, components=gap.components,
         meets_threshold=gap.meets_threshold,
     )
+
+
+@app.get("/fields/{field_id}/gaps/{gap_id}/external-check", response_model=GapExternalCheckOut)
+def field_gap_external_check(field_id: str, gap_id: str):
+    """B1: on-demand (not computed for every gap on page load -- a real
+    OpenAlex request per gap would be wasteful and slow down the gap list
+    for a signal most users won't ask for every time) external corpus-
+    artifact check. A live OpenAlex outage/timeout surfaces as 502, not an
+    unhandled 500 -- this endpoint augments a gap's trustworthiness signal,
+    it never blocks viewing the gap itself."""
+    analysis = _cached_field_gap_analysis(field_id)
+    gap = _find_gap(analysis, gap_id)
+    label_a = gap.a.labels[0] if gap.a.labels else gap.a.label
+    label_b = gap.b.labels[0] if gap.b.labels else gap.b.label
+    try:
+        with ingestmod.OpenAlexClient() as client:
+            result = external_check.check_gap(client, label_a, label_b)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=f"OpenAlex check failed: {exc}")
+    return GapExternalCheckOut(
+        query=result.query, works_count=result.works_count, is_likely_artifact=result.is_likely_artifact,
+    )
+
+
+@app.get("/fields/{field_id}/map", response_model=MapOut)
+def field_map(field_id: str):
+    _resolve_field(field_id)  # 404s before touching the cache
+    return _field_map_data(field_id)
+
+
+@app.get("/fields/{field_id}/map/similarity", response_model=MapSimilarityOut)
+def field_map_similarity(
+    field_id: str,
+    a_kind: str = Query(pattern="^(paper|topic)$"),
+    a_id: str = Query(min_length=1),
+    b_kind: str = Query(pattern="^(paper|topic)$"),
+    b_id: str = Query(min_length=1),
+):
+    row = _resolve_field(field_id)
+    g = _cached_field_graph(field_id)
+    analysis = _cached_field_gap_analysis(field_id)
+    vectors = _field_vectors(row)
+
+    def resolve(kind: str, ident: str) -> tuple[list[float], str]:
+        if kind == "paper":
+            if ident not in vectors:
+                raise HTTPException(status_code=404, detail=f"no vector for paper {ident!r}")
+            return vectors[ident], g.nodes.get(ident, {}).get("title") or ident
+        try:
+            cid = int(ident)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"topic id must be an integer, got {ident!r}")
+        community = analysis.communities.get(cid)
+        if community is None:
+            raise HTTPException(status_code=404, detail=f"no topic community {cid}")
+        member_vectors = [vectors[pid] for pid in community.members if pid in vectors]
+        if not member_vectors:
+            raise HTTPException(status_code=422, detail=f"topic {cid} has no embedded papers")
+        centroid = np.asarray(member_vectors, dtype=float).mean(axis=0).tolist()
+        return centroid, community.label
+
+    vec_a, label_a = resolve(a_kind, a_id)
+    vec_b, label_b = resolve(b_kind, b_id)
+    cos = mapmod.cosine(vec_a, vec_b)
+    return MapSimilarityOut(a_label=label_a, b_label=label_b, cosine=cos, explanation=mapmod.explain(cos))
 
 
 @app.get("/fields/{field_id}/papers/{paper_id}", response_model=FieldPaperOut)
@@ -946,11 +1266,7 @@ def field_paper_detail(field_id: str, paper_id: str):
         paper = rows.get(paper_id)
         if paper is None:
             raise HTTPException(status_code=404, detail="paper not found")
-        entity_rows = conn.execute(
-            "SELECT name, kind, canonical, evidence_span, confidence FROM paper_concepts "
-            "WHERE paper_id = ? ORDER BY confidence DESC",
-            (paper_id,),
-        ).fetchall()
+        entity_rows = db.paper_entities(conn, paper_id)
     finally:
         conn.close()
     return FieldPaperOut(
@@ -992,16 +1308,31 @@ async def field_shortlist_create(field_id: str, body: ShortlistCreateIn):
     (AUDIT.md: Streamlit's inline button and POST /graph/gaps/{i}/hypothesize
     both call generate_hypothesis + add_to_review_queue separately) into one."""
     row = _resolve_field(field_id)
-    g = _field_graph(row)
-    analysis = _field_gap_analysis(row, g)
-    if body.gap_index < 0 or body.gap_index >= len(analysis.gaps):
-        raise HTTPException(status_code=404, detail="no gap candidate at that index")
-    gap = analysis.gaps[body.gap_index]
+    # B4: no heavy sync work inside this async def -- on a cache miss, a full
+    # graph load + gap analysis (community detection, concept-label queries)
+    # over a 1000-paper corpus is real CPU/IO time that would otherwise block
+    # every other request this process is serving. Each threadpooled callable
+    # is fully self-contained (opens and closes its own sqlite connection) --
+    # never hands a connection across the thread boundary, since sqlite3
+    # connections are thread-affine (same caveat axiom/fields.py's build job
+    # already documents).
+    g, analysis = await run_in_threadpool(
+        lambda: (_cached_field_graph(field_id), _cached_field_gap_analysis(field_id))
+    )
+    gap = _find_gap(analysis, body.gap_id)
+
+    def _trend_context() -> list[str]:
+        conn = db.connect(row["db_path"])
+        try:
+            v = velocitymod.get_top_velocity_keywords(conn, n=10, paper_ids=_slice_paper_ids(row))
+            return [k.concept for k in v.keywords if k.velocity > 0][:5]
+        finally:
+            conn.close()
+
+    trend_context = await run_in_threadpool(_trend_context)
 
     conn = db.connect(row["db_path"])
     try:
-        v = velocitymod.get_top_velocity_keywords(conn, n=10)
-        trend_context = [k.concept for k in v.keywords if k.velocity > 0][:5]
         try:
             pitch = await synthesis_agent.generate_hypothesis(
                 gap, g, run_id=uuid.uuid4().hex, trend_context=trend_context, conn=conn,

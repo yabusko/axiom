@@ -1,13 +1,14 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockApi } from "./fixtures";
+import { mockApi, GAP_ID } from "./fixtures";
 
 // 0 serious/critical violations, per the task's quality floor.
 const SCREENS = [
   { name: "start", path: "/" },
   { name: "landscape", path: "/fields/default/landscape" },
-  { name: "gap-detail", path: "/fields/default/gaps/0" },
+  { name: "gap-detail", path: `/fields/default/gaps/${GAP_ID}` },
   { name: "shortlist", path: "/fields/default/shortlist" },
+  { name: "map", path: "/fields/default/map" },
 ];
 
 for (const { name, path } of SCREENS) {

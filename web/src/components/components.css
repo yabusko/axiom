@@ -10,6 +10,14 @@
 
 .bridge-label { text-anchor: middle; font-family: var(--font-sans); }
 
+/* Bridge diagram (stage 4 B2): horizontal layout by default, a genuinely
+   different stacked layout below 600px -- not the same SVG just shrunk. */
+.bridge-vertical { display: none; }
+@media (max-width: 600px) {
+  .bridge-horizontal { display: none; }
+  .bridge-vertical { display: block; }
+}
+
 .trend-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
 .trend-row:last-child { border-bottom: none; }
 .trend-name { font-weight: 700; }
@@ -55,6 +63,33 @@
 .btn-quiet { border-color: transparent; background: transparent; color: var(--text-muted); font-weight: 500; }
 .btn-quiet:hover { color: var(--text); background: none; }
 
+/* B3: a genuine in-text link style (e.g. "Open paper (DOI)") -- distinct
+   from both .btn (a button-shaped CTA) and the default unstyled UA blue,
+   which nothing in this system had replaced before this. */
+.link { color: var(--action); font-weight: 700; text-decoration: underline; }
+.link:hover { color: var(--action-hover); }
+
+/* B3: `className="card"` was a no-op everywhere it appeared -- every
+   instance (Start.tsx, GapDetail.tsx, ...) re-declared the same
+   border/background/padding inline instead. Filling in the base class here
+   so Start.tsx can drop its inline duplicates. */
+.card { border: 1px solid var(--border); background: var(--surface); padding: var(--space-6); }
+.card--spaced { margin-bottom: var(--space-8); }
+
+.field-error { color: var(--action); margin-top: var(--space-4); }
+
+.start-form { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.start-form label { width: 100%; font-weight: 700; }
+.start-form input {
+  flex: 1 1 320px; padding: 11px 14px; border: 1px solid var(--border-strong);
+  background: var(--bg); color: var(--text); font-family: inherit; font-size: 1rem;
+}
+
+.thin-coverage-command {
+  background: var(--bg); border: 1px solid var(--border); padding: var(--space-4);
+  overflow-x: auto; font-size: var(--small);
+}
+
 .topic-grid { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: stretch; }
 .topic-tile {
   background: var(--region-wash); border: 1px solid var(--border); border-left: 3px solid var(--region);
@@ -80,3 +115,26 @@
 .paper-panel-head h2 { font-size: 1.3rem; }
 .panel-close { background: none; border: none; color: var(--text-muted); font: inherit; cursor: pointer; font-weight: 700; }
 .panel-close:hover { color: var(--text); }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Map screen */
+.map-view-toggle { display: inline-flex; gap: 2px; border: 1px solid var(--border); margin-bottom: var(--space-6); }
+.map-view-toggle .btn, .map-view-toggle .btn-quiet { border-radius: 0; border: none; }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--space-6); align-items: start; }
+.map-canvas-wrap { border: 1px solid var(--border); background: var(--surface); padding: var(--space-4); }
+.map-canvas { width: 100%; height: 520px; }
+.map-sidebar { border: 1px solid var(--border); background: var(--surface); padding: var(--space-6); }
+.map-sidebar h3:first-child { margin-top: 0; }
+.map-legend { list-style: none; margin: 0 0 var(--space-6); padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--small); }
+.map-legend li { display: flex; align-items: center; gap: 8px; }
+.map-legend .swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.map-compare-row { display: flex; gap: var(--space-2); margin-bottom: var(--space-2); }
+.map-compare-row select { font-family: var(--font-sans); padding: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+
+@media (max-width: 900px) {
+  .map-layout { grid-template-columns: 1fr; }
+}

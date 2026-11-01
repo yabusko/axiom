@@ -119,7 +119,7 @@ export function PaperPanel() {
             )}
             {data.doi && (
               <p>
-                <a href={data.doi} target="_blank" rel="noreferrer">
+                <a className="link" href={data.doi} target="_blank" rel="noreferrer">
                   Open paper (DOI)
                 </a>
               </p>

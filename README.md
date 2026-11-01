@@ -1,292 +1,212 @@
 # Axiom
 
-**LLMs for Sciences: Research Trends & Gaps Extraction Tool.** Axiom is *not* a
-paper search engine — it surfaces two complementary signals from scholarly
-metadata: **research trends** (which concepts are accelerating) and **research
-gaps** (conceptual regions that are semantically close but barely connected by
-citation). Semantic search is the foundation those signals stand on, not the
-product itself.
+[![CI](https://github.com/yabusko/axiom/actions/workflows/ci.yml/badge.svg)](https://github.com/yabusko/axiom/actions/workflows/ci.yml)
+**[Try the live demo](https://yabusko.github.io/axiom/)** — static build, recorded real data, no backend needed.
 
-> This README reflects the **as-built** system (2026-07-04), which has
-> diverged from the original plan in several places — see
-> `docs/DECISIONS.md` (OD6–OD14) for the full rationale on every divergence,
-> and `docs/archive/Backlog.md` for the task-by-task status.
+**A research-direction finder, not a paper search engine.** Point Axiom at a topic and it
+surfaces two things from the citation graph: which concepts are accelerating, and which
+closely-related areas of work barely cite each other despite sitting right next to each
+other semantically — candidate thesis directions, each backed by real evidence papers, not
+a hunch. Pick one, draft a citeable pitch, export it to the supervisor meeting.
 
----
+## Screenshots
+
+| Research gaps | Gap detail |
+|---|---|
+| ![Research gaps list](docs/product/after/gaps_desktop.png) | ![Gap detail with bridge diagram](docs/product/after/gap-detail_desktop.png) |
+
+## How it works
+
+1. **One shared, prebuilt corpus.** `scripts/build_corpus.py` fetches a domain (retrieval /
+   RAG / QA / LLM-knowledge-use, 2019–2026) from OpenAlex once, embeds it (SPECTER2 dense +
+   BM25 sparse, Qdrant) and runs the agentic extraction pipeline over it. This is the one
+   step that costs real time and money — see the cost/time warning below.
+2. **A "field" is an instant slice, not a download.** Typing a topic ranks the whole prebuilt
+   corpus by cosine similarity to that topic and takes the top ~200 papers plus their 1-hop
+   citation neighbors — milliseconds, no new fetch or LLM call (p50 0.164s / p95 0.389s,
+   measured against the real 1000-paper corpus, `eval/field_latency.json`).
+3. **Communities, then gaps.** Louvain community detection over the slice's citation subgraph
+   finds sub-topics; a candidate gap is a pair of communities close in embedding space but
+   weakly connected by citation. Labels come from the agent pipeline's own canonical concept
+   extraction where there's enough of it, OpenAlex's raw tags otherwise.
+4. **An external sanity check.** A real-time OpenAlex lookup counts how many published works
+   already combine both sides' key concepts — many means the "gap" is likely an artifact of
+   this corpus being small, not a real blind spot (`docs/DECISIONS.md` OD42).
+5. **Draft, then export.** One LLM call drafts a citeable direction naming both sides,
+   explicitly marked unverified. Keep it, add notes, export to Markdown.
 
 ## What's built
 
 | Capability | Status |
 |---|---|
-| OpenAlex ingest (topic-snowball) → SQLite → SPECTER2 → Qdrant | ✅ |
-| Hybrid dense+sparse (RRF) retrieval | ✅ |
-| NetworkX citation graph + PageRank influence | ✅ |
-| Research-gap detector (community-pairs, OD9) | ✅ |
-| Velocity/trends engine (OD10) | ✅ |
-| Keyword canonicalization (local Ollama, OD14) | ✅ |
-| Reading list — bookmarks + local-LLM summaries (OD13/OD14) | ✅ |
-| FastAPI service layer (OD12) | ✅ |
-| nDCG@10 retrieval eval, real corpus (OD11) | ✅ (mean 0.453, single-pass labels) |
-| Streamlit UI: Trending, Research gaps, Search, Reading list, Review queue, **Advanced: vector geometry** | ✅ |
-| LLM hypothesis pitch + HITL review queue (PBI 5) | ✅ (OD16 — grounded pitch + rule-based verifier + review queue) |
-| React frontend | ❌ not started |
-| Composite gap G-score (OD17) | ✅ (uncalibrated defaults) |
-| Threshold (τ) calibration scaffold (PBI 8) | ⚠️ scaffold built (OD17); τ/weights still need human labels |
-| Agentic extraction pipeline (router→extraction→enrichment→linking, R1-R6) | ✅ real 30-paper run, $0.09 — synthesis (strong tier) built but not yet wired into a run, see `docs/agentic/RESULTS.md` |
-| Concept co-occurrence graph (Louvain + PageRank, R7) | ✅ real run: 5 communities, 109 concept rows |
-| Eval v2: ~50-query pooled retrieval judging (R9) | ✅ AI-drafted (51 real queries); not yet human-reviewed |
-| Agent tracing + benchmark (R10) | ✅ real numbers: $0.003/paper, p50 6.8s, see `eval/agent_bench.json` |
+| Prebuilt shared corpus + instant field slicing (no per-field download) | ✅ 1000 papers, p50 0.164s / p95 0.389s field creation |
+| Citation graph + Louvain gap detection, percentile-framed similarity | ✅ real corpus run |
+| Agent-extracted concept labels (fallback to OpenAlex tags), junk-filtered + cased | ✅ |
+| AI gap judge (rubric: plausibility/novelty/actionability) | ✅ 43 gaps judged, $0.24 — **1/43 (2%) rated worth pursuing**, reported as-is (`eval/gap_judgments_report.md`) |
+| External OpenAlex corpus-artifact check per gap | ✅ calibrated against 5 real label pairs (`docs/DECISIONS.md` OD42) |
+| React + TypeScript SPA (Start, Landscape, Gaps, Gap detail, Shortlist, Map) | ✅ primary interface |
+| 3D citation-graph / embedding Map view | ✅ lazy-loaded, main bundle stays ~102 KB gzip |
+| Draft-direction + shortlist + Markdown export | ✅ |
+| Static demo build + GitHub Pages deploy | ✅ `VITE_DEMO=1`, see the link above |
+| CI (pytest on bare Python, web lint/typecheck/build, Playwright e2e) | ✅ `.github/workflows/ci.yml` |
+| nDCG@10 retrieval eval (separate 1,500-paper ACL/EMNLP/COLING/NAACL sample) | ✅ mean 0.453 (hybrid), single-pass AI-drafted judgments |
+| Eval re-pool v2 (dense/sparse/hybrid top-20, judged@10) | ⏸ deferred — listed, not started |
+| Composite gap G-score (similarity/disconnection/velocity/authority) | ⚠️ uncalibrated defaults, shown as such in the UI |
+| Streamlit lab console (Trending, Search, Reading list, Review queue, vector geometry) | ✅ still works, secondary to the React app |
 
-See `docs/demo_examples.md` for real, reproducible output of every ✅ row, and
-`docs/agentic/RESULTS.md` for the agentic pipeline's real numbers and known gaps. **Note:**
-`POST /agents/run` makes real, billed calls to the Anthropic API — never expose this app's API
-port beyond localhost.
+## Run it
 
----
-
-## Prerequisites
-
-- **Docker** (for Qdrant).
-- **Python 3.10–3.12.** ⚠️ Not 3.13/3.14 — the pinned `torch`/`transformers`
-  have no wheels there.
-- **[Ollama](https://ollama.com)**, running locally (`ollama serve`), with a
-  model pulled (default `qwen2.5:7b`: `ollama pull qwen2.5:7b`) — only needed
-  for keyword canonicalization and reading-list summaries (OD14). Everything
-  else runs without it.
-
----
-
-## Run order (from the repo root)
+**Prerequisites:** Python 3.10–3.12 (not 3.13/3.14 — the pinned `torch`/`transformers` have
+no wheels there), Docker (Qdrant), Node 20+, an [OpenAlex API key](https://openalex.org/settings/api)
+(free) and an `ANTHROPIC_API_KEY` for the extraction/judging/drafting calls.
 
 ```bash
 # 1. venv + pinned deps
-python3.12 -m venv .venv
-. .venv/bin/activate
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Start Qdrant
+# 2. Qdrant
 docker compose up -d
 
-# 3a. Quick demo: 30-paper synthetic corpus (idempotent)
-python scripts/bootstrap_synthetic.py
+# 3. Build the shared corpus (ONE TIME) -- see the warning below before running this
+echo "OPENALEX_API_KEY=..." >> .env
+echo "ANTHROPIC_API_KEY=..." >> .env
+python scripts/build_corpus.py --size 1000 --yes
 
-# 3b. OR a real corpus via OpenAlex topic-snowball (needs internet; no API key)
-python scripts/ingest_openalex.py --topic "retrieval-augmented generation" --target 500
+# 4. Backend
+uvicorn api.main:app --reload        # docs at http://localhost:8000/docs
 
-# 4. (optional) Keyword canonicalization — needs `ollama serve` running
-python scripts/canonicalize_concepts.py
-
-# 5. Launch the UI
-streamlit run app/streamlit_app.py
-
-# 6. FastAPI service layer -- required by the web app below
-uvicorn api.main:app --reload   # docs at http://localhost:8000/docs
-
-# 7. (optional) the React web app -- see web/README.md
-cd web && npm install && npm run dev   # http://localhost:5173
+# 5. Frontend
+cd web && npm install && npm run dev  # http://localhost:5173
 ```
 
-### Sharing the corpus with teammates
+> **Corpus build cost/time warning.** `build_corpus.py --size 1000` is real network +
+> real LLM spend: the actual 1000-paper build this repo ships evidence for took **~39
+> minutes and $0.41** (fetch + embed + full agent extraction + concept canonicalization;
+> see `eval/corpus_build.json`). It's checkpointed and resumable, defaults to a `$3`
+> budget cap, and asks for confirmation with a pre-flight cost estimate before spending
+> anything — but don't run it on a metered connection without reading the estimate first.
 
-The `axiom_v1` Qdrant collection and `data/axiom.db` SQLite database are not
-committed to git (they are gitignored). The reproducible way to share the
-corpus is to re-run the ingest on each machine:
-
-```bash
-docker compose up -d
-python scripts/ingest_openalex.py --topic "natural language processing" --target 500
-streamlit run app/streamlit_app.py
-```
-
-All tabs — including the **Advanced: vector geometry** tab — then read from the same
-`axiom_v1` collection, so there is no need to run a separate Streamlit process.
-
-### Verify it end-to-end
-
-```bash
-python scripts/smoke_test_api.py     # FastAPI, 17 checks against live data
-python scripts/eval_search.py --check   # search acceptance checks (LoRA/RAG top-1)
-```
-
-### Unit tests
+### Tests
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                               # unit tests for velocity/gaps/graph/db/api/…
+pytest tests/ -q      # bare-Python safe -- conftest.py stubs torch/transformers/qdrant_client
+cd web && npm run lint && npm run build && npx playwright test   # mocked API, no backend needed
 ```
-
-The suite is self-contained (no Qdrant/Ollama/torch needed at runtime): heavy
-deps are stubbed in `tests/conftest.py`, so it runs both in the project `.venv`
-and on a bare Python 3.13/3.14 env where the ML stack can't install.
-
----
-
-## Retrieval evaluation (nDCG@10, OD11)
-
-A separate, real 1,500-paper ACL/EMNLP/COLING/NAACL sample (kept apart from
-the main corpus — see OD11) drives an nDCG@10 harness:
-
-```bash
-python scripts/ingest_eval_corpus.py     # one-time: samples + embeds the eval corpus
-python scripts/eval_ndcg.py --report eval/report.md
-```
-
-Current result: **mean nDCG@10 = 0.453** (hybrid). See `eval/report.md` and
-its caveats (relevance judgments are single-pass/AI-drafted, not yet
-human-reviewed).
-
----
-
-## Web app (React, stage-3 product redesign)
-
-`web/` is a React + Vite + TypeScript SPA covering the primary flow -- Start a
-field, Landscape, Research gaps (list + detail), the Paper panel, and Shortlist
-with Markdown export -- against new `/fields/*` endpoints in `api/main.py`
-(`docs/product/ARCHITECTURE_NOTE.md`). It reverses OD15's earlier decision to
-deprioritize a React frontend (OD33, `docs/DECISIONS.md`) now that a real
-design spec exists: `docs/product/PRODUCT.md`, `web/design/wireframes/`, and
-`docs/product/DESIGN_SYSTEM.md`. See `web/README.md` to run it; Streamlit
-stays the internal lab console and keeps working unmodified.
-
----
 
 ## Architecture
 
 ```
-OpenAlex (snowball, OD7)                     db/schema.sql  ← shared data contract
-        │                                          │
-        ▼                                          ▼
-scripts/ingest_openalex.py ──────────────►  SQLite (data/axiom.db)
-        │                                          │
-        │ SPECTER2 (axiom/embed.py)                │ papers · concepts · citation_edges
-        │ + BM25 sparse (axiom/sparse.py)          │ paper_provenance · reading_list
-        ▼                                          │ concept_canonical · paper_summaries
-  Qdrant `axiom_v1` (axiom/qdrant_client.py)        │
-   dense + sparse named vectors                     │
-        │                                          │
-        │                        axiom/graph.py ◄──┤ (NetworkX, PageRank, OD6/OD8)
-        │                        axiom/gaps.py  ◄──┤ (Louvain communities + gap pairs, OD9)
-        │                        axiom/velocity.py ◄┤ (trend ranking, OD10)
-        │                        axiom/canonicalize.py, axiom/summarize.py ◄─ axiom/llm_providers.py (OD14)
+OpenAlex (scripts/build_corpus.py, OD36)        db/schema.sql  ← shared data contract
+        │                                              │
+        ▼                                              ▼
+Shared corpus: data/corpus/corpus.db  +  Qdrant corpus_v1
+ (SPECTER2 dense + BM25 sparse, full agent extraction + canonicalization)
+        │
+        │ axiom/corpus_slice.py  — cosine-rank + 1-hop citation neighbors (OD37)
         ▼
-┌─────────────────────────────┐        ┌──────────────────────────────┐
-│ app/streamlit_app.py         │        │ api/main.py (FastAPI, OD12)   │
-│ Trending · Research gaps ·   │        │ 21 REST routes over the same  │
-│ Search · Reading list ·      │        │ axiom/* modules — no React    │
-│ Review queue · Advanced:     │        │ consumer yet                  │
-│ vector geometry              │        │                               │
-│ (imports axiom/* + vector_tools)│      │                               │
-└─────────────────────────────┘        └──────────────────────────────┘
+"Field" = (topic, paper_ids) over the shared corpus — instant, no copy (axiom/fields.py)
+        │
+        │  axiom/graph.py (NetworkX, PageRank)   axiom/gaps.py (Louvain + gap scoring, OD9/OD17)
+        │  axiom/velocity.py (trend ranking)     axiom/external_check.py (OpenAlex artifact check, OD42)
+        ▼
+┌───────────────────────────────┐        ┌──────────────────────────────┐
+│ api/main.py (FastAPI)          │        │ app/streamlit_app.py          │
+│ /fields/* -- the React app's   │        │ internal lab console:         │
+│ real surface (OD33)            │        │ Trending, Search, Reading     │
+│                                 │        │ list, Review queue, Advanced  │
+└───────────────┬───────────────┘        └──────────────────────────────┘
+                 │
+                 ▼
+web/ — React + Vite + TypeScript SPA (primary interface)
+  VITE_DEMO=1 build → web/src/demoData.ts (no backend) → GitHub Pages
 ```
 
-**Agentic extraction pipeline** (router-worker: coordinator → extraction → enrichment → linking
-→ synthesis; R1-R11): additive on top of the above, async, calling the real Anthropic API with a
-local-Ollama fallback. Full module map, contracts, and schema delta in
-`docs/agentic/ARCHITECTURE.md`; real results in `docs/agentic/RESULTS.md`.
-
----
+**Agentic extraction pipeline** (coordinator → extraction → enrichment → linking →
+synthesis, `axiom/agents/*`): async, calls the Anthropic API with a local-Ollama fallback.
+Full module map and contracts in `docs/agentic/ARCHITECTURE.md`; real run numbers in
+`docs/agentic/RESULTS.md`.
 
 ## Layout
 
 ```
 db/schema.sql                    shared SQLite contract (papers, concepts, citation_edges,
-                                  paper_provenance, reading_list, concept_canonical, paper_summaries)
-axiom/config.py                  paths, Qdrant/Ollama config, all tunable constants
+                                  corpus_meta, paper_concepts, concept_cooccurrence, llm_spend, ...)
+axiom/config.py                  paths, Qdrant config, all tunable constants
 axiom/db.py                      SQLite connect/init/insert/query helpers (all SQL lives here)
-axiom/ingest.py                  OpenAlex snowball fetch (pure-Python, no torch)
+axiom/ingest.py                  OpenAlex client -- pure Python, no torch
+axiom/corpus_slice.py            A4: relevance-ranked slice of the shared corpus (OD37)
 axiom/embed.py                   SPECTER2 encoder (GPU→CPU fallback)
-axiom/sparse.py                  BM25-style sparse encoder (hashing trick)
+axiom/sparse.py                  BM25-style sparse encoder
 axiom/qdrant_client.py           AxiomQdrant: collection lifecycle, search, search_hybrid
-axiom/indexer.py                 shared embed+upsert path (bootstrap, ingest, eval corpus)
 axiom/graph.py                   NetworkX citation graph, PageRank influence
-axiom/gaps.py                    OD9 research-gap detector (Louvain + centroid gap-score)
-axiom/velocity.py                OD10 trend/velocity engine
-axiom/canonicalize.py            T3.2 LLM keyword canonicalization (OD14)
-axiom/summarize.py               T7.4 paper summarization (OD14)
-axiom/hypothesis.py              OD16 hypothesis pitch + rule-based verifier (PBI 5)
-axiom/llm.py                     local-Ollama client (used directly only by the agentic pipeline's
-                                  OllamaProvider fallback, axiom/llm_providers.py)
-axiom/llm_providers.py           shared LLM client -- Anthropic if ANTHROPIC_API_KEY is set, else
-                                  local Ollama; one pooled client, spend ledger, tracing
-axiom/fields.py                  stage-3 fields registry + build job (one SQLite+Qdrant
-                                  collection per field, docs/product/ARCHITECTURE_NOTE.md)
+axiom/gaps.py                    Louvain gap detector + composite G-score (OD9/OD17)
+axiom/velocity.py                trend/velocity engine
+axiom/external_check.py          B1: OpenAlex corpus-artifact check per gap (OD42)
+axiom/fields.py                  fields registry -- instant slice fields + legacy download fields
+axiom/llm_providers.py           shared LLM client (Anthropic / local Ollama fallback), per-run
+                                  budget ledger, tracing
+axiom/agents/                    coordinator → extraction → enrichment → linking → synthesis
 
-app/streamlit_app.py             6-tab internal lab console: Trending, Research gaps, Search,
-                                  Reading list, Review queue, Advanced: vector geometry
-app/vector_tools.py              Vector tools render functions (Proximity Analyzer + Vector Gap Discovery)
-api/main.py                      FastAPI service layer (OD12) -- search/trends/graph/gaps/reading-list
-                                  routes, plus the stage-3 /fields/* surface web/ is built against
-web/                              React + Vite + TypeScript SPA, the product surface (OD33) -- see web/README.md
+app/streamlit_app.py             internal lab console (secondary to web/)
+api/main.py                      FastAPI service layer -- /fields/* is the React app's real surface
+web/                              React + Vite + TypeScript SPA, the product surface (OD33)
 
-scripts/bootstrap_synthetic.py   30-paper synthetic demo corpus
-scripts/ingest_openalex.py       real OpenAlex ingest CLI
-scripts/canonicalize_concepts.py runs T3.2 over the corpus
-scripts/ingest_eval_corpus.py    samples the real eval corpus (OD11)
-scripts/eval_search.py           search-mode comparison + acceptance checks
-scripts/eval_ndcg.py             nDCG@10 harness (OD11)
+scripts/build_corpus.py          builds/resumes/extends the shared prebuilt corpus (A2/A3)
+scripts/judge_gaps.py            B1: AI judge rates top-10 gaps per topic against a rubric
+scripts/measure_field_latency.py A7: real p50/p95 field-creation latency measurement
+scripts/eval_ndcg.py             nDCG@10 harness (v1 + v2 modes)
 scripts/smoke_test_api.py        FastAPI integration smoke test
 
-eval/ndcg_queries.json           15 queries, 86 single-pass AI-drafted relevance judgments
-eval/report.md                   generated nDCG@10 report
+eval/corpus_build.json           real build time/cost for the live corpus
+eval/field_latency.json          real p50/p95 field-creation latency
+eval/gap_judgments.json          real AI-judge output for 43 gaps across 5 topics
+eval/report.md                   nDCG@10 report (separate 1,500-paper eval corpus)
 
-tests/                           pytest unit suite (conftest stubs torch/qdrant so it
-                                  runs without the ML stack); requirements-dev.txt
+tests/                           pytest suite; conftest stubs torch/transformers/qdrant_client
+                                  so it runs on bare Python too (requirements-dev.txt)
+.github/workflows/ci.yml         pytest + web lint/typecheck/build + Playwright e2e
+.github/workflows/pages.yml      VITE_DEMO=1 build → GitHub Pages
 
-docs/DECISIONS.md                every committed decision (OD1–OD14) + schema change log
-docs/demo_examples.md            real, reproducible output of every built feature
-docs/archive/WALKTHROUGH.md      deep-dive on the original P1 seam (historical — see its banner)
-docs/archive/Backlog.md          full task-by-task status (as-built vs. original plan)
+docs/DECISIONS.md                every committed decision (OD1-OD42) + schema change log
+docs/product/                    product definition, design system, demo script, screenshots
+docs/agentic/                    agentic pipeline architecture + real results
+docs/archive/                    superseded docs, kept for history
 docker-compose.yml               Qdrant only
 ```
 
----
-
 ## Limitations
 
-- **Corpus scope.** The default demo corpus is a 30-paper synthetic set; the
-  real-data path (`ingest_openalex.py`) snowballs from one seed topic to
-  ~500 papers (OD7) — not the ≥1k/≥5k multi-venue corpus the original plan
-  targeted (T2.3, not built by choice this round).
-- **Uncalibrated rankings.** `gap_score`, the composite `g_score` (OD17), and
-  `velocity` are ranking heuristics. The G-score's weights and threshold τ ship
-  as uncalibrated defaults: the calibration pipeline exists
-  (`scripts/export_gap_labels.py` → `scripts/calibrate_gap_thresholds.py` →
-  `eval/calibration.json`, consumed by `gaps.analyze`), but the human labels it
-  needs (`eval/labels/gap_labels.csv`) are not yet produced (T8.1).
-- **Hallucination controls.** Local-LLM outputs (canonicalization, summaries)
-  are constrained by system prompts (grounding-only instructions) and
-  span at most 3 bullets / small synonym groups — not independently verified
-  against a hallucination benchmark.
-- **English-only.** OpenAlex ingestion, SPECTER2, and the Ollama prompts all
-  assume English abstracts; no multilingual handling anywhere in the pipeline.
-- **Single-user.** No auth; the reading list is one shared list, not per-user.
-
----
+- **Corpus scope.** The shared corpus is domain-scoped (retrieval/RAG/QA/LLM knowledge use,
+  2019–2026, 1000 papers) — a field outside that domain returns a thin slice; extend it with
+  `scripts/build_corpus.py --extend TOPIC`.
+- **Uncalibrated G-score.** `gap_score` and the composite `g_score` are ranking heuristics
+  with uncalibrated default weights, shown as "uncalibrated" in the UI rather than hidden.
+  An AI judge's own rubric rated only 1 of 43 real top-ranked gaps "worth pursuing" —
+  reported honestly (`eval/gap_judgments_report.md`), not smoothed over.
+- **Rising-concept noise.** The velocity engine ranks raw `paper_concepts` rows, which aren't
+  run through the same junk-label filter the gap-labeling path uses — a rising concept can
+  read as a generic OpenAlex tag rather than something field-specific.
+- **English-only.** OpenAlex ingestion, SPECTER2, and the LLM prompts all assume English
+  abstracts.
+- **Single-user.** No auth; shortlist state is one shared list per field, not per-user.
 
 ## Troubleshooting
 
-- **"Cannot reach Qdrant" in the UI** → `docker compose up -d`, wait a few
-  seconds, then bootstrap/ingest.
-- **"The index is empty"** → run `scripts/bootstrap_synthetic.py` or
-  `scripts/ingest_openalex.py`.
-- **Canonicalization/summaries/hypothesis pitches fail with an LLM error** →
-  with `ANTHROPIC_API_KEY` set, check it's valid and `AXIOM_OS_TRUSTSTORE=1`
-  is exported if outbound HTTPS fails with `CERTIFICATE_VERIFY_FAILED` (see
-  below); without a key, these fall back to local Ollama -- `ollama serve`
-  isn't running, or the model in `axiom.config.OLLAMA_MODEL` isn't pulled
-  (`ollama pull qwen2.5:7b`).
-- **Any outbound HTTPS call fails with `CERTIFICATE_VERIFY_FAILED`** (OpenAlex,
-  HuggingFace, Anthropic) on a network with a TLS-inspecting proxy → export
-  `AXIOM_OS_TRUSTSTORE=1` before running any script or server (`axiom/config.py`,
-  OD24/OD26) so the OS certificate store is trusted instead of `certifi`'s bundle.
-- **Slow first encode** → expected on CPU; SPECTER2 weights download once and
-  are cached afterward.
+- **`build_corpus.py` exits immediately with no `OPENALEX_API_KEY`** → OpenAlex's keyless
+  traffic is capped at ~$0.10/day shared per IP; get a free key at
+  [openalex.org/settings/api](https://openalex.org/settings/api) and set it in `.env`.
+- **Outbound HTTPS fails with `CERTIFICATE_VERIFY_FAILED`** (OpenAlex, HuggingFace,
+  Anthropic) on a network with a TLS-inspecting proxy → export `AXIOM_OS_TRUSTSTORE=1`
+  as a real environment variable (not just in `.env` — `axiom/config.py`'s truststore
+  injection runs before dotenv loads) so the OS certificate store is trusted instead of
+  `certifi`'s bundle.
+- **"Cannot reach Qdrant"** → `docker compose up -d`, wait a few seconds, retry.
+- **Slow first encode** → expected on CPU; SPECTER2 weights download once and are cached.
 
----
+## Credits
 
-## Origin and credits
-
-Axiom started as a TUM team project (Saleh Alizada, Yahor Busko, Yakub
-Yakubov) -- see `docs/archive/Backlog.md` for the original task-by-task plan
-and per-person ownership. The team split into separate repos afterward; this
-repo continues the project independently.
+Axiom started as a TUM team project; this repo continues independently. See
+`docs/archive/Backlog.md` for the original task-by-task plan and `docs/DECISIONS.md` for
+every architectural decision made since.

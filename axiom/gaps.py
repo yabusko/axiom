@@ -18,7 +18,9 @@ Pure-Python: networkx + numpy only (no torch, no scipy).
 """
 from __future__ import annotations
 
+import hashlib
 import math
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
@@ -27,6 +29,49 @@ import numpy as np
 
 from axiom import config, db
 from axiom import graph as graphmod
+
+# Review fix: a lightweight, explicitly-scoped filter -- not a general
+# content-quality classifier (that's judge_gaps.py's job, at the gap level,
+# not per-label). Two low-risk, narrowly-targeted patterns plus a small
+# denylist for specific junk the review named, which doesn't reliably
+# reproduce in a fresh corpus build (canonicalize.py calls an LLM per batch,
+# so re-running it can legitimately group/name things differently run to
+# run) -- seeded here so the SAME failure shape is caught if/when it recurs,
+# not just patched once for one build's output.
+_JUNK_LABEL_DENYLIST = {"bridging operation"}
+_JUNK_LARGE_NUMBER = re.compile(r"\d{1,3}(,\d{3})+")           # "98,734 theorems..." (a dataset
+                                                                  # size statement, not a concept)
+_JUNK_CITATION_LIKE = re.compile(r"\(\d{4}\)\s*\w*(dataset|benchmark|corpus)\b", re.IGNORECASE)
+                                                                  # "cai and yates (2013) dataset"
+
+# Review fix: "chatgpt" -> "ChatGPT". Agent-coined canonical labels
+# (`paper_concepts.source='agent'`) are lowercase by the extraction prompt's
+# own convention -- fine for ordinary phrases ("retrieve-and-read"), wrong
+# for well-known proper nouns/product names. A small, explicit map of known
+# terms, matched whole-token (case-insensitive) so it never touches the rest
+# of a multi-word label's casing -- not a general title-caser, which would
+# incorrectly rewrite the deliberate lowercase house style of normal phrases.
+_KNOWN_CASING = {
+    "chatgpt": "ChatGPT", "gpt": "GPT", "gpt-2": "GPT-2", "gpt-3": "GPT-3", "gpt-4": "GPT-4",
+    "bert": "BERT", "roberta": "RoBERTa", "lora": "LoRA", "rag": "RAG", "llm": "LLM",
+    "llms": "LLMs", "nlp": "NLP", "qa": "QA", "bm25": "BM25", "ai": "AI", "nli": "NLI",
+}
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[^A-Za-z0-9]+")
+
+
+def _is_junk_label(label: str) -> bool:
+    low = label.lower()
+    return (low in _JUNK_LABEL_DENYLIST
+            or bool(_JUNK_LARGE_NUMBER.search(label))
+            or bool(_JUNK_CITATION_LIKE.search(label)))
+
+
+def _normalize_casing(label: str) -> str:
+    """Fix known proper-noun tokens (see `_KNOWN_CASING`) inside `label`,
+    token-by-token, leaving everything else (including deliberate lowercase
+    phrasing) untouched."""
+    parts = _TOKEN_RE.findall(label)
+    return "".join(_KNOWN_CASING.get(p.lower(), p) for p in parts)
 from axiom import velocity as velocitymod
 
 
@@ -54,6 +99,26 @@ class GapCandidate:
     g_score: float = 0.0                     # weighted blend of `components`, ~[0,1]
     components: dict = field(default_factory=dict)  # {similarity, disconnection, velocity, authority}
     meets_threshold: bool = False            # g_score >= calibrated τ
+    # Stage 4 B1: this pair's semantic_similarity's rank among EVERY candidate
+    # community pair's similarity in this run (0-100, higher = closer than
+    # more pairs) -- see analyze()'s docstring for why a raw cosine percent is
+    # misleading on its own.
+    similarity_percentile: float = 0.0
+
+    @property
+    def gap_id(self) -> str:
+        """Stable id for this candidate: a hash of both sides' member paper-id
+        sets. Stage 4 B4: replaces `gaps.analyze()`'s list position (the old
+        `gap_index`) as the thing a URL/shortlist record references -- a
+        list-position id silently points at a DIFFERENT gap if a later
+        `analyze()` run (new papers, a recalibrated weight) reorders
+        candidates; this doesn't, because it depends only on which two
+        communities a candidate pairs, not where it lands in the ranking.
+        Order-independent (sorts both the paper ids within each side and the
+        two sides against each other) so swapping a/b never changes the id.
+        """
+        sides = sorted([tuple(sorted(self.a.members)), tuple(sorted(self.b.members))])
+        return hashlib.sha256(repr(sides).encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass
@@ -81,20 +146,44 @@ def detect_communities(g: nx.DiGraph, resolution: float = 1.0,
     return node2c
 
 
-def community_labels(conn, node2c: dict[str, int], top: int = 4) -> dict[int, list[str]]:
+def community_labels(conn, node2c: dict[str, int], top: int = 4,
+                     min_agent_concepts: int = config.GAP_LABEL_MIN_AGENT_CONCEPTS
+                     ) -> dict[int, list[str]]:
     """Most distinctive concepts per community via TF-IDF across communities.
 
     A concept that appears in every cluster (e.g. "Artificial intelligence")
     carries little signal; one concentrated in one cluster labels it well.
+
+    OD34: labels prefer the agent pipeline's `paper_concepts.canonical` (the
+    agent's own synonym-merged concept, e.g. "RAG" and "retrieval-augmented
+    generation" both resolving to one label) over the raw OpenAlex `concepts`
+    table, since the latter is coarse/noisy as user-facing copy (e.g. "Hop
+    (telecommunications)"). A community only labels from `paper_concepts` when
+    it has at least `min_agent_concepts` distinct canonical concepts; below
+    that (not yet agent-processed, or genuinely sparse), it falls back to
+    OpenAlex `concepts` per community, same as before this change.
     """
-    rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
+    agent_rows = conn.execute("SELECT paper_id, canonical FROM paper_concepts").fetchall()
+    agent_tf: dict[int, Counter] = defaultdict(Counter)
+    for r in agent_rows:
+        cid = node2c.get(r["paper_id"])
+        if cid is not None and not _is_junk_label(r["canonical"]):
+            agent_tf[cid][r["canonical"]] += 1
+
+    openalex_rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
     canon = db.canonical_map(conn)
-    tf: dict[int, Counter] = defaultdict(Counter)
-    for r in rows:
+    openalex_tf: dict[int, Counter] = defaultdict(Counter)
+    for r in openalex_rows:
         cid = node2c.get(r["paper_id"])
         if cid is not None:
             concept = canon.get(r["concept"], r["concept"])
-            tf[cid][concept] += 1
+            if not _is_junk_label(concept):
+                openalex_tf[cid][concept] += 1
+
+    tf: dict[int, Counter] = {}
+    for cid in set(agent_tf) | set(openalex_tf):
+        agent_counts = agent_tf.get(cid, Counter())
+        tf[cid] = agent_counts if len(agent_counts) >= min_agent_concepts else openalex_tf.get(cid, Counter())
     n_comm = len(tf) or 1
     # document frequency = number of communities containing each concept
     df: Counter = Counter()
@@ -112,8 +201,8 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4) -> dict[int, li
         }
         if not scored:                       # fallback if everything was generic
             scored = {c: count for c, count in cnt.items()}
-        labels[cid] = [c for c, _ in sorted(scored.items(),
-                                            key=lambda kv: kv[1], reverse=True)[:top]]
+        labels[cid] = [_normalize_casing(c) for c, _ in sorted(
+            scored.items(), key=lambda kv: kv[1], reverse=True)[:top]]
     return labels
 
 
@@ -145,6 +234,17 @@ def _cosine(a: np.ndarray, b: np.ndarray) -> float:
     if na == 0.0 or nb == 0.0:
         return 0.0
     return float(np.dot(a, b) / (na * nb))
+
+
+def similarity_percentile(sim: float, all_sims: list[float]) -> float:
+    """B1: `sim`'s rank (0-100) among `all_sims` (every candidate community
+    pair's raw cosine similarity this run) -- "closer than X% of pairs,"
+    the honest read when raw cosines all cluster near the top. `all_sims`
+    need not be pre-sorted."""
+    if not all_sims:
+        return 0.0
+    rank = sum(1 for s in all_sims if s <= sim)
+    return 100.0 * rank / len(all_sims)
 
 
 def _velocity_map(conn) -> dict[str, float]:
@@ -179,6 +279,17 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
     composite `g_score` — a calibrated weighted blend of similarity,
     disconnection, concept velocity, and authority. Candidates are ranked by
     `g_score`; `meets_threshold` marks those at or above the calibrated τ.
+
+    `similarity_percentile` (stage 4 B1): a raw cosine like "98.8%" invites
+    reading it the way a normal percentage reads -- almost maximal. SPECTER2
+    centroid cosines don't carry that meaning at all: real corpus runs put
+    EVERY pair of communities, related or not, in the 0.95-0.99+ band (the
+    same flat-score compression `config.QUERY_EXPANSION_TEMPLATE`'s own
+    comment already documents for search queries, here affecting community
+    centroids too). The percentile -- this pair's rank among every candidate
+    pair's similarity THIS run -- stays honest regardless of where the raw
+    cosines happen to cluster: "closer than 90% of pairs" means something
+    even when every pair's raw cosine looks the same.
     """
     node2c = detect_communities(g, resolution=resolution)
     if not node2c:
@@ -227,6 +338,8 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
     lo, hi = (min(auth_vals), max(auth_vals)) if auth_vals else (0.0, 0.0)
     span = hi - lo
 
+    all_sims = sorted(r["sim"] for r in raw)
+
     gaps: list[GapCandidate] = []
     for r in raw:
         A = (r["authority_raw"] - lo) / span if span > 0 else 0.5
@@ -240,6 +353,7 @@ def analyze(g: nx.DiGraph, conn, vectors: dict[str, list[float]], *,
             gap_score=r["sim"] / (1.0 + r["cites"]),
             g_score=g_score, components=components,
             meets_threshold=g_score >= tau,
+            similarity_percentile=similarity_percentile(r["sim"], all_sims),
         ))
     gaps.sort(key=lambda x: x.g_score, reverse=True)
     return GapAnalysis(node2c=node2c, communities=communities, gaps=gaps[:top_k])

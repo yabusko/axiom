@@ -5,8 +5,15 @@ how well they agree -- e.g. a human reviewer's pass over
 `eval/ndcg_queries_v2.json` against the original AI-drafted labels (save a
 copy of the file before running `scripts/label_cli.py review`, then compare
 the before/after copies with this script), or two different annotators'
-label files. Pure Python + `sklearn.metrics.cohen_kappa_score` (already a
-pinned dependency, requirements.txt) -- no LLM call, no new dependency.
+label files. Pure Python + a hand-rolled Cohen's kappa (`numpy` only -- see
+`_cohen_kappa` below) -- no LLM call, no new dependency. Was `sklearn.
+metrics.cohen_kappa_score`: sklearn has no wheel for the bare-Python (3.14)
+test environment this repo's suite already accommodates for torch/
+transformers/qdrant_client, so importing this module broke pytest
+collection on that interpreter. `_cohen_kappa` reproduces sklearn's exact
+unweighted formula (confusion matrix -> observed/expected agreement) and
+its `pe == 1` edge case (0.0, not NaN/inf), so swapping it in changes no
+previously-reported number.
 
 Each input file is either:
   - the same shape `scripts/label_cli.py`/`scripts/eval_ndcg.py` already use
@@ -38,7 +45,32 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sklearn.metrics import cohen_kappa_score
+import numpy as np
+
+
+def _cohen_kappa(a: list, b: list) -> float:
+    """Unweighted Cohen's kappa over paired labels `a`/`b` (same length).
+    Matches `sklearn.metrics.cohen_kappa_score`'s formula exactly, including
+    its `pe == 1` edge case: real sklearn does NOT special-case it to 0 (a
+    first draft here assumed it did) -- it lets `(po - pe) / (1 - pe)`
+    divide 0/0, which is `nan` (verified against the installed sklearn:
+    every common label identical on both sides -> `nan`, with a
+    RuntimeWarning sklearn itself also emits). `np.errstate` just silences
+    that expected warning; the result is unaffected."""
+    labels = sorted(set(a) | set(b))
+    idx = {lab: i for i, lab in enumerate(labels)}
+    n = len(labels)
+    confusion = np.zeros((n, n), dtype=float)
+    for x, y in zip(a, b):
+        confusion[idx[x], idx[y]] += 1
+    n_total = confusion.sum()
+    sum_pred = confusion.sum(axis=0)
+    sum_true = confusion.sum(axis=1)
+    expected = np.outer(sum_true, sum_pred) / n_total
+    po = np.trace(confusion) / n_total
+    pe = np.trace(expected) / n_total
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return float((po - pe) / (1 - pe))
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +136,9 @@ def compute_agreement(labels_a: dict[str, int], labels_b: dict[str, int]) -> dic
     count items dropped because only one side judged them (reported, not
     silently discarded, so a thin overlap -- e.g. a reviewer who only
     touched a handful of items -- is visible in the output). `kappa` is
-    `float('nan')` (sklearn's own result, not an error here) if there's no
-    label variance to measure agreement over, e.g. fewer than 2 common items
-    or every common item got the same label on both sides.
+    `float('nan')` if there's no label variance to measure agreement over,
+    e.g. fewer than 2 common items or every common item got the same label
+    on both sides.
     """
     common = sorted(set(labels_a) & set(labels_b))
     only_a = sorted(set(labels_a) - set(labels_b))
@@ -119,7 +151,7 @@ def compute_agreement(labels_a: dict[str, int], labels_b: dict[str, int]) -> dic
         sum(1 for x, y in zip(a_values, b_values) if x == y) / len(common)
         if common else 0.0
     )
-    kappa = cohen_kappa_score(a_values, b_values) if len(common) >= 2 else float("nan")
+    kappa = _cohen_kappa(a_values, b_values) if len(common) >= 2 else float("nan")
 
     return {
         "n_common": len(common),

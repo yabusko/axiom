@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type SideDetailOut } from "../api";
 import { BridgeDiagram } from "../components/BridgeDiagram";
@@ -7,22 +7,35 @@ import { PaperList } from "../components/PaperRow";
 import { Badge } from "../components/Badge";
 import { ErrorState, LoadingState } from "../components/States";
 
-function headline(a: SideDetailOut, b: SideDetailOut): string {
-  return `${a.size}-paper ${a.labels[0] ?? "cluster"} cluster barely cites the ${b.size}-paper ${b.labels[0] ?? "cluster"} cluster right next to it`;
+// Review fix / OD41 (docs/DECISIONS.md): "barely cites" only when the
+// cross-citation share is actually low -- see GapCard.tsx for the threshold
+// and the real-data reasoning behind it (the same rule, applied here too).
+const LOW_SHARE_THRESHOLD = 0.05;
+
+function headline(a: SideDetailOut, b: SideDetailOut, interCitations: number, totalInCorpusCitations: number): string {
+  const share = interCitations / Math.max(totalInCorpusCitations, 1);
+  const verb = share < LOW_SHARE_THRESHOLD ? "barely cites" : `shares ${interCitations} citations with`;
+  return `${a.size}-paper ${a.labels[0] ?? "cluster"} cluster ${verb} the ${b.size}-paper ${b.labels[0] ?? "cluster"} cluster right next to it`;
 }
 
-function SideCard({ side, label }: { side: SideDetailOut; label: string }) {
+function SideCard({ side, fallbackLabel }: { side: SideDetailOut; fallbackLabel: string }) {
+  // labels[0] is already shown as this side's name in the page's <h1> and the
+  // bridge diagram -- repeating it as the first tag here too (on top of the
+  // literal "Side A"/"Side B" heading this card used to show) was redundant.
+  const [primary, ...rest] = side.labels;
   return (
     <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-6)" }}>
-      <h3 style={{ marginTop: 0 }}>{label}</h3>
+      <h3 style={{ marginTop: 0 }}>{primary ?? fallbackLabel}</h3>
       <p className="muted" style={{ marginTop: 0 }}>{side.size} papers</p>
-      <div className="badge-row" style={{ marginBottom: "var(--space-2)" }}>
-        {side.labels.map((l) => (
-          <span className="badge" key={l}>{l}</span>
-        ))}
-      </div>
+      {rest.length > 0 && (
+        <div className="badge-row" style={{ marginBottom: "var(--space-2)" }}>
+          {rest.map((l) => (
+            <span className="badge" key={l}>{l}</span>
+          ))}
+        </div>
+      )}
       <p className="muted" style={{ fontSize: "var(--small)" }}>
-        These are raw OpenAlex concept tags — a rough description of the cluster, not the pipeline's own extraction.
+        Concept tags for this cluster — the pipeline's own canonical extraction where there's enough of it, OpenAlex's raw tags otherwise (see docs/DECISIONS.md OD34).
       </p>
       {side.top_papers.length > 0 && (
         <>
@@ -48,24 +61,27 @@ function SideCard({ side, label }: { side: SideDetailOut; label: string }) {
 }
 
 export default function GapDetail() {
-  const { fieldId, gapIndex } = useParams<{ fieldId: string; gapIndex: string }>();
+  const { fieldId, gapId } = useParams<{ fieldId: string; gapId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [crossCheckOpen, setCrossCheckOpen] = useState(false);
-  const index = Number(gapIndex);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["gap-detail", fieldId, index],
-    queryFn: () => api.gapDetail(fieldId!, index),
-    enabled: !!fieldId && Number.isFinite(index),
+    queryKey: ["gap-detail", fieldId, gapId],
+    queryFn: () => api.gapDetail(fieldId!, gapId!),
+    enabled: !!fieldId && !!gapId,
   });
 
   const draftMutation = useMutation({
-    mutationFn: () => api.draftDirection(fieldId!, index),
+    mutationFn: () => api.draftDirection(fieldId!, gapId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shortlist", fieldId] });
       navigate(`/fields/${fieldId}/shortlist`);
     },
+  });
+
+  const externalCheckMutation = useMutation({
+    mutationFn: () => api.gapExternalCheck(fieldId!, gapId!),
   });
 
   if (isLoading) return <LoadingState label="Loading this gap…" />;
@@ -80,12 +96,12 @@ export default function GapDetail() {
   return (
     <>
       <p>
-        <a href={`/fields/${fieldId}/gaps`}>← Back to research gaps</a>
+        <Link to={`/fields/${fieldId}/gaps`}>← Back to research gaps</Link>
       </p>
-      <h1>{headline(data.a, data.b)}</h1>
+      <h1>{headline(data.a, data.b, data.inter_citations, data.total_in_corpus_citations)}</h1>
       <p className="lede" style={{ color: "var(--text-muted)", maxWidth: "70ch" }}>
-        {data.a.size} papers centered on {data.a.labels[0] ?? "this cluster"} sit at{" "}
-        {(data.semantic_similarity * 100).toFixed(1)}% semantic similarity to a {data.b.size}-paper{" "}
+        {data.a.size} papers centered on {data.a.labels[0] ?? "this cluster"} sit closer than{" "}
+        {data.similarity_percentile.toFixed(0)}% of this field's topic pairs to a {data.b.size}-paper{" "}
         {data.b.labels[0] ?? "cluster"}, but only {data.inter_citations} citations cross between them.
       </p>
 
@@ -93,6 +109,10 @@ export default function GapDetail() {
         label="Uncalibrated score"
         note={`G-score ${data.g_score.toFixed(3)} blends similarity, disconnection, concept velocity and authority with default weights not yet calibrated against labeled gap data — read it as a ranking signal, not a verified measurement.`}
       />
+      {" "}
+      <Link className="btn-quiet" to={`/fields/${fieldId}/map?a=${data.a.cid}&b=${data.b.cid}`}>
+        Show on map
+      </Link>
 
       <div style={{ margin: "var(--space-6) 0" }}>
         <BridgeDiagram
@@ -100,15 +120,15 @@ export default function GapDetail() {
           aSize={data.a.size}
           bLabel={data.b.labels[0] ?? "Side B"}
           bSize={data.b.size}
-          similarityPct={data.semantic_similarity * 100}
+          similarityPercentile={data.similarity_percentile}
           interCitations={data.inter_citations}
           totalCitations={data.total_in_corpus_citations}
         />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--space-6)", marginBottom: "var(--space-6)" }}>
-        <SideCard side={data.a} label="Side A" />
-        <SideCard side={data.b} label="Side B" />
+        <SideCard side={data.a} fallbackLabel="Side A" />
+        <SideCard side={data.b} fallbackLabel="Side B" />
       </div>
 
       <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-4) var(--space-6)", marginBottom: "var(--space-6)" }}>
@@ -123,11 +143,41 @@ export default function GapDetail() {
         </button>
         {crossCheckOpen && (
           <p className="muted" style={{ marginTop: "var(--space-4)", marginBottom: 0 }}>
-            An independent, citation-free read on the same two clusters: {(data.semantic_similarity * 100).toFixed(1)}%
-            centroid similarity in embedding space alone, with no citation graph involved. Useful as a second opinion,
+            An independent, citation-free read on the same two clusters: closer than {data.similarity_percentile.toFixed(0)}%
+            of this field's topic pairs in embedding space alone, with no citation graph involved. Useful as a second opinion,
             especially on corpora too citation-sparse for the method above — but on its own it has no path to a
             direction pitch. (A deeper geometry breakdown — bridge ratio, nearest-neighbor papers — isn't computed for
             this view; see "Under the hood" for the full Vector Gap Discovery analysis.)
+          </p>
+        )}
+      </div>
+
+      <div className="card" style={{ border: "1px solid var(--border)", background: "var(--surface)", padding: "var(--space-4) var(--space-6)", marginBottom: "var(--space-6)" }}>
+        <p className="muted" style={{ marginTop: 0 }}>
+          This gap is weakly connected WITHIN this field's corpus — that can also mean the two areas are
+          actually well-connected in the wider literature and this corpus is just too small to show it.
+        </p>
+        <button
+          type="button"
+          className="btn-quiet"
+          style={{ fontWeight: 700, cursor: "pointer" }}
+          onClick={() => externalCheckMutation.mutate()}
+          disabled={externalCheckMutation.isPending}
+        >
+          {externalCheckMutation.isPending ? "Checking OpenAlex…" : "Check against OpenAlex"}
+        </button>
+        {externalCheckMutation.isError && (
+          <p style={{ color: "var(--action)", marginTop: "var(--space-4)" }}>
+            Couldn't reach OpenAlex: {(externalCheckMutation.error as Error).message}
+          </p>
+        )}
+        {externalCheckMutation.data && (
+          <p className="muted" style={{ marginTop: "var(--space-4)", marginBottom: 0 }}>
+            {externalCheckMutation.data.works_count.toLocaleString()} OpenAlex works combine both sides' key
+            concepts ("{externalCheckMutation.data.query}").{" "}
+            {externalCheckMutation.data.is_likely_artifact
+              ? "That's a lot — this may be a corpus-size artifact, not a real gap in the wider literature."
+              : "That's few enough that this looks like a genuinely under-explored pairing, not just an artifact of this corpus's size."}
           </p>
         )}
       </div>

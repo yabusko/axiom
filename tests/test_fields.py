@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from axiom import config, db, fields as fieldsmod
+from tests.conftest import SEED_VECTORS
 
 
 # --- axiom.fields: registry -----------------------------------------------------
@@ -188,16 +189,60 @@ def empty_fields_db(monkeypatch, tmp_path):
         conn.close()
 
 
-def test_create_field_returns_202_and_estimate(api_client, empty_fields_db, monkeypatch):
-    async def fake_build(field_id, topic, target):
-        pass
+def _patch_corpus(main, monkeypatch, patched_db_path, *, query_vector, min_papers=None):
+    """A4: POST /fields slices the cached base-corpus graph/vectors, not a
+    live download -- fake those two process-wide singletons (same seeded db
+    the rest of this fixture module already uses as a stand-in corpus) plus
+    the encoder's query embedding."""
+    from axiom import graph as graphmod
 
-    monkeypatch.setattr(fieldsmod, "build_field", fake_build)
+    for fn in (main.get_corpus_graph, main.get_corpus_vectors):
+        fn.cache_clear()
+    g = graphmod.load_graph(db.connect(patched_db_path))
+    monkeypatch.setattr(main, "get_corpus_graph", lambda: g)
+    monkeypatch.setattr(main, "get_corpus_vectors", lambda: dict(SEED_VECTORS))
 
-    r = api_client.post("/fields", json={"topic": "diffusion models", "target": 50})
-    assert r.status_code == 202
+    class _QueryEncoder:
+        def encode_query(self, query: str) -> list[float]:
+            return query_vector
+
+    monkeypatch.setattr(main, "get_encoder", lambda: _QueryEncoder())
+    if min_papers is not None:
+        monkeypatch.setattr(config, "FIELD_MIN_PAPERS", min_papers)
+
+
+def test_create_field_is_instant_and_ready(api_client, empty_fields_db, patched_db_path, monkeypatch):
+    import api.main as main
+
+    # Query aligned with cluster A ([1,0,0]) -> A1-A4 clear the 0.80 floor;
+    # 4 papers clears a lowered FIELD_MIN_PAPERS so this field lands 'ready'.
+    _patch_corpus(main, monkeypatch, patched_db_path, query_vector=[1.0, 0.0, 0.0], min_papers=2)
+
+    r = api_client.post("/fields", json={"topic": "retrieval", "target": 50})
+    assert r.status_code == 200
     body = r.json()
-    assert "field_id" in body and body["est_cost_usd"] > 0 and body["est_seconds"] > 0
+    assert body["status"] == "ready"
+    assert body["papers_total"] == 4            # A1-A4, see tests/conftest.py's seeded corpus
+    assert body["total_relevant"] == 4
+    assert body["extend_command"] is None
+
+    # And it's immediately usable -- no polling a background build.
+    status = api_client.get(f"/fields/{body['field_id']}").json()
+    assert status["status"] == "ready"
+
+
+def test_create_field_thin_coverage_includes_extend_command(api_client, empty_fields_db, patched_db_path, monkeypatch):
+    import api.main as main
+
+    # Same aligned query, but default FIELD_MIN_PAPERS (20) -- the seeded
+    # corpus only has 8 papers total, so this always lands 'thin'.
+    _patch_corpus(main, monkeypatch, patched_db_path, query_vector=[1.0, 0.0, 0.0])
+
+    r = api_client.post("/fields", json={"topic": "a very niche topic", "target": 50})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "thin"
+    assert body["extend_command"] == 'python scripts/build_corpus.py --extend "a very niche topic"'
 
 
 def test_create_field_validates_target_range(api_client, empty_fields_db):
@@ -208,6 +253,111 @@ def test_create_field_validates_target_range(api_client, empty_fields_db):
 
 def test_field_status_404_when_unknown(api_client, empty_fields_db):
     assert api_client.get("/fields/nope").status_code == 404
+
+
+def test_field_status_get_does_not_touch_last_opened(api_client, empty_fields_db, tmp_path, monkeypatch):
+    """B4: GET /fields/{id} must stay read-only; POST /fields/{id}/open is the
+    one explicit 'opened' signal."""
+    monkeypatch.setattr(config, "FIELDS_DB_PATH", tmp_path / "fields.db")
+    conn = fieldsmod.connect_fields()
+    fieldsmod.init_fields_db(conn)
+    row = fieldsmod.create_field(conn, topic="x", target=10)
+    conn.execute("UPDATE fields SET status = 'ready' WHERE id = ?", (row["id"],))
+    conn.commit()
+    before = fieldsmod.get_field(conn, row["id"])["last_opened_at"]
+    conn.close()
+
+    assert api_client.get(f"/fields/{row['id']}").status_code == 200
+
+    conn = fieldsmod.connect_fields()
+    assert fieldsmod.get_field(conn, row["id"])["last_opened_at"] == before
+
+    assert api_client.post(f"/fields/{row['id']}/open").status_code == 204
+    assert fieldsmod.get_field(conn, row["id"])["last_opened_at"] != before
+    conn.close()
+
+
+def test_field_open_404_when_unknown(api_client, empty_fields_db):
+    assert api_client.post("/fields/nope/open").status_code == 404
+
+
+# --- B4: delete a field, mark interrupted jobs failed at startup --------------
+def test_delete_field_default_is_protected(fields_conn):
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute("UPDATE fields SET id = ? WHERE id = ?", (config.FIELD_DEFAULT_ID, row["id"]))
+    fields_conn.commit()
+    with pytest.raises(ValueError):
+        fieldsmod.delete_field(fields_conn, config.FIELD_DEFAULT_ID)
+
+
+def test_delete_field_unknown_returns_false(fields_conn):
+    assert fieldsmod.delete_field(fields_conn, "nope") is False
+
+
+def test_delete_slice_field_only_removes_the_row(fields_conn, tmp_path):
+    """A slice field's db_path/collection point at the SHARED base corpus --
+    deleting the field must never touch those files."""
+    corpus_db = tmp_path / "corpus.db"
+    corpus_db.write_text("not actually sqlite, just needs to exist")
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute(
+        "UPDATE fields SET source = 'slice', db_path = ? WHERE id = ?",
+        (str(corpus_db), row["id"]),
+    )
+    fields_conn.commit()
+
+    assert fieldsmod.delete_field(fields_conn, row["id"]) is True
+    assert fieldsmod.get_field(fields_conn, row["id"]) is None
+    assert corpus_db.exists()  # untouched
+
+
+def test_delete_download_field_removes_its_own_db_file(fields_conn, tmp_path):
+    own_db = tmp_path / "field-own.db"
+    own_db.write_text("x")
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute("UPDATE fields SET db_path = ? WHERE id = ?", (str(own_db), row["id"]))
+    fields_conn.commit()
+    assert fieldsmod.get_field(fields_conn, row["id"])["source"] == "download"  # the column default
+
+    assert fieldsmod.delete_field(fields_conn, row["id"]) is True
+    assert not own_db.exists()
+    assert fieldsmod.get_field(fields_conn, row["id"]) is None
+
+
+def test_mark_interrupted_jobs_failed(fields_conn):
+    a = fieldsmod.create_field(fields_conn, topic="a", target=10)      # status 'queued'
+    b = fieldsmod.create_field(fields_conn, topic="b", target=10)
+    fieldsmod.set_status(fields_conn, b["id"], "building")
+    c = fieldsmod.create_field(fields_conn, topic="c", target=10)
+    fieldsmod.set_status(fields_conn, c["id"], "ready")
+
+    n = fieldsmod.mark_interrupted_jobs_failed(fields_conn)
+    assert n == 2
+    assert fieldsmod.get_field(fields_conn, a["id"])["status"] == "failed"
+    assert fieldsmod.get_field(fields_conn, b["id"])["status"] == "failed"
+    assert fieldsmod.get_field(fields_conn, c["id"])["status"] == "ready"  # untouched
+
+
+def test_api_delete_field(api_client, empty_fields_db, tmp_path):
+    fconn = fieldsmod.connect_fields()
+    row = fieldsmod.create_field(fconn, topic="x", target=10)
+    fconn.execute("UPDATE fields SET source = 'slice', status = 'ready' WHERE id = ?", (row["id"],))
+    fconn.commit()
+    fconn.close()
+
+    assert api_client.delete(f"/fields/{row['id']}").status_code == 204
+    assert api_client.get(f"/fields/{row['id']}").status_code == 404
+
+
+def test_api_delete_field_404_when_unknown(api_client, empty_fields_db):
+    assert api_client.delete("/fields/nope").status_code == 404
+
+
+def test_api_delete_default_field_is_400(api_client, empty_fields_db):
+    fconn = fieldsmod.connect_fields()
+    fieldsmod.ensure_default_field(fconn)
+    fconn.close()
+    assert api_client.delete(f"/fields/{config.FIELD_DEFAULT_ID}").status_code == 400
 
 
 def test_field_overview(field_client):
@@ -228,19 +378,85 @@ def test_field_gaps_list(field_client):
     assert len(r.json()["gaps"]) == 1
 
 
+def _first_gap_id(client, field_id: str) -> str:
+    return client.get(f"/fields/{field_id}/gaps").json()["gaps"][0]["gap_id"]
+
+
 def test_field_gap_detail_has_per_side_methods_and_datasets(field_client):
     client, field_id = field_client
-    r = client.get(f"/fields/{field_id}/gaps/0")
+    gap_id = _first_gap_id(client, field_id)
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}")
     assert r.status_code == 200
     body = r.json()
+    assert body["gap_id"] == gap_id
     assert body["a"]["size"] == 4 and body["b"]["size"] == 4
     assert "methods" in body["a"] and "datasets" in body["a"]
     assert body["inter_citations"] == 1
 
 
-def test_field_gap_detail_404_out_of_range(field_client):
+def test_field_gap_detail_404_unknown_id(field_client):
     client, field_id = field_client
-    assert client.get(f"/fields/{field_id}/gaps/99").status_code == 404
+    assert client.get(f"/fields/{field_id}/gaps/not-a-real-gap-id").status_code == 404
+
+
+class _FakeOpenAlexClient:
+    def __init__(self, count: int = 7):
+        self.count = count
+        self.last_query: str | None = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+    def count_works(self, query: str) -> int:
+        self.last_query = query
+        return self.count
+
+
+def test_field_gap_external_check_flags_a_high_count_as_artifact(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+    fake = _FakeOpenAlexClient(count=5000)
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: fake)
+
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["works_count"] == 5000
+    assert body["is_likely_artifact"] is True
+    assert fake.last_query  # built from both sides' labels
+
+
+def test_field_gap_external_check_low_count_not_flagged(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: _FakeOpenAlexClient(count=3))
+
+    body = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check").json()
+    assert body["works_count"] == 3
+    assert body["is_likely_artifact"] is False
+
+
+def test_field_gap_external_check_502_on_openalex_failure(field_client, monkeypatch):
+    import api.main as main
+
+    client, field_id = field_client
+    gap_id = _first_gap_id(client, field_id)
+
+    class _FailingClient(_FakeOpenAlexClient):
+        def count_works(self, query: str) -> int:
+            raise RuntimeError("OpenAlex GET /works failed after retries")
+
+    monkeypatch.setattr(main.ingestmod, "OpenAlexClient", lambda: _FailingClient())
+
+    r = client.get(f"/fields/{field_id}/gaps/{gap_id}/external-check")
+    assert r.status_code == 502
 
 
 def test_field_paper_detail_with_entities(field_client, patched_db_path):
@@ -285,7 +501,7 @@ def test_shortlist_create_and_list(field_client, monkeypatch):
 
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    r = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0})
+    r = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)})
     assert r.status_code == 200
     item = r.json()
     assert item["status"] == "draft"             # not "pending" -- product-facing label
@@ -296,9 +512,9 @@ def test_shortlist_create_and_list(field_client, monkeypatch):
     assert client.get(f"/fields/{field_id}/shortlist", params={"status": "kept"}).json() == []
 
 
-def test_shortlist_create_404_bad_gap_index(field_client):
+def test_shortlist_create_404_bad_gap_id(field_client):
     client, field_id = field_client
-    assert client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 99}).status_code == 404
+    assert client.post(f"/fields/{field_id}/shortlist", json={"gap_id": "not-a-real-gap-id"}).status_code == 404
 
 
 def test_shortlist_patch_status_notes_papers(field_client, monkeypatch):
@@ -311,7 +527,7 @@ def test_shortlist_patch_status_notes_papers(field_client, monkeypatch):
                                 datasets=[], supporting_paper_ids=["A1"])
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0}).json()
+    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)}).json()
 
     r = client.patch(
         f"/fields/{field_id}/shortlist/{item['id']}",
@@ -340,7 +556,7 @@ def test_shortlist_export_markdown(field_client, monkeypatch):
                                 datasets=["D1"], supporting_paper_ids=["A1"])
     monkeypatch.setattr(main.synthesis_agent, "generate_hypothesis", fake_generate)
 
-    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_index": 0}).json()
+    item = client.post(f"/fields/{field_id}/shortlist", json={"gap_id": _first_gap_id(client, field_id)}).json()
     client.patch(f"/fields/{field_id}/shortlist/{item['id']}", json={"status": "kept"})
 
     r = client.get(f"/fields/{field_id}/shortlist/export.md")
@@ -355,3 +571,18 @@ def test_shortlist_export_empty(field_client):
     r = client.get(f"/fields/{field_id}/shortlist/export.md")
     assert r.status_code == 200
     assert "No kept directions yet" in r.text
+
+
+# --- B4: /map/similarity on a bad topic id -------------------------------------
+def test_field_map_similarity_bad_topic_id_is_422_not_500(field_client):
+    """Stage 4 B4: a non-numeric topic id used to crash `int(ident)` uncaught,
+    surfacing as an unhandled 500 instead of a client error."""
+    client, field_id = field_client
+    r = client.get(f"/fields/{field_id}/map/similarity?a_kind=topic&a_id=not-a-number&b_kind=topic&b_id=0")
+    assert r.status_code == 422
+
+
+def test_field_map_similarity_unknown_topic_cid_is_404(field_client):
+    client, field_id = field_client
+    r = client.get(f"/fields/{field_id}/map/similarity?a_kind=topic&a_id=99999&b_kind=topic&b_id=0")
+    assert r.status_code == 404

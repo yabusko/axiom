@@ -5,8 +5,9 @@
 > been built — velocity (OD10), citation graph + gaps (OD9), FastAPI (OD12),
 > keyword canonicalization + reading-list summaries (OD14) — see
 > `docs/DECISIONS.md` (OD6–OD14) for what actually shipped, `README.md` for
-> the current run order, and `docs/demo_examples.md` for real output of every
-> built feature. This file is kept as-is below for its still-accurate detail
+> the current run order, and `docs/archive/demo_examples.md` for real output
+> of every built feature as of the stage-2 state (superseded since --
+> `README.md`'s What's-built table is current). This file is kept as-is below for its still-accurate detail
 > on the original SQLite/Qdrant/SPECTER2 seam and the search-quality upgrades
 > — just don't read its "out of scope" claims as current.
 
