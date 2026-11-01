@@ -30,19 +30,26 @@ Every call: timeout (`ANTHROPIC_TIMEOUT`), retry with exponential backoff +
 jitter (or the server's `retry-after`, when given) on 408/409/429/5xx up to
 `ANTHROPIC_MAX_RETRIES` (capped at `ANTHROPIC_BACKOFF_CAP`) -- any other 4xx
 raises `LLMHTTPError` immediately, no retry; token+cost accounting against
-`MODEL_FAST_PRICE_*`/`MODEL_STRONG_PRICE_*`; a hard stop once
-`config.LLM_BUDGET_USD` would be exceeded (checked against a durable,
-cross-run total plus an in-process reservation ledger when a caller passes
-a `conn`, else an in-process total only -- see `_reserve_budget`); and
-exactly one `axiom/tracing.py` line per call attempt -- success or failure.
+`MODEL_FAST_PRICE_*`/`MODEL_STRONG_PRICE_*`; a hard stop once `config.
+LLM_BUDGET_USD` would be exceeded for THIS run_id (checked against a
+durable, per-run total plus an in-process per-run reservation ledger when a
+caller passes a `conn`, else an in-process per-run total only -- see
+`_reserve_budget`); and exactly one `axiom/tracing.py` line per call
+attempt -- success or failure.
+
+Stage 4 B4: the budget check is per run_id, not a single process-lifetime
+total across every run (reversed from the original Phase-4 architecture
+review decision -- see `_committed_spend`'s docstring for why: that design
+was fine for a short-lived eval script, wrong for a long-lived API process
+where an unrelated earlier run could starve a later, independent one).
 
 Two optional parameters support run-scoped callers (`axiom/agents/pipeline.py`):
 `client` (an `httpx.AsyncClient` to reuse across every call in a run instead
 of opening/closing one per call) and `conn` (a sqlite3 connection so the
-budget check reads `db.total_llm_spend` -- the durable, restart-proof figure
--- instead of only this process's in-memory total). Both default to the
-per-call/in-process behavior when omitted, so existing callers/tests are
-unaffected.
+budget check reads `db.run_llm_spend` -- the durable, restart-proof,
+per-run figure -- instead of only this process's in-memory per-run total).
+Both default to the per-call/in-process behavior when omitted, so existing
+callers/tests are unaffected.
 """
 from __future__ import annotations
 
@@ -192,7 +199,8 @@ _spend_total: float = 0.0  # process-wide, across every run_id -- the in-process
                            # fallback total when a caller doesn't pass a `conn`
 
 _budget_lock = asyncio.Lock()
-_reserved_total: float = 0.0  # in-process, currently-outstanding reservations (C3)
+# Stage 4 B4: per-run, not a single process-wide counter -- see _committed_spend.
+_reserved_by_run: dict[str, float] = {}
 
 
 def spend_so_far(run_id: str) -> float:
@@ -215,14 +223,15 @@ def reset_spend(run_id: str | None = None) -> None:
     the total), or everything -- also clears the in-process reservation
     ledger, since a leftover reservation from a previous test would corrupt
     the next test's budget check."""
-    global _spend_total, _reserved_total
+    global _spend_total
     with _spend_lock:
         if run_id is None:
             _spend_by_run.clear()
             _spend_total = 0.0
+            _reserved_by_run.clear()
         else:
             _spend_total -= _spend_by_run.pop(run_id, 0.0)
-    _reserved_total = 0.0
+            _reserved_by_run.pop(run_id, None)
 
 
 def _record_spend(run_id: str, cost_usd: float) -> None:
@@ -232,39 +241,49 @@ def _record_spend(run_id: str, cost_usd: float) -> None:
         _spend_total += cost_usd
 
 
-def _committed_spend(conn: sqlite3.Connection | None) -> float:
-    """The durable, cross-run committed-spend figure `LLM_BUDGET_USD` caps
-    (C3) when `conn` is given; otherwise falls back to this process's
-    in-memory total (today's behavior, for callers/tests that don't wire a
-    connection through `complete_json`)."""
+def _committed_spend(conn: sqlite3.Connection | None, run_id: str) -> float:
+    """The durable, PER-RUN committed-spend figure `LLM_BUDGET_USD` caps
+    (stage 4 B4) when `conn` is given; otherwise falls back to this
+    process's in-memory per-run total (today's behavior, for callers/tests
+    that don't wire a connection through `complete_json`).
+
+    Was a cross-run, process-lifetime total (Phase-4 architecture review,
+    reversed here): correct for a short-lived eval/bench script, wrong for a
+    long-lived process -- a live API server's "Draft direction" call and a
+    `scripts/build_corpus.py` run happening to share the same process would
+    otherwise draw from one $3 pool for the server's entire uptime, with an
+    unrelated earlier run able to starve a later, completely independent one
+    of budget it never touched. `run_id` scopes correctly for everything
+    that already threads one through: an agent pipeline run, a corpus build,
+    a single hypothesis draft."""
     if conn is not None:
-        return db.total_llm_spend(conn)
-    return total_spend()
+        return db.run_llm_spend(conn, run_id)
+    return spend_so_far(run_id)
 
 
 async def _reserve_budget(conn: sqlite3.Connection | None, run_id: str, estimated_cost: float) -> None:
     """Check-and-reserve, serialized through `_budget_lock` (C3): concurrent
     calls under `config.AGENT_CONCURRENCY` all go through this one at a time,
     so none of them can read a stale "under budget" snapshot and all pass the
-    check before any of them settles. `_reserved_total` tracks cost that's
-    been admitted but not yet settled (call still in flight); release it via
-    `_release_budget` once the call finishes, success or failure."""
-    global _reserved_total
+    check before any of them settles. `_reserved_by_run[run_id]` tracks cost
+    that's been admitted but not yet settled (call still in flight) for THAT
+    run specifically; release it via `_release_budget` once the call
+    finishes, success or failure."""
     async with _budget_lock:
-        committed = _committed_spend(conn)
-        if committed + _reserved_total + estimated_cost > config.LLM_BUDGET_USD:
+        committed = _committed_spend(conn, run_id)
+        reserved = _reserved_by_run.get(run_id, 0.0)
+        if committed + reserved + estimated_cost > config.LLM_BUDGET_USD:
             raise BudgetExceededError(
                 f"run {run_id!r}: committed ${committed:.4f} + in-flight reservations "
-                f"${_reserved_total:.4f} + this call's worst-case ${estimated_cost:.4f} "
-                f"would exceed LLM_BUDGET_USD ${config.LLM_BUDGET_USD:.2f}"
+                f"${reserved:.4f} + this call's worst-case ${estimated_cost:.4f} "
+                f"would exceed this run's LLM_BUDGET_USD cap ${config.LLM_BUDGET_USD:.2f}"
             )
-        _reserved_total += estimated_cost
+        _reserved_by_run[run_id] = reserved + estimated_cost
 
 
-async def _release_budget(estimated_cost: float) -> None:
-    global _reserved_total
+async def _release_budget(run_id: str, estimated_cost: float) -> None:
     async with _budget_lock:
-        _reserved_total = max(0.0, _reserved_total - estimated_cost)
+        _reserved_by_run[run_id] = max(0.0, _reserved_by_run.get(run_id, 0.0) - estimated_cost)
 
 
 def _settle_spend(
@@ -505,7 +524,7 @@ class AnthropicProvider:
             _settle_spend(conn, run_id, model=model, tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd)
             return result
         finally:
-            await _release_budget(estimated_cost)
+            await _release_budget(run_id, estimated_cost)
 
 
 def _extract_text(body: dict) -> str:
@@ -599,7 +618,7 @@ class OllamaProvider:
             _settle_spend(conn, run_id, model=model, tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=0.0)
             return result
         finally:
-            await _release_budget(0.0)
+            await _release_budget(run_id, 0.0)
 
 
 # --- Dispatch -------------------------------------------------------------------

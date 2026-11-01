@@ -52,6 +52,8 @@ export interface CorpusManifestOut {
   to_year: number;
   updated_at: string;
   spend_total_usd: number;
+  budget_usd: number;
+  extraction_complete: boolean;
 }
 
 export interface FieldCreateOut {

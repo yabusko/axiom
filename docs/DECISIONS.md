@@ -1109,6 +1109,45 @@ agent-extracted canonical concepts OD34 already prefers for gap labels specifica
 still reads only the raw `concepts` table. Flagged for Part B, not expanded into here (this OD is
 about the scoping bug, not a second pass at label quality).
 
+## OD40 — Stage 4 B4: the LLM budget cap moves from process-lifetime to per-run
+
+**Context.** `config.LLM_BUDGET_USD` was a single, cross-run, process-lifetime total (a
+Phase-4 architecture review decision, with its own regression test asserting the design
+was intentional: "two run_ids, each individually under budget, must still trip the cap
+once their combined spend reaches it"). That's defensible for a short-lived eval/bench
+script invoked once and exited. It's wrong for a long-lived API process: the real base
+corpus build this stage already ran spent $0.41 of the $3 default into that SAME shared,
+cumulative pool -- every later call sharing that process (a live "Draft direction" request,
+a future `--update`) would draw against what's left of ONE $3 lifetime allowance, with an
+early, unrelated run able to fully starve a later, independent one of budget it never
+touched.
+
+**Decision.** `axiom/llm_providers.py`'s budget check (`_committed_spend`/`_reserve_budget`/
+`_release_budget`) is now scoped to `run_id`: `db.run_llm_spend(conn, run_id)` (durable,
+per-run) replaces `db.total_llm_spend(conn)` (durable, cross-run) as the committed-spend
+figure; the in-process reservation ledger becomes `_reserved_by_run: dict[str, float]`
+instead of one process-wide float. `config.LLM_BUDGET_USD` (unchanged default, $3.00) now
+means "per run_id," matching what `scripts/build_corpus.py --budget` (A2, OD36) already did
+at the script level -- this closes the same gap one layer down, inside every individual
+LLM call the agent pipeline/API make. The four tests that encoded the OLD cross-run
+contract (`test_budget_is_global_not_per_run`, the reservation-ledger tests) are rewritten
+to assert the opposite -- different run_ids are isolated; the SAME run_id still correctly
+accumulates and trips its own cap, durably, concurrently-safely.
+
+**Shown in the UI.** `corpus_meta` gained a `budget_usd` column (the actual `--budget` the
+last build ran under, not a guessed constant) and `GET /corpus` gained `budget_usd`/
+`extraction_complete`; the app footer shows "extraction stopped early ($X of $Y budget)"
+whenever a corpus build's extract step landed `'partial'` instead of `'done'`.
+
+**Trade-off, stated plainly:** the old design's real safety property -- "this dev box can
+never spend more than $3 total, ever, no matter how many runs happen" -- is gone. What
+replaces it is "each individual run (a corpus build, a hypothesis draft, an agent-pipeline
+invocation) can't exceed its own $3" -- the number of runs in a day is now unbounded in
+aggregate. Accepted: `scripts/build_corpus.py` already has its own explicit `--budget`
+pre-flight confirmation (A2) for the one genuinely expensive, deliberately-triggered
+operation; the live API's own per-request calls (a single hypothesis draft, ~$0.01) are
+cheap enough that per-run $3 ceilings on each are not a meaningful aggregate risk.
+
 ---
 
 ## Schema change log
@@ -1123,3 +1162,4 @@ about the scoping bug, not a second pass at label quality).
 | 2026-10-31 | Added `run_id` to `paper_concepts`/`concept_cooccurrence`, unique index `(paper_id, canonical, kind)`, new `llm_spend` table + index — stage-2 fixes B4/C3, OD26 | fixes track |
 | 2026-11-01 | Added `corpus_meta` (single-row build manifest) to the shared schema.sql — stage 4, OD36 | stage4 track |
 | 2026-11-01 | `fields.db` (a separate db, not schema.sql): added `source`, `query`, `paper_ids_json`, `relevance_floor`, `total_relevant` columns to `fields` — stage 4 A4, OD37 | stage4 track |
+| 2026-11-01 | Added `budget_usd` to `corpus_meta` — stage 4 B4, OD40 | stage4 track |

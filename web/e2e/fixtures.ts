@@ -97,6 +97,7 @@ const DRAFTED_ITEM = {
 const CORPUS_MANIFEST = {
   papers_count: 1000, query: "retrieval augmented generation question answering large language model knowledge",
   from_year: 2019, to_year: 2026, updated_at: "2026-11-01T12:00:00Z", spend_total_usd: 0.42,
+  budget_usd: 3.0, extraction_complete: true,
 };
 
 export async function mockApi(page: Page) {

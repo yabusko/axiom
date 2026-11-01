@@ -354,7 +354,7 @@ def main() -> None:
     step_seconds["canonicalize"] = round(time.time() - ts, 1)
 
     elapsed = time.time() - t0
-    db.upsert_corpus_meta(conn, seconds_delta=elapsed)
+    db.upsert_corpus_meta(conn, seconds_delta=elapsed, budget_usd=args.budget)
     _write_manifest(conn)
     meta = db.get_corpus_meta(conn)
     log(f"done in {elapsed:.0f}s this run -- corpus: {meta['papers_count']} papers, "

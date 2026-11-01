@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS corpus_meta (
     papers_count     INTEGER NOT NULL DEFAULT 0,
     steps_json       TEXT NOT NULL DEFAULT '{}',  -- {step_name: "done"|"partial"|null}
     spend_total      REAL NOT NULL DEFAULT 0.0,
+    budget_usd       REAL NOT NULL DEFAULT 3.0,    -- B4: the --budget cap the last run used
     build_seconds    REAL NOT NULL DEFAULT 0.0,
     created_at       DATETIME NOT NULL,
     updated_at       DATETIME NOT NULL

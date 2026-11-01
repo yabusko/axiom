@@ -259,6 +259,8 @@ class CorpusManifestOut(BaseModel):
     to_year: int
     updated_at: str
     spend_total_usd: float
+    budget_usd: float             # B4: the cap scripts/build_corpus.py ran under
+    extraction_complete: bool     # False if the last run stopped on 'partial' (budget reached)
 
 
 class FieldStatusOut(BaseModel):
@@ -1047,11 +1049,14 @@ def corpus_manifest():
     if meta is None:
         raise HTTPException(status_code=404, detail="base corpus not built yet")
     filters = json.loads(meta["filters_json"])
+    steps = json.loads(meta["steps_json"])
     return CorpusManifestOut(
         papers_count=meta["papers_count"], query=meta["query"],
         from_year=int(filters["from_publication_date"][:4]),
         to_year=int(filters["to_publication_date"][:4]),
         updated_at=meta["updated_at"], spend_total_usd=meta["spend_total"],
+        budget_usd=meta["budget_usd"],
+        extraction_complete=steps.get("extract") == "done",
     )
 
 

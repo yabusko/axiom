@@ -62,6 +62,9 @@ function AppFooter() {
           {" "}
           · Base corpus: {data.papers_count.toLocaleString()} papers, {data.from_year}–{data.to_year}, updated{" "}
           {data.updated_at.slice(0, 10)}
+          {!data.extraction_complete && (
+            <> · extraction stopped early (${data.spend_total_usd.toFixed(2)} of its ${data.budget_usd.toFixed(2)} budget)</>
+          )}
         </span>
       )}
     </footer>

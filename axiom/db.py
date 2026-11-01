@@ -46,6 +46,8 @@ def init_db(conn: sqlite3.Connection) -> None:
     # per direction, which review_queue (OD16) never had.
     _ensure_column(conn, "review_queue", "notes", "notes TEXT")
     _ensure_column(conn, "review_queue", "papers_to_read_json", "papers_to_read_json TEXT NOT NULL DEFAULT '[]'")
+    # Stage 4 B4: corpus_meta predates budget_usd -- backfill for an existing corpus db.
+    _ensure_column(conn, "corpus_meta", "budget_usd", "budget_usd REAL NOT NULL DEFAULT 3.0")
     conn.commit()
 
 
@@ -432,7 +434,7 @@ def get_corpus_meta(conn: sqlite3.Connection) -> sqlite3.Row | None:
 def upsert_corpus_meta(
     conn: sqlite3.Connection, *,
     query: str | None = None, filters_json: str | None = None, size_target: int | None = None,
-    papers_count: int | None = None, steps_json: str | None = None,
+    papers_count: int | None = None, steps_json: str | None = None, budget_usd: float | None = None,
     spend_delta: float = 0.0, seconds_delta: float = 0.0,
 ) -> sqlite3.Row:
     """Insert the single corpus_meta row if absent, else update it. Spend/time
@@ -440,7 +442,10 @@ def upsert_corpus_meta(
     overwrite, defaulting to the existing row's value when omitted (so a
     partial update, e.g. just bumping steps_json, doesn't need to repeat the
     full query/filters/size_target every call). `query`/`filters_json`/
-    `size_target` are required only for the first-ever call (the INSERT)."""
+    `size_target` are required only for the first-ever call (the INSERT).
+    `budget_usd` (B4): the `--budget` cap the run that last touched this row
+    used -- persisted so the API/UI can report the real cap, not a guessed
+    constant."""
     ts = datetime.now(timezone.utc).isoformat()
     existing = get_corpus_meta(conn)
     if existing is None:
@@ -450,11 +455,11 @@ def upsert_corpus_meta(
             """
             INSERT INTO corpus_meta
                 (id, version, query, filters_json, size_target, papers_count,
-                 steps_json, spend_total, build_seconds, created_at, updated_at)
-            VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 steps_json, spend_total, budget_usd, build_seconds, created_at, updated_at)
+            VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (query, filters_json, size_target, papers_count or 0,
-             steps_json or "{}", spend_delta, seconds_delta, ts, ts),
+             steps_json or "{}", spend_delta, budget_usd or 3.0, seconds_delta, ts, ts),
         )
     else:
         new_query = query if query is not None else existing["query"]
@@ -462,16 +467,17 @@ def upsert_corpus_meta(
         new_target = size_target if size_target is not None else existing["size_target"]
         new_papers = papers_count if papers_count is not None else existing["papers_count"]
         new_steps = steps_json if steps_json is not None else existing["steps_json"]
+        new_budget = budget_usd if budget_usd is not None else existing["budget_usd"]
         conn.execute(
             """
             UPDATE corpus_meta SET
                 query = ?, filters_json = ?, size_target = ?, papers_count = ?,
-                steps_json = ?, spend_total = spend_total + ?,
+                steps_json = ?, spend_total = spend_total + ?, budget_usd = ?,
                 build_seconds = build_seconds + ?, updated_at = ?
             WHERE id = 1
             """,
             (new_query, new_filters, new_target, new_papers, new_steps,
-             spend_delta, seconds_delta, ts),
+             spend_delta, new_budget, seconds_delta, ts),
         )
     conn.commit()
     return get_corpus_meta(conn)
