@@ -23,6 +23,14 @@
 .brand .wordmark { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em; color: var(--text); }
 .brand .tagline { color: var(--text-muted); font-size: var(--small); }
 
+/* B8: shown only on a VITE_DEMO=1 build (the GitHub Pages deploy) -- a
+   clearly-labeled, non-interactive marker that this is recorded data, not
+   a live backend. */
+.demo-badge {
+  font-size: var(--small); font-weight: 700; color: var(--region);
+  background: var(--region-wash); border: 1px solid var(--region); padding: 2px 8px;
+}
+
 nav.primary-nav { display: flex; gap: 2px; flex-wrap: wrap; }
 nav.primary-nav a {
   display: inline-block;

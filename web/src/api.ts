@@ -1,6 +1,13 @@
 // Typed client for the FastAPI /fields/* surface (api/main.py). Mirrors the
 // Pydantic response models 1:1 -- see docs/product/ARCHITECTURE_NOTE.md.
+import * as demo from "./demoData";
+
 const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+
+// Stage 4 B8: a `VITE_DEMO=1` build (.github/workflows/pages.yml) answers
+// every call from web/src/demoData.ts instead of fetching -- no backend at
+// all, so the static GitHub Pages deploy is click-through-able on its own.
+export const DEMO_MODE = import.meta.env.VITE_DEMO === "1";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -241,7 +248,7 @@ export interface MapSimilarityOut {
 
 // --- Calls -----------------------------------------------------------------------
 
-export const api = {
+const liveApi = {
   corpusManifest: () => req<CorpusManifestOut>("/corpus"),
   listFields: () => req<FieldOut[]>("/fields"),
   createField: (topic: string, target?: number) =>
@@ -288,3 +295,51 @@ export const api = {
         `&b_kind=${b.kind}&b_id=${encodeURIComponent(b.id)}`,
     ),
 };
+
+// Demo-mode implementation (B8): same shape as liveApi, backed by
+// web/src/demoData.ts -- no fetch, no backend. Shortlist state lives in a
+// module-level array so Draft/Keep/Export work for real within one page
+// session, same as the e2e mocks' pattern, just running in the real browser
+// instead of behind a Playwright route.
+let demoShortlist: ShortlistItemOut[] = [];
+
+const demoApi = {
+  corpusManifest: async (): Promise<CorpusManifestOut> => demo.DEMO_CORPUS_MANIFEST,
+  listFields: async (): Promise<FieldOut[]> => demo.DEMO_FIELDS_LIST,
+  createField: async (_topic: string, _target?: number): Promise<FieldCreateOut> => demo.DEMO_FIELD_CREATE,
+  fieldStatus: async (_fieldId: string): Promise<FieldStatusOut> => demo.DEMO_FIELD_STATUS,
+  openField: async (_fieldId: string): Promise<void> => undefined,
+  deleteField: async (_fieldId: string): Promise<void> => undefined,
+  overview: async (_fieldId: string): Promise<OverviewOut> => demo.DEMO_OVERVIEW,
+  gaps: async (_fieldId: string): Promise<GapAnalysisOut> => demo.DEMO_GAPS,
+  gapDetail: async (_fieldId: string, _gapId: string): Promise<GapDetailOut> => demo.DEMO_GAP_DETAIL,
+  gapExternalCheck: async (_fieldId: string, _gapId: string): Promise<GapExternalCheckOut> => demo.DEMO_EXTERNAL_CHECK,
+  paper: async (_fieldId: string, paperId: string): Promise<FieldPaperOut> => demo.demoPaper(paperId),
+  shortlist: async (_fieldId: string, status?: ShortlistStatus): Promise<ShortlistItemOut[]> =>
+    status ? demoShortlist.filter((i) => i.status === status) : demoShortlist,
+  draftDirection: async (_fieldId: string, _gapId: string): Promise<ShortlistItemOut> => {
+    const item = demo.demoDraftedItem();
+    demoShortlist = [item];
+    return item;
+  },
+  patchShortlist: async (
+    _fieldId: string,
+    itemId: number,
+    patch: Partial<Pick<ShortlistItemOut, "status" | "notes" | "papers_to_read">>,
+  ): Promise<ShortlistItemOut> => {
+    demoShortlist = demoShortlist.map((i) => (i.id === itemId ? { ...i, ...patch } : i));
+    return demoShortlist.find((i) => i.id === itemId)!;
+  },
+  exportMarkdown: async (_fieldId: string): Promise<string> => {
+    const item = demoShortlist[0] ?? demo.demoDraftedItem();
+    return `# retrieval-augmented generation — shortlist\n\n## ${item.title}\n\n${item.claim}\n`;
+  },
+  map: async (_fieldId: string): Promise<MapOut> => demo.DEMO_MAP,
+  mapSimilarity: async (
+    _fieldId: string,
+    _a: { kind: MapEntityKind; id: string },
+    _b: { kind: MapEntityKind; id: string },
+  ): Promise<MapSimilarityOut> => demo.DEMO_MAP_SIMILARITY,
+};
+
+export const api = DEMO_MODE ? demoApi : liveApi;

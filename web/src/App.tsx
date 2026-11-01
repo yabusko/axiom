@@ -9,6 +9,7 @@ import { PaperPanel } from "./components/PaperPanel";
 import { LoadingState } from "./components/States";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { DemoBadge } from "./components/DemoBadge";
 
 // Outside the primary flow and pulls in a 3D rendering library -- code-split
 // so its weight never lands in the main-flow bundle (first-load JS budget).
@@ -35,6 +36,7 @@ function FieldNav() {
         <span className="wordmark">Axiom</span>
         <span className="tagline">Find under-explored directions, with evidence.</span>
       </NavLink>
+      <DemoBadge />
       {fieldId && (
         <nav className="primary-nav" aria-label="Primary">
           <NavLink to={`/fields/${fieldId}/landscape`}>Landscape</NavLink>

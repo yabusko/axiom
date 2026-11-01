@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type FieldCreateOut } from "../api";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
+import { DemoBadge } from "../components/DemoBadge";
 
 function ThinCoverageCard({ result, topic }: { result: FieldCreateOut; topic: string }) {
   const [copied, setCopied] = useState(false);
@@ -69,10 +70,11 @@ export default function Start() {
   return (
     <>
       <header className="app-header">
-        <a href="/" className="brand">
+        <Link to="/" className="brand">
           <span className="wordmark">Axiom</span>
           <span className="tagline">Find under-explored directions, with evidence.</span>
-        </a>
+        </Link>
+        <DemoBadge />
       </header>
       <main className="app-main">
         <div className="page-head">
@@ -128,7 +130,7 @@ export default function Start() {
               <div className="paper-row" key={f.id}>
                 <div className="paper-row-main">
                   {f.status === "ready" ? (
-                    <a href={`/fields/${f.id}/landscape`}>{f.topic}</a>
+                    <Link to={`/fields/${f.id}/landscape`}>{f.topic}</Link>
                   ) : (
                     <span style={{ fontWeight: 700 }}>{f.topic}</span>
                   )}

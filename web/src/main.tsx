@@ -12,7 +12,10 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      {/* B8: import.meta.env.BASE_URL is "/" normally, "/axiom/" for the
+          VITE_DEMO=1 GitHub Pages build (vite.config.ts) -- basename keeps
+          every Link/NavLink correct under that subpath. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <App />
       </BrowserRouter>
     </QueryClientProvider>

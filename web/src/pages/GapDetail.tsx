@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type SideDetailOut } from "../api";
 import { BridgeDiagram } from "../components/BridgeDiagram";
@@ -96,7 +96,7 @@ export default function GapDetail() {
   return (
     <>
       <p>
-        <a href={`/fields/${fieldId}/gaps`}>← Back to research gaps</a>
+        <Link to={`/fields/${fieldId}/gaps`}>← Back to research gaps</Link>
       </p>
       <h1>{headline(data.a, data.b, data.inter_citations, data.total_in_corpus_citations)}</h1>
       <p className="lede" style={{ color: "var(--text-muted)", maxWidth: "70ch" }}>
@@ -110,9 +110,9 @@ export default function GapDetail() {
         note={`G-score ${data.g_score.toFixed(3)} blends similarity, disconnection, concept velocity and authority with default weights not yet calibrated against labeled gap data — read it as a ranking signal, not a verified measurement.`}
       />
       {" "}
-      <a className="btn-quiet" href={`/fields/${fieldId}/map?a=${data.a.cid}&b=${data.b.cid}`}>
+      <Link className="btn-quiet" to={`/fields/${fieldId}/map?a=${data.a.cid}&b=${data.b.cid}`}>
         Show on map
-      </a>
+      </Link>
 
       <div style={{ margin: "var(--space-6) 0" }}>
         <BridgeDiagram
