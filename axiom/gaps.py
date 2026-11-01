@@ -81,20 +81,43 @@ def detect_communities(g: nx.DiGraph, resolution: float = 1.0,
     return node2c
 
 
-def community_labels(conn, node2c: dict[str, int], top: int = 4) -> dict[int, list[str]]:
+def community_labels(conn, node2c: dict[str, int], top: int = 4,
+                     min_agent_concepts: int = config.GAP_LABEL_MIN_AGENT_CONCEPTS
+                     ) -> dict[int, list[str]]:
     """Most distinctive concepts per community via TF-IDF across communities.
 
     A concept that appears in every cluster (e.g. "Artificial intelligence")
     carries little signal; one concentrated in one cluster labels it well.
+
+    OD34: labels prefer the agent pipeline's `paper_concepts.canonical` (the
+    agent's own synonym-merged concept, e.g. "RAG" and "retrieval-augmented
+    generation" both resolving to one label) over the raw OpenAlex `concepts`
+    table, since the latter is coarse/noisy as user-facing copy (e.g. "Hop
+    (telecommunications)"). A community only labels from `paper_concepts` when
+    it has at least `min_agent_concepts` distinct canonical concepts; below
+    that (not yet agent-processed, or genuinely sparse), it falls back to
+    OpenAlex `concepts` per community, same as before this change.
     """
-    rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
+    agent_rows = conn.execute("SELECT paper_id, canonical FROM paper_concepts").fetchall()
+    agent_tf: dict[int, Counter] = defaultdict(Counter)
+    for r in agent_rows:
+        cid = node2c.get(r["paper_id"])
+        if cid is not None:
+            agent_tf[cid][r["canonical"]] += 1
+
+    openalex_rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
     canon = db.canonical_map(conn)
-    tf: dict[int, Counter] = defaultdict(Counter)
-    for r in rows:
+    openalex_tf: dict[int, Counter] = defaultdict(Counter)
+    for r in openalex_rows:
         cid = node2c.get(r["paper_id"])
         if cid is not None:
             concept = canon.get(r["concept"], r["concept"])
-            tf[cid][concept] += 1
+            openalex_tf[cid][concept] += 1
+
+    tf: dict[int, Counter] = {}
+    for cid in set(agent_tf) | set(openalex_tf):
+        agent_counts = agent_tf.get(cid, Counter())
+        tf[cid] = agent_counts if len(agent_counts) >= min_agent_concepts else openalex_tf.get(cid, Counter())
     n_comm = len(tf) or 1
     # document frequency = number of communities containing each concept
     df: Counter = Counter()

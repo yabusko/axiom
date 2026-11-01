@@ -5,8 +5,15 @@ import math
 
 import numpy as np
 
-from axiom import config, gaps, graph as graphmod
+from axiom import config, db, gaps, graph as graphmod
 from tests.conftest import SEED_VECTORS
+
+
+def _seed_agent_concepts(conn, paper_id: str, canonicals: list[str]) -> None:
+    """Write `paper_concepts` rows for `paper_id`, one per canonical label."""
+    rows = [(c, "method", c, 0.9, "evidence", 0.9, "agent", "2026-01-01T00:00:00+00:00")
+            for c in canonicals]
+    db.replace_paper_concepts(conn, "r1", paper_id, rows, [])
 
 
 def test_detect_communities_splits_two_clusters(seeded_conn):
@@ -27,6 +34,45 @@ def test_community_labels_drop_generic(seeded_conn):
     # "Computer science" is in every community → generic → dropped as a label.
     assert "Computer science" not in all_labels
     assert "Information retrieval" in all_labels or "Machine translation" in all_labels
+
+
+def test_community_labels_prefer_agent_concepts(seeded_conn):
+    """OD34: a community with >= GAP_LABEL_MIN_AGENT_CONCEPTS distinct canonicals
+    labels from `paper_concepts`, not the raw OpenAlex `concepts` table -- the
+    other community (no agent data at all) still falls back to OpenAlex."""
+    g = graphmod.load_graph(seeded_conn)
+    node2c = gaps.detect_communities(g, seed=42)
+    cid_a, cid_b = node2c["A1"], node2c["B1"]
+    assert cid_a != cid_b
+
+    # Community A: 3 distinct agent canonicals across its 4 papers -> meets threshold.
+    _seed_agent_concepts(seeded_conn, "A1", ["RAG core", "Dense retrieval"])
+    _seed_agent_concepts(seeded_conn, "A2", ["Dense retrieval", "Reranking"])
+    _seed_agent_concepts(seeded_conn, "A3", ["RAG core"])
+    _seed_agent_concepts(seeded_conn, "A4", ["Reranking"])
+
+    labels = gaps.community_labels(seeded_conn, node2c)
+    assert set(labels[cid_a]) & {"RAG core", "Dense retrieval", "Reranking"}
+    assert "Information retrieval" not in labels[cid_a]
+    # Community B got no agent concepts -> unchanged OpenAlex fallback.
+    assert "Machine translation" in labels[cid_b]
+
+
+def test_community_labels_fall_back_when_agent_concepts_sparse(seeded_conn):
+    """Fewer than GAP_LABEL_MIN_AGENT_CONCEPTS distinct agent canonicals in a
+    community -> it still labels from OpenAlex `concepts`, not the sparse agent set."""
+    g = graphmod.load_graph(seeded_conn)
+    node2c = gaps.detect_communities(g, seed=42)
+    cid_a = node2c["A1"]
+
+    # Only 1 distinct canonical across all of community A -- below the default
+    # threshold (3), so GAP_LABEL_MIN_AGENT_CONCEPTS gates the fallback.
+    _seed_agent_concepts(seeded_conn, "A1", ["Dense retrieval"])
+    assert config.GAP_LABEL_MIN_AGENT_CONCEPTS > 1
+
+    labels = gaps.community_labels(seeded_conn, node2c)
+    assert "Information retrieval" in labels[cid_a]
+    assert "Dense retrieval" not in labels[cid_a]
 
 
 def test_centroids_are_means(seeded_conn):

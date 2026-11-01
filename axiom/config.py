@@ -198,6 +198,11 @@ G_SCORE_WEIGHTS = {
 GAP_TAU_DEFAULT = 0.65      # G >= τ flags a candidate "meets threshold" (dev default, uncalibrated)
 CALIBRATION_PATH = PROJECT_ROOT / "eval" / "calibration.json"
 
+# OD34: a community labels from the agent pipeline's `paper_concepts` (canonical,
+# post synonym-merge) when it has at least this many distinct canonical concepts;
+# otherwise it falls back to the raw OpenAlex `concepts` table.
+GAP_LABEL_MIN_AGENT_CONCEPTS = 3
+
 
 def load_calibration() -> dict:
     """Return {'tau': float, 'weights': {...}}, calibrated file merged over defaults.
