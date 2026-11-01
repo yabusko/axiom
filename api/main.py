@@ -408,6 +408,10 @@ async def _lifespan(app: FastAPI):
     try:
         fieldsmod.init_fields_db(fconn)
         fieldsmod.ensure_default_field(fconn)
+        # B4: a field left 'queued'/'building' belonged to a background task
+        # that died with whatever process crashed/restarted last -- it will
+        # never finish on its own; say so instead of leaving it stuck.
+        fieldsmod.mark_interrupted_jobs_failed(fconn)
     finally:
         fconn.close()
     yield
@@ -1077,6 +1081,27 @@ def field_open(field_id: str):
         fieldsmod.touch_last_opened(fconn, field_id)
     finally:
         fconn.close()
+
+
+@app.delete("/fields/{field_id}", status_code=204)
+def field_delete(field_id: str):
+    """B4: delete a field (a saved query). The default field can't be
+    deleted -- see `fieldsmod.delete_field`'s docstring."""
+    fconn = fieldsmod.connect_fields()
+    try:
+        try:
+            found = fieldsmod.delete_field(fconn, field_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if not found:
+            raise HTTPException(status_code=404, detail="no such field")
+    finally:
+        fconn.close()
+    # No per-field cache eviction needed: field_ids are fresh UUIDs, never
+    # reused, so a deleted field's cached graph/analysis entry (if any) just
+    # becomes harmless dead weight until LRU eviction -- no endpoint can
+    # reach it again (_resolve_field 404s first). Clearing the whole cache
+    # would only punish every OTHER field's hit rate for no benefit.
 
 
 @app.get("/fields/{field_id}/overview", response_model=OverviewOut)

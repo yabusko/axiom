@@ -239,6 +239,7 @@ export const api = {
     }),
   fieldStatus: (fieldId: string) => req<FieldStatusOut>(`/fields/${fieldId}`),
   openField: (fieldId: string) => req<void>(`/fields/${fieldId}/open`, { method: "POST" }),
+  deleteField: (fieldId: string) => req<void>(`/fields/${fieldId}`, { method: "DELETE" }),
   overview: (fieldId: string) => req<OverviewOut>(`/fields/${fieldId}/overview`),
   gaps: (fieldId: string) => req<GapAnalysisOut>(`/fields/${fieldId}/gaps`),
   gapDetail: (fieldId: string, gapIndex: number) =>

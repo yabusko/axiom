@@ -51,6 +51,11 @@ export default function Start() {
   const manifestQuery = useQuery({ queryKey: ["corpus-manifest"], queryFn: api.corpusManifest });
   const fieldsQuery = useQuery({ queryKey: ["fields"], queryFn: api.listFields });
 
+  const deleteMutation = useMutation({
+    mutationFn: (fieldId: string) => api.deleteField(fieldId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fields"] }),
+  });
+
   const createMutation = useMutation({
     mutationFn: () => api.createField(topic.trim()),
     onSuccess: (res) => {
@@ -155,6 +160,20 @@ export default function Start() {
                     {f.papers_total ?? "…"} papers · {f.status}
                   </div>
                 </div>
+                {f.id !== "default" && (
+                  <button
+                    type="button"
+                    className="btn-quiet"
+                    onClick={() => {
+                      if (confirm(`Delete the field "${f.topic}"? This can't be undone.`)) {
+                        deleteMutation.mutate(f.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             ))}
           </div>

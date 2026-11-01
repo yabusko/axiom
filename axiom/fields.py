@@ -169,6 +169,50 @@ def touch_last_opened(conn: sqlite3.Connection, field_id: str) -> None:
     conn.commit()
 
 
+def delete_field(conn: sqlite3.Connection, field_id: str) -> bool:
+    """B4: delete a field (a saved query). `config.FIELD_DEFAULT_ID` is never
+    deletable -- it's the pre-existing corpus the Streamlit "lab console"
+    (OD33) still depends on, not a field a user created.
+
+    A legacy/download field (`source='download'`) owns a private db file +
+    Qdrant collection -- both are removed too (best-effort: a missing or
+    unreachable Qdrant collection doesn't block deleting the field row). A
+    slice field (A4, `source='slice'`) owns nothing of its own -- db_path/
+    collection point at the SHARED base corpus, which this never touches;
+    only its `fields` row goes away.
+
+    Returns True if a field was found and deleted, False if it didn't exist.
+    """
+    if field_id == config.FIELD_DEFAULT_ID:
+        raise ValueError("the default field can't be deleted")
+    row = get_field(conn, field_id)
+    if row is None:
+        return False
+    if row["source"] == "download":
+        db_path = Path(row["db_path"])
+        if db_path.exists():
+            db_path.unlink()
+        try:
+            from axiom.qdrant_client import AxiomQdrant
+            AxiomQdrant(collection=row["collection"]).delete_collection()
+        except Exception:
+            pass
+    conn.execute("DELETE FROM fields WHERE id = ?", (field_id,))
+    conn.commit()
+    return True
+
+
+def mark_interrupted_jobs_failed(conn: sqlite3.Connection) -> int:
+    """B4: at API startup, any field still 'queued'/'building' belonged to a
+    background build task that died with the previous process -- it will
+    never finish or update again. Marks each 'failed' with a clear error
+    instead of leaving it stuck forever in the UI. Returns the count fixed."""
+    rows = conn.execute("SELECT id FROM fields WHERE status IN ('queued', 'building')").fetchall()
+    for r in rows:
+        set_status(conn, r["id"], "failed", error="Interrupted: the server restarted mid-build.")
+    return len(rows)
+
+
 def set_status(conn: sqlite3.Connection, field_id: str, status: str, *, error: str | None = None) -> None:
     conn.execute(
         "UPDATE fields SET status = ?, error = ?, updated_at = ? WHERE id = ?",

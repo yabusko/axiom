@@ -281,6 +281,85 @@ def test_field_open_404_when_unknown(api_client, empty_fields_db):
     assert api_client.post("/fields/nope/open").status_code == 404
 
 
+# --- B4: delete a field, mark interrupted jobs failed at startup --------------
+def test_delete_field_default_is_protected(fields_conn):
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute("UPDATE fields SET id = ? WHERE id = ?", (config.FIELD_DEFAULT_ID, row["id"]))
+    fields_conn.commit()
+    with pytest.raises(ValueError):
+        fieldsmod.delete_field(fields_conn, config.FIELD_DEFAULT_ID)
+
+
+def test_delete_field_unknown_returns_false(fields_conn):
+    assert fieldsmod.delete_field(fields_conn, "nope") is False
+
+
+def test_delete_slice_field_only_removes_the_row(fields_conn, tmp_path):
+    """A slice field's db_path/collection point at the SHARED base corpus --
+    deleting the field must never touch those files."""
+    corpus_db = tmp_path / "corpus.db"
+    corpus_db.write_text("not actually sqlite, just needs to exist")
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute(
+        "UPDATE fields SET source = 'slice', db_path = ? WHERE id = ?",
+        (str(corpus_db), row["id"]),
+    )
+    fields_conn.commit()
+
+    assert fieldsmod.delete_field(fields_conn, row["id"]) is True
+    assert fieldsmod.get_field(fields_conn, row["id"]) is None
+    assert corpus_db.exists()  # untouched
+
+
+def test_delete_download_field_removes_its_own_db_file(fields_conn, tmp_path):
+    own_db = tmp_path / "field-own.db"
+    own_db.write_text("x")
+    row = fieldsmod.create_field(fields_conn, topic="x", target=10)
+    fields_conn.execute("UPDATE fields SET db_path = ? WHERE id = ?", (str(own_db), row["id"]))
+    fields_conn.commit()
+    assert fieldsmod.get_field(fields_conn, row["id"])["source"] == "download"  # the column default
+
+    assert fieldsmod.delete_field(fields_conn, row["id"]) is True
+    assert not own_db.exists()
+    assert fieldsmod.get_field(fields_conn, row["id"]) is None
+
+
+def test_mark_interrupted_jobs_failed(fields_conn):
+    a = fieldsmod.create_field(fields_conn, topic="a", target=10)      # status 'queued'
+    b = fieldsmod.create_field(fields_conn, topic="b", target=10)
+    fieldsmod.set_status(fields_conn, b["id"], "building")
+    c = fieldsmod.create_field(fields_conn, topic="c", target=10)
+    fieldsmod.set_status(fields_conn, c["id"], "ready")
+
+    n = fieldsmod.mark_interrupted_jobs_failed(fields_conn)
+    assert n == 2
+    assert fieldsmod.get_field(fields_conn, a["id"])["status"] == "failed"
+    assert fieldsmod.get_field(fields_conn, b["id"])["status"] == "failed"
+    assert fieldsmod.get_field(fields_conn, c["id"])["status"] == "ready"  # untouched
+
+
+def test_api_delete_field(api_client, empty_fields_db, tmp_path):
+    fconn = fieldsmod.connect_fields()
+    row = fieldsmod.create_field(fconn, topic="x", target=10)
+    fconn.execute("UPDATE fields SET source = 'slice', status = 'ready' WHERE id = ?", (row["id"],))
+    fconn.commit()
+    fconn.close()
+
+    assert api_client.delete(f"/fields/{row['id']}").status_code == 204
+    assert api_client.get(f"/fields/{row['id']}").status_code == 404
+
+
+def test_api_delete_field_404_when_unknown(api_client, empty_fields_db):
+    assert api_client.delete("/fields/nope").status_code == 404
+
+
+def test_api_delete_default_field_is_400(api_client, empty_fields_db):
+    fconn = fieldsmod.connect_fields()
+    fieldsmod.ensure_default_field(fconn)
+    fconn.close()
+    assert api_client.delete(f"/fields/{config.FIELD_DEFAULT_ID}").status_code == 400
+
+
 def test_field_overview(field_client):
     client, field_id = field_client
     r = client.get(f"/fields/{field_id}/overview")
