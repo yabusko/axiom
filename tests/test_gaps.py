@@ -115,6 +115,83 @@ def test_normalize_casing_fixes_known_terms_only():
     assert gaps._normalize_casing("rag for question answering") == "RAG for question answering"
     # Ordinary lowercase phrases, the deliberate house style, stay untouched.
     assert gaps._normalize_casing("retrieve-and-read") == "retrieve-and-read"
+    assert gaps._normalize_casing("squad") == "SQuAD"
+
+
+# --- OD44: entity-quality review fix -- generic-topic stoplist, dataset
+# aliases, within-community min frequency ---------------------------------
+def test_is_junk_label_rejects_generic_topic_words():
+    assert gaps._is_junk_label("accuracy") is True
+    assert gaps._is_junk_label("Transformer") is True  # case-insensitive
+    assert gaps._is_junk_label("f1") is True
+    # a real, specific concept must not be caught by the generic-word check
+    assert gaps._is_junk_label("retrieval accuracy") is False
+
+
+def test_community_labels_merges_dataset_aliases(seeded_conn):
+    """"nq" and "natural questions (nq)" are the same real dataset
+    (real corpus data had both, plus "natural questions", as 3 separate
+    `paper_concepts.canonical` values) -- they must combine into one label
+    with a combined count, not split the community's TF-IDF signal 3 ways."""
+    g = graphmod.load_graph(seeded_conn)
+    node2c = gaps.detect_communities(g, seed=42)
+    cid_a = node2c["A1"]
+
+    _seed_agent_concepts(seeded_conn, "A1", ["nq", "RAG core"])
+    _seed_agent_concepts(seeded_conn, "A2", ["natural questions (nq)", "Dense retrieval"])
+    _seed_agent_concepts(seeded_conn, "A3", ["RAG core"])
+    _seed_agent_concepts(seeded_conn, "A4", ["Dense retrieval"])
+
+    labels = gaps.community_labels(seeded_conn, node2c)
+    assert "natural questions" in labels[cid_a]
+    assert "nq" not in labels[cid_a]
+    assert "natural questions (nq)" not in labels[cid_a]
+
+
+def test_community_labels_prefers_multi_mention_over_single_mention(seeded_conn):
+    """GAP_LABEL_MIN_FREQUENCY: without the floor, a rare single-mention
+    concept's inflated IDF weight can outscore a more-common-but-still-
+    community-exclusive concept's raw count -- "one-off artifact" (count=1,
+    globally unique) would otherwise outrank "shared concept" (count=1, but
+    shared with community B, so a smaller IDF boost). The floor must drop
+    "one-off artifact" from the top-2 once "repeated concept" (count=2)
+    clears it, rather than letting IDF alone promote a single mention."""
+    g = graphmod.load_graph(seeded_conn)
+    node2c = gaps.detect_communities(g, seed=42)
+    cid_a, cid_b = node2c["A1"], node2c["B1"]
+    assert cid_a != cid_b
+
+    _seed_agent_concepts(seeded_conn, "A1", ["one-off artifact", "shared concept", "repeated concept"])
+    _seed_agent_concepts(seeded_conn, "A2", ["repeated concept"])
+    _seed_agent_concepts(seeded_conn, "A3", [])
+    _seed_agent_concepts(seeded_conn, "A4", [])
+    # community B gets its own >=3 distinct canonicals (meets GAP_LABEL_MIN_AGENT_CONCEPTS
+    # too, though that's incidental here) so "shared concept" has df=2, not df=1.
+    _seed_agent_concepts(seeded_conn, "B1", ["shared concept", "b concept x", "b concept y"])
+    _seed_agent_concepts(seeded_conn, "B2", [])
+    _seed_agent_concepts(seeded_conn, "B3", [])
+    _seed_agent_concepts(seeded_conn, "B4", [])
+
+    labels = gaps.community_labels(seeded_conn, node2c, top=2)
+    assert "one-off artifact" not in labels[cid_a]
+    assert "repeated concept" in labels[cid_a]
+
+
+def test_community_labels_falls_back_when_every_candidate_is_single_mention(seeded_conn):
+    """A genuinely sparse community (every real concept legitimately shows
+    up once) must still get labeled -- the min-frequency preference is
+    soft, not a hard filter that could leave a community unlabeled."""
+    g = graphmod.load_graph(seeded_conn)
+    node2c = gaps.detect_communities(g, seed=42)
+    cid_a = node2c["A1"]
+
+    _seed_agent_concepts(seeded_conn, "A1", ["niche concept one"])
+    _seed_agent_concepts(seeded_conn, "A2", ["niche concept two"])
+    _seed_agent_concepts(seeded_conn, "A3", ["niche concept three"])
+    _seed_agent_concepts(seeded_conn, "A4", [])
+
+    labels = gaps.community_labels(seeded_conn, node2c)
+    assert len(labels[cid_a]) > 0
 
 
 # --- B1: similarity percentile --------------------------------------------------

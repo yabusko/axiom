@@ -3,12 +3,11 @@ it has finished linking. Two independent jobs:
 
 1. `label_clusters` -- short human-readable labels for concept co-occurrence
    communities. Takes already-computed cluster membership as input rather
-   than importing `axiom/concept_graph.py` directly: that module (Louvain +
-   PageRank over `concept_cooccurrence`, R7) is owned by a sibling
-   workstream in a different worktree and may not exist yet here. Whoever
-   wires `axiom/agents/pipeline.py` into the real corpus should call
-   `concept_graph.get_communities(conn)` (once it exists) and pass the
-   result straight in.
+   than importing `axiom/concept_graph.py` (Louvain + PageRank over
+   `concept_cooccurrence`, R7) directly, so this module stays testable with
+   plain dicts and doesn't dictate how the caller computed them --
+   `api/main.py`'s `POST /agents/run` calls `concept_graph.analyze(conn)`
+   and passes its communities straight in as `run_pipeline()`'s `clusters`.
 2. `generate_hypothesis` + `queue_hypothesis` -- OD16's grounded hypothesis
    pitch, relocated from `axiom/hypothesis.py`. Same verifier rule (rule-based,
    not LLM self-report: >=2 supporting ids, both sides of the gap

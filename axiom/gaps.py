@@ -29,6 +29,7 @@ import numpy as np
 
 from axiom import config, db
 from axiom import graph as graphmod
+from axiom import velocity as velocitymod
 
 # Review fix: a lightweight, explicitly-scoped filter -- not a general
 # content-quality classifier (that's judge_gaps.py's job, at the gap level,
@@ -44,6 +45,43 @@ _JUNK_LARGE_NUMBER = re.compile(r"\d{1,3}(,\d{3})+")           # "98,734 theorem
 _JUNK_CITATION_LIKE = re.compile(r"\(\d{4}\)\s*\w*(dataset|benchmark|corpus)\b", re.IGNORECASE)
                                                                   # "cai and yates (2013) dataset"
 
+# Entity-quality review fix: generic ML vocabulary that shows up in nearly
+# every paper's extraction (an architecture everything is built on, a metric
+# everything is scored by) but is never itself a distinguishing TOPIC for a
+# community -- real corpus data had "accuracy" and "Recall" win as a
+# community's label purely because nothing more specific was available in a
+# small/sparse community. Separate from `_JUNK_LABEL_DENYLIST` above (that
+# one is for extraction mistakes/artifacts; this one is for real, correctly-
+# extracted concepts that are simply too generic to label a topic with) --
+# small and manual on purpose, not a general content-quality classifier
+# (judge_gaps.py's job, at the gap level). Still fine as raw extracted data;
+# only excluded from LABEL candidacy, both here and in `community_labels()`.
+_GENERIC_TOPIC_WORDS = {
+    "transformer", "transformers", "accuracy", "precision", "recall",
+    "f1", "f1 score", "performance",
+}
+
+# Dataset aliases the enrichment ontology cascade (axiom/agents/enrichment.py)
+# doesn't catch: an acronym and its full name often aren't close enough in
+# short-phrase embedding space to clear ENRICHMENT_MARGIN_DELTA, and neither
+# form exists yet in the ontology pool (concept_canonical ∪ OpenAlex concepts)
+# for the lexical step to anchor on either -- so each surface form falls
+# through to its own `new_concept` and the SAME real dataset ends up labeled
+# 3 different ways. Real corpus data: "nq", "natural questions", and
+# "natural questions (nq)" all appear as separate `paper_concepts.canonical`
+# values. Applied the same way `_normalize_casing` below is -- a small,
+# manual, documented map, not a general dedup system -- to agent-extracted
+# canonicals in `community_labels()`, which is the SAME synonym-merge spot
+# OpenAlex concepts already get remapped through `concept_canonical`/`canon`.
+_DATASET_ALIASES = {
+    "nq": "natural questions",
+    "natural questions (nq)": "natural questions",
+    "squad2": "squad",
+    "stanford question answering dataset": "squad",
+    "cnn/daily mail": "cnn/dailymail",
+    "glue benchmark": "glue",
+}
+
 # Review fix: "chatgpt" -> "ChatGPT". Agent-coined canonical labels
 # (`paper_concepts.source='agent'`) are lowercase by the extraction prompt's
 # own convention -- fine for ordinary phrases ("retrieve-and-read"), wrong
@@ -55,6 +93,7 @@ _KNOWN_CASING = {
     "chatgpt": "ChatGPT", "gpt": "GPT", "gpt-2": "GPT-2", "gpt-3": "GPT-3", "gpt-4": "GPT-4",
     "bert": "BERT", "roberta": "RoBERTa", "lora": "LoRA", "rag": "RAG", "llm": "LLM",
     "llms": "LLMs", "nlp": "NLP", "qa": "QA", "bm25": "BM25", "ai": "AI", "nli": "NLI",
+    "squad": "SQuAD",
 }
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[^A-Za-z0-9]+")
 
@@ -62,6 +101,7 @@ _TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[^A-Za-z0-9]+")
 def _is_junk_label(label: str) -> bool:
     low = label.lower()
     return (low in _JUNK_LABEL_DENYLIST
+            or low in _GENERIC_TOPIC_WORDS
             or bool(_JUNK_LARGE_NUMBER.search(label))
             or bool(_JUNK_CITATION_LIKE.search(label)))
 
@@ -72,7 +112,6 @@ def _normalize_casing(label: str) -> str:
     phrasing) untouched."""
     parts = _TOKEN_RE.findall(label)
     return "".join(_KNOWN_CASING.get(p.lower(), p) for p in parts)
-from axiom import velocity as velocitymod
 
 
 @dataclass
@@ -167,8 +206,11 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4,
     agent_tf: dict[int, Counter] = defaultdict(Counter)
     for r in agent_rows:
         cid = node2c.get(r["paper_id"])
-        if cid is not None and not _is_junk_label(r["canonical"]):
-            agent_tf[cid][r["canonical"]] += 1
+        if cid is None:
+            continue
+        canonical = _DATASET_ALIASES.get(r["canonical"].lower(), r["canonical"])
+        if not _is_junk_label(canonical):
+            agent_tf[cid][canonical] += 1
 
     openalex_rows = conn.execute("SELECT paper_id, concept FROM concepts").fetchall()
     canon = db.canonical_map(conn)
@@ -199,6 +241,16 @@ def community_labels(conn, node2c: dict[str, int], top: int = 4,
             c: count * math.log(1 + n_comm / df[c])
             for c, count in cnt.items() if c not in generic
         }
+        # GAP_LABEL_MIN_FREQUENCY: prefer a candidate mentioned more than
+        # once within this community over a single-mention one, when both
+        # exist -- a one-off extraction mistake shouldn't win just because
+        # it happens to be rarer corpus-wide (and so scores an inflated IDF
+        # weight above). Soft: only applied when it leaves something to
+        # choose from, so a genuinely sparse community (every real concept
+        # here legitimately appears once) still gets labeled.
+        above_floor = {c: s for c, s in scored.items() if cnt[c] >= config.GAP_LABEL_MIN_FREQUENCY}
+        if above_floor:
+            scored = above_floor
         if not scored:                       # fallback if everything was generic
             scored = {c: count for c, count in cnt.items()}
         labels[cid] = [_normalize_casing(c) for c, _ in sorted(

@@ -1,5 +1,0 @@
-2026-11-01 23:20:55,938 INFO worker=extraction consumer=extraction-dfbef174 starting
-2026-11-01 23:21:13,561 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
-2026-11-01 23:21:17,727 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
-2026-11-01 23:21:24,283 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
-2026-11-01 23:21:29,649 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"

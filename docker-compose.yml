@@ -9,9 +9,9 @@ services:
       - qdrant_storage:/qdrant/storage
     restart: unless-stopped
 
-  # Distributed workers (AXIOM_DISTRIBUTED_TASK.md, axiom/workers.py). Only
-  # used when AXIOM_EXECUTION=distributed -- the default `local` in-process
-  # path (axiom/agents/pipeline.py) needs none of this.
+  # Distributed workers (axiom/workers.py). Only used when
+  # AXIOM_EXECUTION=distributed -- the default `local` in-process path
+  # (axiom/agents/pipeline.py) needs none of this.
   redis:
     image: redis:7-alpine
     container_name: axiom-redis
