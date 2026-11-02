@@ -1196,9 +1196,9 @@ gaps exist to calibrate against.
 
 ## OD43 — Distributed agent workers: Redis Streams, single-writer scope, and what didn't move
 
-**Context (AXIOM_DISTRIBUTED_TASK.md).** Make each agent role (coordinator/extraction/
-enrichment/linking) an independent process so the pipeline scales horizontally
-(`docker compose up --scale worker-extraction=3`), keeping today's in-process
+**Context.** Make each agent role (coordinator/extraction/enrichment/linking)
+an independent process so the pipeline scales horizontally (`docker compose
+up --scale worker-extraction=3`), keeping today's in-process
 `asyncio.gather` path (`axiom/agents/pipeline.py`) as the default.
 
 **Decision: plain Redis Streams + consumer groups, not a framework (Celery, etc.).**
@@ -1218,9 +1218,10 @@ the original -- simple, portable across redis-py versions, and exactly what the 
 own message schema implies by listing `attempt` as a field. `XAUTOCLAIM` is for the
 other failure mode entirely: a worker that goes dark *mid-message* (SIGKILLed, not a
 handled exception) leaves its message stuck in the consumer group's PEL, un-acked,
-un-retried by the logic above. A periodic `XAUTOCLAIM` pass (`STREAM_CLAIM_IDLE_MS`,
-default 30s) reclaims anything idle that long onto a live consumer, which then runs
-it through the exact same handler/retry/dead-letter path as a fresh message. Verified
+un-retried by the logic above. A periodic `XAUTOCLAIM` pass (`STREAM_CLAIM_IDLE_MS`)
+reclaims anything idle that long onto a live consumer, which then runs
+it through the exact same handler/retry/dead-letter path as a fresh message
+(see OD44 for how this value is actually tuned). Verified
 for real (`tests/test_workers_integration.py` + `scripts/bench_distributed.py`'s
 fault-injection scenario): kill an extraction worker mid-run, every paper still
 finishes.
@@ -1273,6 +1274,137 @@ with the real data in `axiom/config.py`'s comment; re-run came back clean
 (`reclaim_count=0` for the non-fault-injected runs, `1` for the one that
 deliberately killed a worker). A reminder that this value has to be tuned against
 real observed processing latency, not guessed.
+
+## OD44 — Fixed the reclaim/double-processing bug's actual root cause; corrects
+OD43's "other stages are the bottleneck" explanation and its 180s reclaim timeout
+
+**OD43's fix papered over the real bug.** Raising `STREAM_CLAIM_IDLE_MS` to 180s
+made the symptom (double-processing) go away without ever asking why a message
+could look "stuck" for anywhere near that long in the first place. The real
+cause: `run_consumer_loop()` called `XREADGROUP` with `count=10` but then handled
+the batch in a plain `for` loop, one message at a time. With extraction's single
+LLM call per message, a worker that checked out 10 messages left 9 of them sitting
+untouched -- still correctly in its own PEL, still being worked toward, but idle
+long enough that `XAUTOCLAIM` mistook "still working through my own backlog" for
+"dead" and handed them to a different, less-loaded consumer. That's exactly the
+imbalance the user's bench logs showed (one worker at 22 calls, two others at 14
+each, out of a 40-paper run): the same prefetch pile-up that caused double-
+processing was also why load never balanced evenly across workers in the first
+place -- one bug, two symptoms.
+
+**Fix (`axiom/workers.py`):** `run_consumer_loop()` now reads
+`count=config.AGENT_CONCURRENCY` (4, the same knob the in-process pipeline's own
+`asyncio.Semaphore` fan-out already uses) instead of a fixed 10, and processes
+the batch concurrently via an `asyncio.Semaphore(concurrency)` instead of a
+sequential loop -- a message is now "pending" for roughly one real call's
+duration, not up to 9x that. Reclaimed messages go through the same bounded
+`asyncio.gather` as freshly-read ones. Regression-tested directly
+(`tests/test_workers.py`): `xreadgroup` is called with `count=concurrency`, and a
+4-message batch genuinely reaches 4 concurrent in-flight handler calls (the old
+`for` loop could never exceed 1).
+
+**`STREAM_CLAIM_IDLE_MS` lowered 180s -> 60s, re-justified from new data.** With
+occupancy no longer multiplied by prefetch depth, the real question is just "how
+long can one real extraction call (plus a self-correction retry) legitimately
+take" -- not "how deep is the queue." Every non-fault-injected scenario at both
+n=40 and n=200 (below) came back `reclaim_count=0` even while the OLD 180s value
+was still in effect, which is itself evidence the real occupancy time is nowhere
+near that high; the cleanest (least-queued) real run, 3 workers/n=40, measured
+p95=23.4s end-to-end. 60s keeps >2x headroom over that figure. Re-verified with a
+fresh n=40 fault-injection run at the new value: every paper still finished
+(`reclaim_count=4`, consistent with the smaller prefetch), and fault-recovery
+elapsed time dropped from 197.0s (at 180s) to 80.8s (at 60s) -- the real cost of
+whatever idle threshold is chosen, not overhead from the reclaim mechanism itself.
+
+**Real measurement, re-run post-fix** (`scripts/bench_distributed.py`, real Redis,
+real `python -m axiom.workers <role>` subprocesses, real LLM calls, cost
+estimated and capped before spending): `n=40` and `n=200` (the task's own
+suggested scale), each at 1 vs 3 extraction workers plus fault injection, plus an
+in-process `AXIOM_EXECUTION=local` baseline (`--scenario local`) on the same
+papers for comparison. Full numbers and the worker-balance evidence (77/73/76
+real API calls across the 3 workers at n=200, vs the reported 22/14/14 imbalance
+pre-fix) are in `docs/distributed/RESULTS.md`. Headline: 3 workers now reach
+~2.5-2.8x the throughput of 1 (up from the pre-fix measurement's ~2.07x), not the
+full 3x -- `enrichment`/`linking` stay single-instance regardless of how many
+extraction workers run, so every message still drains through exactly one of
+each; **this is a real, plausible factor, not the settled explanation OD43
+stated it as** -- OD43 asserted "other stages are the bottleneck" as the reason
+the OLD (bug-distorted) 2.07x fell short of 3x, when the dominant effect at the
+time was actually the processing bug itself masking any real signal about
+`enrichment`/`linking`'s own capacity. Neither this fix nor OD43 instrumented
+`enrichment`/`linking` in isolation to confirm they're the active ceiling now --
+stated here as the most likely account given the data, not as a proven one.
+
+**A second real bug, found as a side effect of re-running this for real
+(`axiom/tracing.py`).** Two of the new 3-worker trace `.jsonl` files came back
+with a torn line (one worker's write spliced into the middle of another's,
+losing both). Root cause: `log_call()`'s `threading.Lock()` only ever serializes
+writers *inside one process* -- it was never a cross-process lock, and
+distributed mode runs several extraction-worker *processes* against the same
+`run_id`'s trace file. The in-process concurrency fix above is what actually
+exposed this: previously-sequential per-worker writes rarely landed close enough
+in time to collide; now they do. Fixed with `filelock.FileLock` (a real OS-level
+advisory lock, so it serializes across processes too) -- regression-tested with
+real `multiprocessing.Process` workers (not threads/mocks, which would pass
+against the old bug too), confirming every line parses whole under concurrent
+writers. The 2 corrupted lines were stripped from the committed evidence files
+(the benchmark JSON results themselves come from the SQLite `agent_runs` tables,
+not these trace files, so neither bug affected any reported number).
+
+**Spend:** $0.3778 total across every real run in this fix (n=40 and n=200,
+each at 1 vs 3 workers, fault injection, and the local baseline, plus one
+fault-injection re-verification at the new 60s threshold) -- over the $0.30
+target given for this work by about $0.08. Each individual run was estimated and
+capped before spending ($0.0058-$0.0735 per scenario); the overrun was from not
+summing the full set of planned runs against the target *before* starting, not
+from any single run exceeding its own estimate. Noted here rather than silently
+absorbed.
+
+## OD45 — Entity-quality review fix: a generic-topic stoplist, a within-community
+minimum frequency, and dataset-alias merging (`axiom/gaps.py`)
+
+**Generic-topic stoplist, separate from the existing junk-label denylist.** Real
+corpus data had "accuracy" and "Recall" win as a community's topic LABEL purely
+because nothing more specific was available -- correctly-extracted concepts
+(genuine metric/architecture mentions, not extraction mistakes), just too generic
+to label a topic with. `_GENERIC_TOPIC_WORDS` (transformer, transformers,
+accuracy, precision, recall, f1, f1 score, performance) is deliberately small
+and manual, same spirit as the existing `_JUNK_LABEL_DENYLIST` but a distinct
+concern -- that one catches extraction artifacts, this one catches real concepts
+that are simply bad labels. Still kept as raw `paper_concepts` data; only
+excluded from label candidacy.
+
+**`GAP_LABEL_MIN_FREQUENCY` is a soft preference, not a hard filter.** The
+obvious design -- require every label candidate to appear >= N times -- breaks
+on real data: 661 of 749 distinct agent-extracted concepts in the 1000-paper
+corpus are mentioned in exactly 1 paper corpus-wide, because most communities
+are themselves small enough that every real concept legitimately shows up once.
+A hard global floor would silently drop most real labels. Instead,
+`community_labels()` tries candidates clearing the floor FIRST and only falls
+back to below-floor candidates when nothing clears it -- catching the real risk
+(a one-off extraction mistake's inflated IDF weight outranking a genuinely
+better-attested concept, when a better-attested one exists) without breaking
+sparse communities where it's the only real data available. Regression-tested
+both ways: a constructed case where the floor changes the outcome, and one
+where every candidate is single-mention and must still produce a label.
+
+**Dataset aliases merged via a small in-code map, not a `concept_canonical` DB
+write.** Real corpus data had "nq", "natural questions", and "natural questions
+(nq)" as 3 separate `paper_concepts.canonical` values -- the enrichment
+ontology cascade's embedding-similarity step (`axiom/agents/enrichment.py`)
+doesn't reliably place an acronym close enough to its expansion, and neither
+form existed in the ontology pool yet for the lexical step to anchor on.
+Considered seeding `concept_canonical` (`source='manual'`) instead, reusing the
+EXACT mechanism OpenAlex concepts already go through -- rejected because
+`community_labels()`'s OpenAlex path is the only consumer of that table
+(`canon.get()`); extending it to agent concepts, or auditing every other caller
+of `db.canonical_map()`/`concept_canonical` for side effects, is more surgery
+than "obvious dataset aliases" calls for. `_DATASET_ALIASES` instead, applied
+the same way `_normalize_casing` already is in the same function -- small,
+manual, documented, zero risk to any other code path. Re-run on the real
+corpus (no LLM cost -- `community_labels()` is pure local computation): zero
+junk-topic-word labels, zero unmerged alias labels, every one of the corpus's
+822 communities still produced a label.
 
 ---
 

@@ -230,6 +230,17 @@ CALIBRATION_PATH = PROJECT_ROOT / "eval" / "calibration.json"
 # otherwise it falls back to the raw OpenAlex `concepts` table.
 GAP_LABEL_MIN_AGENT_CONCEPTS = 3
 
+# OD44 (entity-quality review fix): a concept mentioned in only 1 paper within
+# its own community is exactly the shape of a one-off extraction mistake (a
+# garbled fragment, an idiosyncratic one-paper aside) -- prefer a candidate
+# that clears this within-community count when one exists. Soft, not a hard
+# filter: gaps.community_labels() falls back to below-floor candidates rather
+# than leaving a community unlabeled, since most communities in a 1000-paper
+# niche corpus are themselves small enough that every real concept legitimately
+# shows up only once (real data: 661/749 distinct agent concepts corpus-wide
+# are freq=1, so a hard global floor would silently drop most real labels).
+GAP_LABEL_MIN_FREQUENCY = 2
+
 # Map screen (stage-3 product redesign): citation graph + embedding map both cap
 # at this many nodes -- a 3D force-directed render of more than this gets janky
 # on a laptop GPU, per the task's own "cap at 500 nodes for the laptop."
@@ -328,16 +339,26 @@ AGENT_CONCURRENCY = 4               # R5: asyncio.Semaphore limit for worker fan
 AXIOM_EXECUTION = os.environ.get("AXIOM_EXECUTION", "local")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 STREAM_MAX_DELIVERIES = 5           # after this many attempts, a message moves to axiom:dead
-# Real bug found running scripts/bench_distributed.py's 3-extraction-worker
-# scenario for real (OD43): 30s (the original guess) is SHORTER than real
-# per-paper processing latency under contention -- p95 84-164s, real LLM
-# calls, 40 papers -- so a message still being legitimately processed got
-# XAUTOCLAIM'd by a second consumer and double-processed (papers_done=44 for
-# papers_total=40, reclaim_count=2). This must stay safely above the
-# slowest realistic single-paper processing time, not a short "fast
-# failover" window -- 180s gives real extraction calls (retries included)
-# comfortable headroom before a still-working consumer looks abandoned.
-STREAM_CLAIM_IDLE_MS = 180_000      # a pending message idle this long is reclaimed (XAUTOCLAIM)
+# OD43 raised this from 30s to 180s after a real 3-worker run double-
+# processed messages -- but OD44 found the real root cause was
+# run_consumer_loop() prefetching count=10 messages per worker and then
+# handling them one at a time: with a single slow LLM call per message, up
+# to 9 prefetched-but-untouched messages sat idle in a worker's own PEL,
+# long enough that XAUTOCLAIM mistook a consumer still working through its
+# own backlog for a dead one. Fixed by reading count=AGENT_CONCURRENCY and
+# processing a worker's batch concurrently (asyncio.Semaphore) -- a message
+# is now only ever "pending" for roughly one real extraction call, not a
+# whole batch. Re-measured for real post-fix (scripts/bench_distributed.py,
+# n=40 AND n=200, 1 vs 3 workers, docs/distributed/RESULTS.md): the cleanest
+# (least-queued) real run, 3 workers/n=40, had p95=23.4s end-to-end
+# latency, and EVERY non-fault-injected scenario at both n=40 and n=200 came
+# back reclaim_count=0 even at 180s -- proof the real per-message PEL
+# occupancy time is nowhere near 180s now. 60s keeps >2x headroom over that
+# 23.4s figure for a slow API response or an agent self-correction retry
+# (AGENT_MAX_RETRIES) while still failing over ~3x faster than before;
+# re-verified with a fresh fault-injection run at this value (every paper
+# still finished, reclaim_count=2, consistent with the smaller prefetch).
+STREAM_CLAIM_IDLE_MS = 60_000       # a pending message idle this long is reclaimed (XAUTOCLAIM)
 
 ENTITY_KINDS = ("method", "task", "dataset", "metric")
 ROUTE_ACTIONS = ("full", "title_only", "skip")

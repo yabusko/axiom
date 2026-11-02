@@ -1,8 +1,8 @@
-"""Distributed agent workers (AXIOM_DISTRIBUTED_TASK.md): each agent role as
-an independent process, talking only through Redis Streams -- so the
-pipeline scales horizontally (`docker compose up --scale worker-extraction=3`)
-instead of being one process's `asyncio.gather` fan-out
-(`axiom/agents/pipeline.py`, unchanged, still the default).
+"""Distributed agent workers: each agent role as an independent process,
+talking only through Redis Streams -- so the pipeline scales horizontally
+(`docker compose up --scale worker-extraction=3`) instead of being one
+process's `asyncio.gather` fan-out (`axiom/agents/pipeline.py`, unchanged,
+still the default).
 
 Four streams, one per stage: axiom:route -> axiom:extract -> axiom:enrich ->
 axiom:link, plus axiom:dead for messages that exhausted `STREAM_MAX_DELIVERIES`.
@@ -282,29 +282,48 @@ async def run_consumer_loop(
     client: StreamClient, *, role: str, consumer_name: str,
     max_deliveries: int = config.STREAM_MAX_DELIVERIES,
     claim_idle_ms: int = config.STREAM_CLAIM_IDLE_MS,
+    concurrency: int = config.AGENT_CONCURRENCY,
     stop_event: asyncio.Event | None = None,
     max_iterations: int | None = None,
 ) -> None:
     """The role's whole lifecycle. `stop_event` (set by a SIGTERM handler in
     main(), or directly by a test) ends the loop after the in-flight batch
     finishes -- never mid-message. `max_iterations` is test-only (run N
-    read/reclaim cycles then return, instead of forever)."""
+    read/reclaim cycles then return, instead of forever).
+
+    `concurrency` (OD44) bounds both the XREADGROUP batch size and how many
+    of those messages this worker actually has in flight at once, via an
+    asyncio.Semaphore. The original code read a fixed `count=10` but handled
+    messages one at a time in a plain `for` loop -- so with a single slow
+    LLM call per extraction message, up to 9 prefetched-but-untouched
+    messages sat in this consumer's PEL doing nothing while the 10th was
+    processed, long enough that XAUTOCLAIM mistook a consumer that was
+    legitimately still working through its own backlog for a dead one and
+    reclaimed (then double-processed) its messages onto another worker. See
+    OD44 for the real bench numbers this produced (one worker at 22 calls,
+    two others at 14 each) and why raising `STREAM_CLAIM_IDLE_MS` alone
+    (OD43) only masked it."""
     stream_in = ROLE_STREAM_IN[role]
     handler = HANDLERS[role]
     await ensure_group(client, stream_in)
+    semaphore = asyncio.Semaphore(concurrency)
     iterations = 0
     stop_event = stop_event or asyncio.Event()
+
+    async def _bounded(msg_id: str, raw: str) -> None:
+        async with semaphore:
+            await _process_one(client, role=role, stream_in=stream_in, group=GROUP,
+                                msg_id=msg_id, raw=raw, handler=handler, max_deliveries=max_deliveries)
+
     while not stop_event.is_set():
         reclaimed = await reclaim_stuck(client, stream_in, GROUP, consumer_name, claim_idle_ms)
-        for msg_id, fields in reclaimed:
-            await _process_one(client, role=role, stream_in=stream_in, group=GROUP,
-                                msg_id=msg_id, raw=fields[FIELD], handler=handler, max_deliveries=max_deliveries)
+        resp = await client.xreadgroup(GROUP, consumer_name, {stream_in: ">"}, count=concurrency, block=1000)
 
-        resp = await client.xreadgroup(GROUP, consumer_name, {stream_in: ">"}, count=10, block=1000)
+        batch = [(msg_id, fields[FIELD]) for msg_id, fields in reclaimed]
         for _stream_name, messages in (resp or []):
-            for msg_id, fields in messages:
-                await _process_one(client, role=role, stream_in=stream_in, group=GROUP,
-                                    msg_id=msg_id, raw=fields[FIELD], handler=handler, max_deliveries=max_deliveries)
+            batch.extend((msg_id, fields[FIELD]) for msg_id, fields in messages)
+        if batch:
+            await asyncio.gather(*(_bounded(msg_id, raw) for msg_id, raw in batch))
 
         iterations += 1
         if max_iterations is not None and iterations >= max_iterations:

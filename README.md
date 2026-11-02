@@ -99,7 +99,7 @@ cd web && npm run lint && npm run build && npx playwright test   # mocked API, n
 
 The agent pipeline (coordinator → extraction → enrichment → linking) runs in-process
 by default. To run each role as an independent, horizontally-scalable process talking
-through Redis Streams instead (`axiom/workers.py`, OD43):
+through Redis Streams instead (`axiom/workers.py`, OD43/OD44):
 
 ```bash
 docker compose up -d redis worker-coordinator worker-enrichment worker-linking
@@ -147,7 +147,7 @@ Full module map and contracts in `docs/agentic/ARCHITECTURE.md`; real run number
 `AXIOM_EXECUTION=distributed` to run coordinator/extraction/enrichment/linking as
 independent processes talking through Redis Streams instead (`axiom/workers.py`,
 `docker compose up --scale worker-extraction=3` to scale the one LLM-calling role) --
-see `docs/DECISIONS.md` OD43 and `docs/distributed/RESULTS.md` for the design and
+see `docs/DECISIONS.md` OD43/OD44 and `docs/distributed/RESULTS.md` for the design and
 real throughput/fault-injection numbers.
 
 ## Layout
@@ -170,7 +170,7 @@ axiom/fields.py                  fields registry -- instant slice fields + legac
 axiom/llm_providers.py           shared LLM client (Anthropic / local Ollama fallback), per-run
                                   budget ledger, tracing
 axiom/agents/                    coordinator → extraction → enrichment → linking → synthesis
-axiom/workers.py                 distributed workers (AXIOM_EXECUTION=distributed, OD43) --
+axiom/workers.py                 distributed workers (AXIOM_EXECUTION=distributed, OD43/OD44) --
                                   the same 4 agent roles as independent Redis Streams consumers
 
 app/streamlit_app.py             internal lab console (secondary to web/)

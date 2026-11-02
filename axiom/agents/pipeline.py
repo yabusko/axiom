@@ -215,9 +215,9 @@ async def run_pipeline(
     finally:
         conn.close()
 
-    # AXIOM_DISTRIBUTED_TASK.md: in distributed mode, this call only enqueues
-    # -- the 4 worker roles (axiom/workers.py, separate processes, `python -m
-    # axiom.workers <role>`) do the actual coordinator->extraction->
+    # In distributed mode, this call only enqueues -- the 4 worker roles
+    # (axiom/workers.py, separate processes, `python -m axiom.workers
+    # <role>`) do the actual coordinator->extraction->
     # enrichment->linking work asynchronously. Run status (papers_done,
     # per-paper verdicts) still comes from the DB exactly as in local mode
     # (`get_run_status` below is unchanged) -- a caller polls it the same way

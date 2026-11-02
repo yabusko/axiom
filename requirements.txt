@@ -23,3 +23,9 @@ truststore==0.10.5
 
 # Distributed workers (axiom/workers.py) — Redis Streams client, async.
 redis==5.0.8
+
+# axiom/tracing.py (OD44): cross-process lock for the shared per-run jsonl
+# trace file -- distributed mode runs several extraction-worker *processes*
+# against the same run_id, and a plain threading.Lock only ever protects
+# writers inside one process.
+filelock==3.32.4

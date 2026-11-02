@@ -9,15 +9,12 @@ no logging framework, matching R11's framework-free discipline. Used by
 from __future__ import annotations
 
 import json
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from axiom import config
+import filelock
 
-# Appends from concurrent asyncio tasks (via asyncio.to_thread or sync code)
-# share one process; guard the file append so lines never interleave mid-write.
-_LOCK = threading.Lock()
+from axiom import config
 
 
 def trace_path(run_id: str) -> Path:
@@ -64,8 +61,18 @@ def log_call(
         "reasons": reasons or [],
     }
     path = trace_path(run_id)
-    with _LOCK:
-        path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # OD44: distributed mode runs several extraction-worker *processes*
+    # against the same run_id -- a plain threading.Lock only ever serializes
+    # writers inside one process, so two workers' concurrent appends to the
+    # shared jsonl file could still interleave mid-write (found for real
+    # running scripts/bench_distributed.py's 3-worker scenarios: a torn
+    # line like `easons": []}` spliced into the middle of another).
+    # filelock.FileLock is an OS-level advisory lock, built fresh against
+    # the current (test-patchable) TRACE_DIR each call -- so it serializes
+    # across processes too, and two separate FileLock objects pointed at
+    # the same path still mutually exclude correctly.
+    with filelock.FileLock(str(path.parent / ".trace.lock")):
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
     return record

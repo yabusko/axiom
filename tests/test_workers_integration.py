@@ -1,5 +1,5 @@
-"""Real-Redis integration test for axiom/workers.py (AXIOM_DISTRIBUTED_TASK.md):
-10 papers end-to-end through all 4 roles (coordinator -> extraction ->
+"""Real-Redis integration test for axiom/workers.py: 10 papers end-to-end
+through all 4 roles (coordinator -> extraction ->
 enrichment -> linking), with the one LLM call (extraction) stubbed via the
 same `FakeLLM`/monkeypatch pattern tests/test_agents_pipeline.py already
 uses for the in-process pipeline -- so this proves the Redis plumbing

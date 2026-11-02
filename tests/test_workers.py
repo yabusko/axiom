@@ -201,3 +201,74 @@ def test_reclaim_stuck_picks_up_idle_pending_message():
     assert [m[0] for m in claimed] == [msg_id]
     consumer, _ = client.groups[(workers.STREAM_LINK, workers.GROUP)]["pending"][msg_id]
     assert consumer == "live-worker"
+
+
+# ---------------------------------------------------------------------------
+# run_consumer_loop (OD44): reads count=concurrency, not a fixed 10, and
+# actually processes a batch concurrently (bounded by the semaphore) rather
+# than one message at a time -- the root cause of the reclaim/double-
+# processing bug this test guards against regressing.
+# ---------------------------------------------------------------------------
+def test_run_consumer_loop_reads_count_equal_to_concurrency():
+    client = FakeStreamClient()
+    seen_counts = []
+    real_xreadgroup = client.xreadgroup
+
+    async def spy_xreadgroup(groupname, consumername, streams, count=None, block=None):
+        seen_counts.append(count)
+        return await real_xreadgroup(groupname, consumername, streams, count=count, block=block)
+
+    client.xreadgroup = spy_xreadgroup
+
+    async def handler(run_id, paper_id, payload):
+        return None, None
+
+    original_handler = workers.HANDLERS["coordinator"]
+    workers.HANDLERS["coordinator"] = handler
+    try:
+        asyncio.run(workers.run_consumer_loop(
+            client, role="coordinator", consumer_name="c1", concurrency=3, max_iterations=1,
+        ))
+    finally:
+        workers.HANDLERS["coordinator"] = original_handler
+
+    assert seen_counts == [3]
+
+
+def test_run_consumer_loop_processes_a_batch_concurrently_not_sequentially():
+    client = FakeStreamClient()
+
+    async def run():
+        await workers.ensure_group(client, workers.STREAM_EXTRACT)
+        for i in range(4):
+            await client.xadd(workers.STREAM_EXTRACT, {
+                workers.FIELD: workers.make_envelope("r", f"P{i}", 1, {}),
+            })
+
+        in_flight = 0
+        max_in_flight = 0
+        release = asyncio.Event()
+
+        async def slow_handler(run_id, paper_id, payload):
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            if in_flight == 4:
+                release.set()
+            await release.wait()
+            in_flight -= 1
+            return None, None
+
+        workers.HANDLERS["extraction"] = slow_handler
+        try:
+            await workers.run_consumer_loop(
+                client, role="extraction", consumer_name="c1", concurrency=4, max_iterations=1,
+            )
+        finally:
+            workers.HANDLERS["extraction"] = workers.handle_extraction
+        return max_in_flight
+
+    max_in_flight = asyncio.run(run())
+    # the old sequential `for` loop would only ever reach 1 -- all 4 prefetched
+    # messages must be in flight at once for the fourth call to ever happen.
+    assert max_in_flight == 4

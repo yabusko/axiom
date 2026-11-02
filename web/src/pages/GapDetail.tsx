@@ -35,7 +35,7 @@ function SideCard({ side, fallbackLabel }: { side: SideDetailOut; fallbackLabel:
         </div>
       )}
       <p className="muted" style={{ fontSize: "var(--small)" }}>
-        Concept tags for this cluster — the pipeline's own canonical extraction where there's enough of it, OpenAlex's raw tags otherwise (see docs/DECISIONS.md OD34).
+        Concept tags for this cluster — extracted directly from the papers where there's enough of it, OpenAlex's own tags otherwise.
       </p>
       {side.top_papers.length > 0 && (
         <>
