@@ -6,3 +6,14 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "redis: needs a real Redis reachable at REDIS_URL (axiom/workers.py integration test); skipped otherwise.",
+]
+# Every test gets a hard deadline -- a hung await (a hand-rolled asyncio
+# consumer loop with no stop condition, a blocking read with no timeout)
+# fails loudly in under a minute instead of hanging the run indefinitely.
+# Real incident: axiom/workers.py's Redis integration test hung for ~30 min
+# on 2026-11-01 from an orphaned redis.asyncio client in an ad-hoc debug
+# script, not pytest itself -- this is the backstop for exactly that class
+# of bug landing in a real test.
+timeout = 60

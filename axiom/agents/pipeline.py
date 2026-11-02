@@ -204,7 +204,6 @@ async def run_pipeline(
     conn_factory = conn_factory or _default_conn_factory(db_path)
     model_fast = model_fast if model_fast is not None else config.MODEL_FAST
     model_strong = model_strong if model_strong is not None else config.MODEL_STRONG
-    phrase_enc = phrase_encoder if phrase_encoder is not None else enrichment.get_default_phrase_encoder()
 
     started_at = datetime.now(timezone.utc).isoformat()
     conn = conn_factory()
@@ -215,6 +214,29 @@ async def run_pipeline(
         )
     finally:
         conn.close()
+
+    # In distributed mode, this call only enqueues -- the 4 worker roles
+    # (axiom/workers.py, separate processes, `python -m axiom.workers
+    # <role>`) do the actual coordinator->extraction->
+    # enrichment->linking work asynchronously. Run status (papers_done,
+    # per-paper verdicts) still comes from the DB exactly as in local mode
+    # (`get_run_status` below is unchanged) -- a caller polls it the same way
+    # either way. Synthesis (clusters/hypotheses) has no distributed path
+    # yet: it needs every paper's linking done first, which hasn't happened
+    # by the time this function would return in distributed mode, so
+    # `clusters`/`gaps` are silently not applied here -- a known scope cut,
+    # not a bug (see docs/DECISIONS.md OD43).
+    if config.AXIOM_EXECUTION == "distributed":
+        from axiom import workers as workers_mod
+        client = workers_mod.get_redis_client()
+        try:
+            await workers_mod.enqueue_run(client, run_id, papers)
+        finally:
+            await client.aclose()
+        return {"run_id": run_id, "items": [], "cluster_labels": [], "hypotheses": [],
+                "mode": "distributed"}
+
+    phrase_enc = phrase_encoder if phrase_encoder is not None else enrichment.get_default_phrase_encoder()
 
     def _build_ontology() -> Ontology:
         # sqlite3 connections are thread-affine (`check_same_thread=True` by

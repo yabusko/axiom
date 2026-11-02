@@ -1,0 +1,14 @@
+{
+  "scenario": "local-async",
+  "n_extraction_workers": null,
+  "papers_total": 40,
+  "papers_done": 40,
+  "elapsed_s": 42.6,
+  "throughput_papers_per_min": 56.39,
+  "p50_latency_s": 24.38,
+  "p95_latency_s": 38.63,
+  "spend_usd": 0.0174,
+  "reclaim_count": 0,
+  "fault_injected": false,
+  "all_papers_finished": true
+}

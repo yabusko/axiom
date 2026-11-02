@@ -47,7 +47,8 @@ platform.claude.com 2026-10-31 (`docs/DECISIONS.md` OD26).
   as the first; the eval corpus never having been migrated to the agentic schema; the eval
   corpus having no ontology data at all.
 - **Deferred, not done this stage** (see "Deferred" below for the full list with reasons):
-  architecture/security review pass, fact-checker pass, `dense_general` eval mode.
+  architecture/security review pass, an automated accuracy check on generated hypotheses,
+  `dense_general` eval mode.
 
 ---
 

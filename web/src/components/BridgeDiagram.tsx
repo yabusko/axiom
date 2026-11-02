@@ -90,7 +90,7 @@ export function BridgeDiagram({
   const hasBridge = interCitations > 0;
   const ariaLabel =
     `Bridge diagram: ${aLabel}, ${aSize} papers, and ${bLabel}, ${bSize} papers, enclosed in a dashed ` +
-    `boundary marking a gap closer than ${similarityPercentile.toFixed(0)}% of this run's topic pairs` +
+    `boundary marking a gap closer than ${similarityPercentile.toFixed(0)}% of this field's topic pairs` +
     (hasBridge ? `, connected by a line marking the gap, labeled ${interCitations} citations.` : ", with no citations crossing between them.");
 
   return (
@@ -105,7 +105,7 @@ export function BridgeDiagram({
         <rect x="6" y="6" width="628" height="248" fill="url(#gridpat-h)" />
         <rect x="6" y="6" width="628" height="248" fill="none" style={{ stroke: "var(--text-muted)", strokeWidth: 1.25 }} strokeDasharray="5 6" />
         <text x="320" y="30" textAnchor="middle" style={{ fill: "var(--text-muted)", fontSize: 14 }}>
-          closer than {similarityPercentile.toFixed(0)}% of this run’s topic pairs (embedding centroids)
+          closer than {similarityPercentile.toFixed(0)}% of this field’s topic pairs (embedding centroids)
         </text>
 
         <g transform={`translate(${160 - wA / 2}, 85)`}>

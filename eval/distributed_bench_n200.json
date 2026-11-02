@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-11-01T23:16:11Z",
+  "n_papers": 200,
+  "scenarios": [
+    {
+      "scenario": "1-extraction-worker",
+      "n_extraction_workers": 1,
+      "papers_total": 200,
+      "papers_done": 200,
+      "elapsed_s": 301.3,
+      "throughput_papers_per_min": 39.83,
+      "p50_latency_s": 158.33,
+      "p95_latency_s": 277.07,
+      "spend_usd": 0.0735,
+      "reclaim_count": 0,
+      "fault_injected": false,
+      "all_papers_finished": true
+    },
+    {
+      "scenario": "3-extraction-workers",
+      "n_extraction_workers": 3,
+      "papers_total": 200,
+      "papers_done": 200,
+      "elapsed_s": 108.3,
+      "throughput_papers_per_min": 110.82,
+      "p50_latency_s": 57.38,
+      "p95_latency_s": 99.2,
+      "spend_usd": 0.0733,
+      "reclaim_count": 0,
+      "fault_injected": false,
+      "all_papers_finished": true
+    },
+    {
+      "scenario": "3-extraction-workers-fault-injected",
+      "n_extraction_workers": 3,
+      "papers_total": 200,
+      "papers_done": 200,
+      "elapsed_s": 229.7,
+      "throughput_papers_per_min": 52.24,
+      "p50_latency_s": 70.52,
+      "p95_latency_s": 130.67,
+      "spend_usd": 0.0735,
+      "reclaim_count": 2,
+      "fault_injected": true,
+      "all_papers_finished": true
+    }
+  ]
+}
